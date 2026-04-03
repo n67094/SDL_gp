@@ -1,5 +1,9 @@
 /**
- * SDL_gp: A 2D (g)raphics (p)ainter for SDL3.
+ * https://github.com/n67094/SDL_gp
+ *
+ * SDL_gp: A minimal and efficient 2D (g)raphics (p)ainter for SDL3.
+ *
+ * # SDL_gp
  *
  * This is a port of sokol_gp (https://github.com/edubart/sokol_gp) to SDL3,
  * with one main difference:
@@ -8,20 +12,42 @@
  * lower-level and does not; So `SDL_gp` provides a simple resource management
  * system very similar to sokol's.
  *
- * I would like to thanks:
+ * # Acknowledgements
  *
- * Edubart (https://github.com/edubart) for his work on
- * sokol_gp, which was a great inspiration for this project and a greate
- * starting point to learn about graphics programming.
+ * Thanks to [Edubart](https://github.com/edubart) for his work on `sokol_gp`.
+ * Thanks to [The SDL team](https://github.com/libsdl-org) for their work.
  *
- * The SDL team (https://github.com/libsdl-org) for their work.
+ * # Sponsors
  *
- * Has well as floooh (https://github.com/floooh/) for sokol.
+ * Hi guys, I'm nsix and I'm trying to make a living as an indie game developer
+ * and open source contributor.
  *
- * So thanks guys, you are awesome for making these libraries and sharing them
- * with the world.
+ * If you like my work and want to support me, well thanks a lot I really
+ * appreciate it!
  *
- * Copyright (c) 2026 nsix. All rights reserved.
+ * You can sponsor me on [GitHub Sponsors](https://github.com/sponsors/n67094)
+ *
+ * # License
+ *
+ * Copyright (c) 2026 nsix. All rights reserved. (n67094@proton.me)
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
  */
 
 #ifndef SDL_GP_H_
@@ -56,7 +82,8 @@ extern "C" {
 #define SDL_GP_PIPELINE_MAX 64
 #endif
 
-// Painter limits
+// ----------------------------------------------------------------------
+// Limits
 // ----------------------------------------------------------------------
 
 // Max number of painters state that can be used simultaneously (per frame)
@@ -99,31 +126,51 @@ extern "C" {
 // Public API
 // ----------------------------------------------------------------------
 
+#define SDL_GP_INVALID_ID 0
+#define SDL_GP_IMPOSSIBLE_ID 0xFFFFFFFF
+
 // Pool (Resource management)
 // ----------------------------------------------------------------------
-// This is in the public API so it can be reused for other resources if needed.
+//
+// (This is in the public API so it can be reused for other resources if
+// needed.)
+//
+// The pool work like this, there is a fixed number of slots (defined at pool
+// creation) that can be acquired and released. Each slot has an incrementing
+// generation counter, which is used to generate unique ids for each slot. When
+// a slot is released, its generation counter is incremented, so that any ids
+// generated from that slot will be invalid until the slot is acquired again.
 
 #define SDL_GP_POOL_INVALID_SLOT 0
 #define SDL_GP_POOL_SLOT_SHIFT 16
 #define SDL_GP_POOL_SLOT_MASK ((1 << SDL_GP_POOL_SLOT_SHIFT) - 1)
 
 typedef struct SDL_GPPool {
-  size_t size;
-  int queue_top;
+  size_t size; // total number of slots in the pool (counting the invalid slot)
+  int queue_top;    // index of the top of the free queue
   Uint32 *counters; // incrementing generation counters for each slot
-  int *free_queue;
+  int *free_queue;  // queue of free slots
 } SDL_GPPool;
 
-SDL_GPPool *SDL_GPCeatePool(size_t number_of_ids);
+// Create a pool with the specified number of slots (not counting the invalid
+// slot).
+SDL_GPPool *SDL_GPCeatePool(size_t number_of_slots);
 
+// Destroy a pool and free its resources.
 void SDL_GPDestroyPool(SDL_GPPool *resource);
 
+// Acquire a slot from the pool and return its index. Returns
+// SDL_GP_POOL_INVALID_SLOT if no more slots are available.
 int SDL_GPAcquirePoolSlot(SDL_GPPool *resource);
 
+// Release a slot back to the pool, making it available for future acquisitions.
 void SDL_GPReleasePoolSlot(SDL_GPPool *resource, int slot_index);
 
+// Generate a unique id for a slot in the pool using its index and generation
+// counter.
 Uint32 SDL_GPGeneratePoolId(SDL_GPPool *resource, int slot_index);
 
+// Extract the slot index from a generated id.
 int SDL_GPPoolIdToSlot(Uint32 id);
 
 // Image
@@ -141,17 +188,20 @@ typedef struct SDL_GPImage {
   Uint32 id;
 } SDL_GPImage;
 
-SDL_GPImage SDL_GPLoadImage(const char *path);
+// Create an image from an SDL_Surface.
+SDL_GPImage SDL_GPCreateImage(SDL_Surface *surface);
 
-SDL_GPImage SDL_GPLoadImageFrom(unsigned int width, unsigned int height,
-                                void *pixels);
-
+// Destroy an image and free its resources.
 void SDL_GPDestroyImage(SDL_GPImage image);
 
+// Get the GPU texture associated with an image. Returns NULL if the image is
+// invalid.
 SDL_GPUTexture *SDL_GPGetImageGPUTexture(SDL_GPImage image);
 
+// Get the width of an image in pixels. Returns 0 if the image is invalid.
 int SDL_GPGetImageWidth(SDL_GPImage image);
 
+// Get the height of an image in pixels. Returns 0 if the image is invalid.
 int SDL_GPGetImageHeight(SDL_GPImage image);
 
 // Shader
@@ -342,81 +392,262 @@ void SDL_GPDrawRectsTextured(int channel, const SDL_GPTexturedRect *rects,
 // Implementation and internal API
 // ----------------------------------------------------------------------
 
-// TODO remove next line
+// TODO remove the next line once done.
 #define SDL_GP_IMPLEMENTATION
 
 #ifdef SDL_GP_IMPLEMENTATION
 
+#define _SDL_GP_INIT_COOKIE 0xC0DED1ED
+
 // Pool
 // ----------------------------------------------------------------------
 
-SDL_GPPool *SDL_GPCeatePool(size_t number_of_ids) {
-  // TODO
-  return NULL;
+SDL_GPPool *SDL_GPCeatePool(size_t number_of_slots) {
+  SDL_GPPool *pool = (SDL_GPPool *)SDL_malloc(sizeof(SDL_GPPool));
+
+  // the 0 slot is used for invalid ids, so we need to add 1 to the size to
+  // account for it
+  pool->size = number_of_slots + 1;
+  pool->queue_top = 0;
+  pool->counters = (Uint32 *)SDL_malloc(pool->size * sizeof(Uint32));
+  pool->free_queue = (int *)SDL_malloc(pool->size * sizeof(int));
+
+  // Initialize the free queue with all the slots (except 0) and set the
+  // generation counters to 0
+  for (int i = pool->size - 1; i >= 1; --i) {
+    pool->free_queue[pool->queue_top++] = i;
+    pool->counters[i] = 0;
+  }
+
+  return pool;
 }
 
-void SDL_GPDestroyPool(SDL_GPPool *resource) {
-  // TODO
+void SDL_GPDestroyPool(SDL_GPPool *pool) {
+  SDL_free(pool->counters);
+  SDL_free(pool->free_queue);
+  SDL_free(pool);
 }
 
-int SDL_GPAcquirePoolSlot(SDL_GPPool *resource) {
-  // TODO
-  return -1;
+int SDL_GPAcquirePoolSlot(SDL_GPPool *pool) {
+  SDL_assert(pool);
+  SDL_assert(pool->free_queue);
+
+  if (pool->queue_top > 0) {
+    return pool
+        ->free_queue[--pool->queue_top]; // Get a slot from the free queue
+  } else {
+    return SDL_GP_POOL_INVALID_SLOT; // No more slots available
+  }
 }
 
-void SDL_GPReleasePoolSlot(SDL_GPPool *resource, int slot_index) {
-  // TODO
+void SDL_GPReleasePoolSlot(SDL_GPPool *pool, int slot) {
+  SDL_assert(slot > SDL_GP_POOL_INVALID_SLOT && slot < (int)pool->size);
+  SDL_assert(pool);
+  SDL_assert(pool->free_queue);
+  SDL_assert(pool->queue_top < (int)pool->size);
+
+  pool->free_queue[pool->queue_top++] = slot;
+
+  SDL_assert(pool->queue_top <= (int)pool->size);
 }
 
-Uint32 SDL_GPGeneratePoolId(SDL_GPPool *resource, int slot_index) {
-  // TODO
-  return 0;
+Uint32 SDL_GPGeneratePoolId(SDL_GPPool *pool, int slot) {
+  SDL_assert(slot > SDL_GP_POOL_INVALID_SLOT && slot < (int)pool->size);
+  SDL_assert(pool);
+  SDL_assert(pool->counters);
+
+  uint32_t counter = ++pool->counters[slot]; // increment generation
+
+  Uint32 id =
+      (counter << SDL_GP_POOL_SLOT_SHIFT) | (slot & SDL_GP_POOL_SLOT_MASK);
+
+  return id;
 }
 
 int SDL_GPPoolIdToSlot(Uint32 id) {
-  // TODO
+  int slot_index = (int)(id & SDL_GP_POOL_SLOT_MASK);
+  return slot_index;
   return -1;
 }
 
 // Image
 // ----------------------------------------------------------------------
 
-static void _SDL_GPImageSetup() {
-  // TODO
+typedef struct _SDL_GPImage {
+  SDL_GPUTexture *texture;
+  int width;
+  int height;
+} _SDL_GPImage;
+
+static Uint32 _image_initialized = 0;
+static SDL_GPPool *_image_pool = NULL;
+static _SDL_GPImage *_images = NULL;
+static SDL_GPUTransferBuffer *_image_texture_transfer_buffer;
+static SDL_GPUDevice *_image_gpu_device;
+static SDL_GPUCommandBuffer *_image_cmd_buffer;
+
+static void _SDL_GPImageSetup(SDL_GPUDevice *gpu_device,
+                              SDL_GPUCommandBuffer *cmd_buffer) {
+  SDL_assert(_image_initialized == 0);
+  SDL_assert(gpu_device);
+  SDL_assert(cmd_buffer);
+
+  _image_initialized = _SDL_GP_INIT_COOKIE;
+
+  _image_gpu_device = gpu_device;
+  _image_cmd_buffer = cmd_buffer;
+
+  _image_pool = SDL_GPCeatePool(SDL_GP_IMAGE_MAX);
+
+  _images = (_SDL_GPImage *)SDL_malloc(SDL_GP_IMAGE_MAX * sizeof(_SDL_GPImage));
+
+  SDL_GPUTransferBufferCreateInfo transfer_buffer_create_info = {
+      .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
+      .size = 4 * SDL_GP_TEXTURE_DIMENSION_MAX * SDL_GP_TEXTURE_DIMENSION_MAX};
+
+  _image_texture_transfer_buffer =
+      SDL_CreateGPUTransferBuffer(gpu_device, &transfer_buffer_create_info);
+
+  if (!_image_texture_transfer_buffer) {
+    // TODO SDL_GPSetError(SDL_GP_ERROR_SETUP_IMAGE);
+    return;
+  }
 }
 
 static void _SDL_GPImageShutdown() {
-  // TODO
+  SDL_assert(_image_initialized == _SDL_GP_INIT_COOKIE);
+  _image_initialized = 0;
+
+  SDL_GPDestroyPool(_image_pool);
+  SDL_free(_images);
+  SDL_ReleaseGPUTransferBuffer(_image_gpu_device,
+                               _image_texture_transfer_buffer);
 }
 
-SDL_GPImage SDL_GPLoadImage(const char *path) {
-  // TODO
-  return (SDL_GPImage){0};
-}
+SDL_GPImage SDL_GPCreateImage(SDL_Surface *surface) {
+  SDL_assert(_image_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(surface);
 
-SDL_GPImage SDL_GPLoadImageFrom(unsigned int width, unsigned int height,
-                                void *pixels) {
-  // TODO
-  return (SDL_GPImage){0};
+  // Transfer surface pixels to the GPU transfer buffer
+
+  void *texture_transfer_ptr = SDL_MapGPUTransferBuffer(
+      _image_gpu_device, _image_texture_transfer_buffer, true);
+
+  SDL_assert(surface->w * surface->h * 4 <=
+             SDL_GP_TEXTURE_DIMENSION_MAX * SDL_GP_TEXTURE_DIMENSION_MAX * 4);
+
+  SDL_memcpy(texture_transfer_ptr, surface->pixels,
+             surface->w * surface->h * 4);
+
+  SDL_UnmapGPUTransferBuffer(_image_gpu_device, _image_texture_transfer_buffer);
+
+  // Create GPU texture and copy the transfer buffer to it
+
+  SDL_GPUTexture *texture = SDL_CreateGPUTexture(
+      _image_gpu_device,
+      &(SDL_GPUTextureCreateInfo){.type = SDL_GPU_TEXTURETYPE_2D,
+                                  .format = _texture_format, // TODO fix
+                                  .width = surface->w,
+                                  .height = surface->h,
+                                  .layer_count_or_depth = 1,
+                                  .num_levels = 1,
+                                  .usage = SDL_GPU_TEXTUREUSAGE_SAMPLER});
+
+  if (texture == NULL) {
+    // TODO SDL_GPSetError(SDL_GP_ERROR_IMAGE_CREATE);
+    return (SDL_GPImage){.id = SDL_GP_INVALID_ID};
+  }
+
+  // Copy the texture data from the transfer buffer to the GPU texture using a
+  // copy pass
+
+  SDL_GPUCopyPass *copy_pass = SDL_BeginGPUCopyPass(_image_cmd_buffer);
+
+  SDL_GPUTextureTransferInfo transfer_info = {
+      .transfer_buffer = _image_texture_transfer_buffer,
+      .offset = 0,
+  };
+
+  SDL_GPUTextureRegion region = {.texture = texture,
+                                 .w = (Uint32)surface->w,
+                                 .h = (Uint32)surface->h,
+                                 .d = 1};
+
+  SDL_UploadToGPUTexture(copy_pass, &transfer_info, &region, false);
+
+  SDL_EndGPUCopyPass(copy_pass);
+
+  // Allocate image from resource
+
+  int image_slot = SDL_GPAcquirePoolSlot(_image_pool);
+  if (image_slot == SDL_GP_POOL_INVALID_SLOT) {
+    SDL_ReleaseGPUTexture(_image_gpu_device, texture);
+    // TODO SDL_GPSetError(SDL_GP_ERROR_IMAGE_CREATE);
+    return (SDL_GPImage){.id = SDL_GP_INVALID_ID};
+  }
+
+  _images[image_slot] = (_SDL_GPImage){
+      .texture = texture,
+      .width = surface->w,
+      .height = surface->h,
+  };
+
+  return (SDL_GPImage){.id = SDL_GPGeneratePoolId(_image_pool, image_slot)};
 }
 
 void SDL_GPDestroyImage(SDL_GPImage image) {
-  // TODO
+  SDL_assert(_image_initialized == _SDL_GP_INIT_COOKIE);
+
+  if (image.id == SDL_GP_INVALID_ID) {
+    return;
+  }
+
+  int slot = SDL_GPPoolIdToSlot(image.id);
+
+  SDL_GPReleasePoolSlot(_image_pool, slot);
+
+  _SDL_GPImage inner_image = _images[slot];
+
+  SDL_ReleaseGPUTexture(_image_gpu_device, inner_image.texture);
+
+  _images[slot] = (_SDL_GPImage){
+      .texture = NULL,
+      .width = 0,
+      .height = 0,
+  };
 }
 
 SDL_GPUTexture *SDL_GPGetImageGPUTexture(SDL_GPImage image) {
-  // TODO
-  return NULL;
+  SDL_assert(_image_initialized == _SDL_GP_INIT_COOKIE);
+
+  if (image.id == SDL_GP_INVALID_ID) {
+    return NULL;
+  }
+
+  int slot = SDL_GPPoolIdToSlot(image.id);
+  return _images[slot].texture;
 }
 
 int SDL_GPGetImageWidth(SDL_GPImage image) {
-  // TODO
-  return 0;
+  SDL_assert(_image_initialized == _SDL_GP_INIT_COOKIE);
+
+  if (image.id == SDL_GP_INVALID_ID) {
+    return 0;
+  }
+
+  int slot = SDL_GPPoolIdToSlot(image.id);
+  return _images[slot].width;
 }
 
 int SDL_GPGetImageHeight(SDL_GPImage image) {
-  // TODO
-  return 0;
+  SDL_assert(_image_initialized == _SDL_GP_INIT_COOKIE);
+
+  if (image.id == SDL_GP_INVALID_ID) {
+    return 0;
+  }
+
+  int slot = SDL_GPPoolIdToSlot(image.id);
+  return _images[slot].height;
 };
 
 // Shader
@@ -484,11 +715,16 @@ SDL_GPUGraphicsPipeline *SDL_GPGetGPUPipeline(SDL_GPPipeline pipeline) {
 // ----------------------------------------------------------------------
 
 typedef enum {
-  SDL_GP_COMMAND_NONE = 0,
-  SDL_GP_COMMAND_DRAW,
-  SDL_GP_COMMAND_VIEWPORT,
-  SDL_GPCOMMAND_SCISSOR
+  _SDL_GP_COMMAND_NONE = 0,
+  _SDL_GP_COMMAND_DRAW,
+  _SDL_GP_COMMAND_VIEWPORT,
+  _SDL_GPCOMMAND_SCISSOR
 } _SDL_GPCommandType;
+
+typedef struct SDL_GPMat2x3 {
+  float m00, m01, m02;
+  float m10, m11, m12;
+} SDL_GPMat2x3;
 
 // TODO static functions
 
