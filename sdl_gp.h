@@ -60,7 +60,11 @@ extern "C" {
 #endif
 
 // Resource limits
-// ----------------------------------------------------------------------
+// ----------------------------------------------------------------------------
+
+#ifndef SDL_GP_PATH_MAX
+#define SDL_GP_PATH_MAX 512
+#endif
 
 // Max texture dimension in pixels
 #ifndef SDL_GP_TEXTURE_DIMENSION_MAX
@@ -82,9 +86,9 @@ extern "C" {
 #define SDL_GP_PIPELINE_MAX 64
 #endif
 
-// ----------------------------------------------------------------------
+// ----------------------------------------------------------------------------
 // Limits
-// ----------------------------------------------------------------------
+// ----------------------------------------------------------------------------
 
 // Max number of painters state that can be used simultaneously (per frame)
 #ifndef SDL_GP_STATE_MAX
@@ -122,18 +126,16 @@ extern "C" {
 #define SDL_GP_OPTIMIZER_DEPTH 8
 #endif
 
-// ----------------------------------------------------------------------
+// ----------------------------------------------------------------------------
 // Public API
-// ----------------------------------------------------------------------
+// ----------------------------------------------------------------------------
 
 #define SDL_GP_INVALID_ID 0
 #define SDL_GP_IMPOSSIBLE_ID 0xFFFFFFFF
 
-// Pool (Resource management)
-// ----------------------------------------------------------------------
-//
-// (This is in the public API so it can be reused for other resources if
-// needed.)
+// Pool (Public for users who want to re-use it as-is for other resources).
+// ----------------------------------------------------------------------------
+// The pool is a simple resource management system.
 //
 // The pool work like this, there is a fixed number of slots (defined at pool
 // creation) that can be acquired and released. Each slot has an incrementing
@@ -173,8 +175,15 @@ Uint32 SDL_GPGeneratePoolId(SDL_GPPool *resource, int slot_index);
 // Extract the slot index from a generated id.
 int SDL_GPPoolIdToSlot(Uint32 id);
 
-// Image
-// ----------------------------------------------------------------------
+// Image (Public)
+// ----------------------------------------------------------------------------
+//
+// An image is a wrapper around a GPU texture, with some additional metadata
+// (width and height). The image creation function will create a GPU texture
+// from an SDL_Surface and upload the surface pixels to the GPU texture.
+//
+// TODO ? NOTE: The surface will be converted to the target texture format if
+// needed.
 
 typedef enum {
   SDL_GP_SAMPLER_POINT_CLAMP = 0,
@@ -188,7 +197,8 @@ typedef struct SDL_GPImage {
   Uint32 id;
 } SDL_GPImage;
 
-// Create an image from an SDL_Surface.
+// Create an image from an SDL_Surface. Returns an invalid image if creation
+// failed.
 SDL_GPImage SDL_GPCreateImage(SDL_Surface *surface);
 
 // Destroy an image and free its resources.
@@ -204,32 +214,48 @@ int SDL_GPGetImageWidth(SDL_GPImage image);
 // Get the height of an image in pixels. Returns 0 if the image is invalid.
 int SDL_GPGetImageHeight(SDL_GPImage image);
 
-// Shader
-// ----------------------------------------------------------------------
+// Shader (Public)
+// ----------------------------------------------------------------------------
 
 typedef struct SDL_GPShader {
   Uint32 id;
 } SDL_GPShader;
 
 typedef struct SDL_GPShaderDesc {
-  const char *name;
-  Uint32 num_samplers;
-  Uint32 num_storage_textures;
-  Uint32 num_storage_buffers;
-  Uint32 num_uniform_buffers;
+  // Vertex shader description
+  size_t vert_code_size;
+  const Uint8 *vert_code;
+  const char *vert_entrypoint;
+  SDL_GPUShaderFormat vert_format;
+  Uint32 vert_num_samplers;
+  Uint32 vert_num_storage_textures;
+  Uint32 vert_num_storage_buffers;
+  Uint32 vert_num_uniform_buffers;
+
+  // Fragment shader description
+  size_t frag_code_size;
+  const Uint8 *frag_code;
+  const char *frag_entrypoint;
+  SDL_GPUShaderFormat frag_format;
+  Uint32 frag_num_samplers;
+  Uint32 frag_num_storage_textures;
+  Uint32 frag_num_storage_buffers;
+  Uint32 frag_num_uniform_buffers;
 } SDL_GPShaderDesc;
 
-SDL_GPShader SDL_GPCreateShader(SDL_GPShaderDesc *vertex_desc,
-                                SDL_GPShaderDesc *fragment_desc);
+// Create a shader from vertex and fragment shader descriptions. Returns an
+// invalid shader if creation failed.
+SDL_GPShader SDL_GPCreateShader(SDL_GPShaderDesc *desc);
 
+SDL_GPUShader *SDL_GPGetGPUVertexShader(SDL_GPShader shader);
+
+SDL_GPUShader *SDL_GPGetGPUFragmentShader(SDL_GPShader shader);
+
+// Destroy a shader and free its resources.
 void SDL_GPDestroyShader(SDL_GPShader shader);
 
-SDL_GPUShader *SDL_GPGetGPUShaderVertex(SDL_GPShader shader);
-
-SDL_GPUShader *SDL_GPGetGPUShaderFragment(SDL_GPShader shader);
-
-// Pipeline
-// ----------------------------------------------------------------------
+// Pipeline (Public)
+// ----------------------------------------------------------------------------
 
 typedef enum {
   SDL_GP_BLENDMODE_NONE = SDL_BLENDMODE_NONE,
@@ -255,14 +281,19 @@ typedef struct SDL_GPPipeline {
   Uint32 id;
 } SDL_GPPipeline;
 
+// Create a graphics pipeline from a GPU graphics pipeline. Returns an invalid
+// pipeline if creation failed.
 SDL_GPPipeline SDL_GPCreatePipeline(SDL_GPUGraphicsPipeline *pipeline);
 
+// Destroy a graphics pipeline and free its resources.
 void SDL_GPPipelineDestroy(SDL_GPPipeline pipeline);
 
+// Get the GPU graphics pipeline associated with a pipeline. Returns NULL if the
+// pipeline is invalid.
 SDL_GPUGraphicsPipeline *SDL_GPGetGPUPipeline(SDL_GPPipeline pipeline);
 
-// Painter
-// ----------------------------------------------------------------------
+// Painter (Public)
+// ----------------------------------------------------------------------------
 
 typedef enum {
   // TODO
@@ -388,9 +419,9 @@ void SDL_GPDrawRectsTextured(int channel, const SDL_GPTexturedRect *rects,
 
 #endif // SDL_GP_H_
 
-// ----------------------------------------------------------------------
+// ----------------------------------------------------------------------------
 // Implementation and internal API
-// ----------------------------------------------------------------------
+// ----------------------------------------------------------------------------
 
 // TODO remove the next line once done.
 #define SDL_GP_IMPLEMENTATION
@@ -399,8 +430,8 @@ void SDL_GPDrawRectsTextured(int channel, const SDL_GPTexturedRect *rects,
 
 #define _SDL_GP_INIT_COOKIE 0xC0DED1ED
 
-// Pool
-// ----------------------------------------------------------------------
+// Pool (Private)
+// ----------------------------------------------------------------------------
 
 SDL_GPPool *SDL_GPCeatePool(size_t number_of_slots) {
   SDL_GPPool *pool = (SDL_GPPool *)SDL_malloc(sizeof(SDL_GPPool));
@@ -470,8 +501,8 @@ int SDL_GPPoolIdToSlot(Uint32 id) {
   return -1;
 }
 
-// Image
-// ----------------------------------------------------------------------
+// Image (Private)
+// ----------------------------------------------------------------------------
 
 typedef struct _SDL_GPImage {
   SDL_GPUTexture *texture;
@@ -480,12 +511,13 @@ typedef struct _SDL_GPImage {
 } _SDL_GPImage;
 
 static Uint32 _image_initialized = 0;
-static SDL_GPPool *_image_pool = NULL;
 static _SDL_GPImage *_images = NULL;
-static SDL_GPUTransferBuffer *_image_texture_transfer_buffer;
-static SDL_GPUDevice *_image_gpu_device;
-static SDL_GPUCommandBuffer *_image_cmd_buffer;
+static SDL_GPPool *_image_pool = NULL;
+static SDL_GPUTransferBuffer *_image_texture_transfer_buffer = NULL;
+static SDL_GPUDevice *_image_gpu_device = NULL;
+static SDL_GPUCommandBuffer *_image_cmd_buffer = NULL;
 
+// Setup image resources management.
 static void _SDL_GPImageSetup(SDL_GPUDevice *gpu_device,
                               SDL_GPUCommandBuffer *cmd_buffer) {
   SDL_assert(_image_initialized == 0);
@@ -514,6 +546,7 @@ static void _SDL_GPImageSetup(SDL_GPUDevice *gpu_device,
   }
 }
 
+// Shutdown image resources management and free resources.
 static void _SDL_GPImageShutdown() {
   SDL_assert(_image_initialized == _SDL_GP_INIT_COOKIE);
   _image_initialized = 0;
@@ -545,13 +578,15 @@ SDL_GPImage SDL_GPCreateImage(SDL_Surface *surface) {
 
   SDL_GPUTexture *texture = SDL_CreateGPUTexture(
       _image_gpu_device,
-      &(SDL_GPUTextureCreateInfo){.type = SDL_GPU_TEXTURETYPE_2D,
-                                  .format = _texture_format, // TODO fix
-                                  .width = surface->w,
-                                  .height = surface->h,
-                                  .layer_count_or_depth = 1,
-                                  .num_levels = 1,
-                                  .usage = SDL_GPU_TEXTUREUSAGE_SAMPLER});
+      &(SDL_GPUTextureCreateInfo){
+          .type = SDL_GPU_TEXTURETYPE_2D,
+          .format = _texture_format, // TODO fix this should be the target
+                                     // texture format
+          .width = surface->w,
+          .height = surface->h,
+          .layer_count_or_depth = 1,
+          .num_levels = 1,
+          .usage = SDL_GPU_TEXTUREUSAGE_SAMPLER});
 
   if (texture == NULL) {
     // TODO SDL_GPSetError(SDL_GP_ERROR_IMAGE_CREATE);
@@ -579,20 +614,20 @@ SDL_GPImage SDL_GPCreateImage(SDL_Surface *surface) {
 
   // Allocate image from resource
 
-  int image_slot = SDL_GPAcquirePoolSlot(_image_pool);
-  if (image_slot == SDL_GP_POOL_INVALID_SLOT) {
+  int slot = SDL_GPAcquirePoolSlot(_image_pool);
+  if (slot == SDL_GP_POOL_INVALID_SLOT) {
     SDL_ReleaseGPUTexture(_image_gpu_device, texture);
     // TODO SDL_GPSetError(SDL_GP_ERROR_IMAGE_CREATE);
     return (SDL_GPImage){.id = SDL_GP_INVALID_ID};
   }
 
-  _images[image_slot] = (_SDL_GPImage){
+  _images[slot] = (_SDL_GPImage){
       .texture = texture,
       .width = surface->w,
       .height = surface->h,
   };
 
-  return (SDL_GPImage){.id = SDL_GPGeneratePoolId(_image_pool, image_slot)};
+  return (SDL_GPImage){.id = SDL_GPGeneratePoolId(_image_pool, slot)};
 }
 
 void SDL_GPDestroyImage(SDL_GPImage image) {
@@ -650,69 +685,246 @@ int SDL_GPGetImageHeight(SDL_GPImage image) {
   return _images[slot].height;
 };
 
-// Shader
-// ----------------------------------------------------------------------
+// Shader (Private)
+// ----------------------------------------------------------------------------
 
-typedef enum {
-  SDL_GP_VERTEX_SHADER = 0,
-  SDL_GP_FRAGMENT_SHADER
-} _SDL_GPShaderType;
+typedef struct _SDL_GPShader {
+  SDL_GPUShader *vertex;
+  SDL_GPUShader *fragment;
+} _SDL_GPShader;
 
-static void _SDL_GPShaderSetup() {
-  // TODO
+static Uint32 _shader_initialized = 0;
+static _SDL_GPShader *_shaders = NULL;
+static SDL_GPPool *_shader_pool = NULL;
+static SDL_GPUDevice *_shader_gpu_device = NULL;
+
+// Setup shader resources management.
+static void _SDL_GPShaderSetup(SDL_GPUDevice *gpu_device) {
+  SDL_assert(_shader_initialized == 0);
+  SDL_assert(gpu_device);
+
+  _shader_initialized = _SDL_GP_INIT_COOKIE;
+  _shader_gpu_device = gpu_device;
+
+  _shader_pool = SDL_GPCeatePool(SDL_GP_SHADER_MAX);
+  _shaders =
+      (_SDL_GPShader *)SDL_malloc(SDL_GP_SHADER_MAX * sizeof(_SDL_GPShader));
 }
 
+// Shutdown shader resources management and free resources.
 static void _SDL_GPShaderShutdown() {
-  // TODO
+  SDL_assert(_shader_initialized == _SDL_GP_INIT_COOKIE);
+  _shader_initialized = 0;
+
+  SDL_GPDestroyPool(_shader_pool);
+  SDL_free(_shaders);
 }
 
-SDL_GPShader SDL_GPCreateShader(SDL_GPShaderDesc *vertex_desc,
-                                SDL_GPShaderDesc *fragment_desc) {
-  // TODO
-  return (SDL_GPShader){0};
+SDL_GPShader SDL_GPCreateShader(SDL_GPShaderDesc *desc) {
+  SDL_assert(_shader_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(desc);
+
+  SDL_GPUShaderCreateInfo vert_shader_create_info = {
+      .code_size = desc->vert_code_size,
+      .code = desc->vert_code,
+      .entrypoint = desc->vert_entrypoint,
+      .format = desc->vert_format,
+      .stage = SDL_GPU_SHADERSTAGE_VERTEX,
+      .num_samplers = desc->vert_num_samplers,
+      .num_storage_textures = desc->vert_num_storage_textures,
+      .num_storage_buffers = desc->vert_num_storage_buffers,
+      .num_uniform_buffers = desc->vert_num_uniform_buffers,
+  };
+
+  // Create the shader from the bytecode
+  SDL_GPUShader *vert_shader =
+      SDL_CreateGPUShader(_shader_gpu_device, &vert_shader_create_info);
+
+  if (!vert_shader) {
+    // TODO SDL_GPSetError(SDL_GP_ERROR_SHADER_CREATE);
+    return (SDL_GPShader){.id = SDL_GP_INVALID_ID};
+  }
+
+  SDL_GPUShaderCreateInfo frag_shader_create_info =
+      {
+          .code_size = desc->frag_code_size,
+          .code = desc->frag_code,
+          .entrypoint = desc->frag_entrypoint,
+          .format = desc->frag_format,
+          .stage = SDL_GPU_SHADERSTAGE_FRAGMENT,
+          .num_samplers = desc->frag_num_samplers,
+          .num_storage_textures = desc->frag_num_storage_textures,
+          .num_storage_buffers = desc->frag_num_storage_buffers,
+          .num_uniform_buffers = desc->frag_num_uniform_buffers,
+      }
+
+  // Create the shader from the bytecode
+  SDL_GPUShader *frag_shader =
+      SDL_CreateGPUShader(_shader_gpu_device, &frag_shader_create_info);
+
+  if (!frag_shader) {
+    SDL_ReleaseGPUShader(_shader_gpu_device, vert_shader);
+    // TODO SDL_GPSetError(SDL_GP_ERROR_SHADER_CREATE);
+    return (SDL_GPShader){.id = SDL_GP_INVALID_ID};
+  }
+
+  int slot = SDL_GPAcquirePoolSlot(_shader_pool);
+  if (slot == SDL_GP_POOL_INVALID_SLOT) {
+    SDL_ReleaseGPUShader(_shader_gpu_device, vert_shader);
+    SDL_ReleaseGPUShader(_shader_gpu_device, frag_shader);
+    // TODO SDL_GPSetError(SDL_GP_ERROR_SHADER_CREATE);
+    return (SDL_GPShader){.id = SDL_GP_INVALID_ID};
+  }
+
+  _shaders[slot] = (_SDL_GPShader){
+      .vertex = vert_shader,
+      .fragment = frag_shader,
+  };
+
+  return (SDL_GPShader){.id = SDL_GPGeneratePoolId(_shader_pool, slot)};
 }
 
 void SDL_GPDestroyShader(SDL_GPShader shader) {
-  // TODO
+  SDL_assert(_shader_initialized == _SDL_GP_INIT_COOKIE);
+
+  if (shader.id == SDL_GP_INVALID_ID) {
+    return;
+  }
+
+  int slot = SDL_GPPoolIdToSlot(shader.id);
+
+  _SDL_GPShader inner_shader = _shaders[slot];
+
+  SDL_ReleaseGPUShader(_shader_gpu_device, inner_shader.vertex);
+  SDL_ReleaseGPUShader(_shader_gpu_device, inner_shader.fragment);
+
+  SDL_GPReleasePoolSlot(_shader_pool, slot);
+
+  _shaders[slot] = (_SDL_GPShader){
+      .vertex = NULL,
+      .fragment = NULL,
+  };
 }
 
-SDL_GPUShader *SDL_GPGetGPUShaderVertex(SDL_GPShader shader) {
-  // TODO
-  return NULL;
+SDL_GPUShader *SDL_GPGetGPUVertexShader(SDL_GPShader shader) {
+  SDL_assert(_shader_initialized == _SDL_GP_INIT_COOKIE);
+
+  if (shader.id == SDL_GP_INVALID_ID) {
+    return NULL;
+  }
+
+  int slot = SDL_GPPoolIdToSlot(shader.id);
+  return _shaders[slot].vertex;
 }
 
-SDL_GPUShader *SDL_GPGetGPUShaderFragment(SDL_GPShader shader) {
-  // TODO
-  return NULL;
-};
+SDL_GPUShader *SDL_GPGetGPUFragmentShader(SDL_GPShader shader) {
+  SDL_assert(_shader_initialized == _SDL_GP_INIT_COOKIE);
 
-// Pipeline
-// ----------------------------------------------------------------------
+  if (shader.id == SDL_GP_INVALID_ID) {
+    return NULL;
+  }
 
+  int slot = SDL_GPPoolIdToSlot(shader.id);
+  return _shaders[slot].fragment;
+}
+
+// Pipeline (Private)
+// ----------------------------------------------------------------------------
+
+typedef struct _SDL_GPPipeline {
+  SDL_GPUGraphicsPipeline *pipeline;
+} _SDL_GPPipeline;
+
+static Uint32 _pipeline_initialized = 0;
+static _SDL_GPPipeline *_pipelines = NULL;
+static SDL_GPPool *_pipeline_pool = NULL;
+
+// Setup pipeline resources management.
 static void _SDL_GPPipelineSetup() {
-  // TODO
+  SDL_assert(_pipeline_initialized == 0);
+
+  _pipeline_initialized = _SDL_GP_INIT_COOKIE;
+
+  _pipeline_pool = SDL_GPCeatePool(SDL_GP_PIPELINE_MAX);
+  _pipelines = (_SDL_GPPipeline *)SDL_malloc(SDL_GP_PIPELINE_MAX *
+                                             sizeof(_SDL_GPPipeline));
 }
 
+// Shutdown pipeline resources management and free resources.
 static void _SDL_GPPipelineShutdown() {
-  // TODO
+  SDL_assert(_pipeline_initialized == _SDL_GP_INIT_COOKIE);
+  _pipeline_initialized = 0;
+
+  SDL_GPDestroyPool(_pipeline_pool);
+  SDL_free(_pipelines);
 }
 
 SDL_GPPipeline SDL_GPCreatePipeline(SDL_GPUGraphicsPipeline *pipeline) {
-  // TODO
-  return (SDL_GPPipeline){0};
+  SDL_assert(_pipeline_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(pipeline);
+
+  int pipeline_slot = SDL_GPAcquirePoolSlot(_pipeline_pool);
+  if (pipeline_slot == SDL_GP_POOL_INVALID_SLOT) {
+    // TODO SDL_GPSetError(SDL_GP_ERROR_PIPELINE_CREATE);
+    return (SDL_GPPipeline){.id = SDL_GP_INVALID_ID};
+  }
+
+  _pipelines[pipeline_slot] = (_SDL_GPPipeline){
+      .pipeline = pipeline,
+  };
+
+  return (SDL_GPPipeline){
+      .id = SDL_GPGeneratePoolId(_pipeline_pool, pipeline_slot)};
 }
 
 void SDL_GPPipelineDestroy(SDL_GPPipeline pipeline) {
-  // TODO
+  SDL_assert(_pipeline_initialized == _SDL_GP_INIT_COOKIE);
+
+  if (pipeline.id == SDL_GP_INVALID_ID) {
+    return;
+  }
+
+  int slot = SDL_GPPoolIdToSlot(pipeline.id);
+
+  SDL_GPReleasePoolSlot(_pipeline_pool, slot);
+
+  _pipelines[slot] = (_SDL_GPPipeline){
+      .pipeline = NULL,
+  };
 }
 
 SDL_GPUGraphicsPipeline *SDL_GPGetGPUPipeline(SDL_GPPipeline pipeline) {
-  // TODO
-  return NULL;
+  SDL_assert(_pipeline_initialized == _SDL_GP_INIT_COOKIE);
+
+  if (pipeline.id == SDL_GP_INVALID_ID) {
+    return NULL;
+  }
+
+  int slot = SDL_GPPoolIdToSlot(pipeline.id);
+  return _pipelines[slot].pipeline;
 };
 
-// Painter
-// ----------------------------------------------------------------------
+// Painter (Private)
+// ----------------------------------------------------------------------------
+
+// TODO add the code of the glsl shader
+
+size_t _shader_vert_spv_len = 1234; // Exact byte length
+Uint8 _shader_vert_spv[] = {0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
+                            0x00, 0x00, 0x00, 0x00, 0x07, 0x00,
+                            0x72, 0x65, 0x6e, 0x64, 0x00, 0x00};
+
+size_t _shader_farg_spv_len = 1234; // Exact byte length
+Uint8 _shader_frag_spv[] = {0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
+                            0x00, 0x00, 0x00, 0x00, 0x07, 0x00,
+                            0x72, 0x65, 0x6e, 0x64, 0x00, 0x00};
+
+// TODO add others shader formats (msl, dxil, dxbc) for testing and fallback
+
+typedef enum {
+  SDL_GP_SHADER_STAGE_VERTEX = 0,
+  SDL_GP_SHADER_STAGE_FRAGMENT = 1,
+} SDL_GPShaderStage;
 
 typedef enum {
   _SDL_GP_COMMAND_NONE = 0,
@@ -725,6 +937,64 @@ typedef struct SDL_GPMat2x3 {
   float m00, m01, m02;
   float m10, m11, m12;
 } SDL_GPMat2x3;
+
+// Create painter common shader.
+static SDL_GPShader _SDL_GPCreateCommonShader(SDL_GPUDevice *gpu_device) {
+  SDL_GPUShaderFormat supported_formats = SDL_GetGPUShaderFormats(gpu_device);
+  SDL_GPUShaderFormat format;
+
+  Uint8 *code_vert = NULL;
+  size_t code_vert_size = 0;
+
+  Uint8 *code_frag = NULL;
+  size_t code_frag_size = 0;
+
+  if (supported_formats & SDL_GPU_SHADERFORMAT_SPIRV) {
+    format = SDL_GPU_SHADERFORMAT_SPIRV;
+
+    code_vert = _shader_vert_spv;
+    code_vert_size = _shader_vert_spv_len;
+
+    code_frag = _shader_frag_spv;
+    code_frag_size = _shader_farg_spv_len;
+  } else if (supported_formats & SDL_GPU_SHADERFORMAT_MSL) {
+    format = SDL_GPU_SHADERFORMAT_MSL;
+    // TODO
+  } else if (supported_formats & SDL_GPU_SHADERFORMAT_DXIL) {
+    format = SDL_GPU_SHADERFORMAT_DXIL;
+    // TODO
+  } else if (supported_formats & SDL_GPU_SHADERFORMAT_DXBC) {
+    format = SDL_GPU_SHADERFORMAT_DXBC;
+    // TODO
+  } else {
+    // TODO SDL_GPSetError(SDL_GP_ERROR_SHADER_FORMAT_UNSUPPORTED);
+    return (SDL_GPShader){.id = SDL_GP_INVALID_ID};
+  }
+
+  SDL_GPShaderDesc shader_desc = {
+      // Vertex shader description
+      .vert_code_size = code_vert_size,
+      .vert_code = code_vert,
+      .vert_entrypoint = "main",
+      .vert_format = format,
+      .vert_num_samplers = 0,
+      .vert_num_storage_textures = 0,
+      .vert_num_storage_buffers = 0,
+      .vert_num_uniform_buffers = 0,
+
+      // Fragment shader description
+      .frag_code_size = code_frag_size,
+      .frag_code = code_frag,
+      .frag_entrypoint = "main",
+      .frag_format = format,
+      .frag_num_samplers = SDL_GP_UNIFORM_FLOATS_MAX,
+      .frag_num_storage_textures = 0,
+      .frag_num_storage_buffers = 0,
+      .frag_num_uniform_buffers = 0,
+  };
+
+  return SDL_GPCreateShader(&shader_desc);
+}
 
 // TODO static functions
 
