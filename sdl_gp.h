@@ -23,8 +23,8 @@
  * Hi guys, I'm nsix and I'm trying to make a living as an indie game developer
  * and open source contributor.
  *
- * If you like my work and want to support me, well thanks a lot I really
- * appreciate it!
+ * If you like my work and want to support me, well
+ * thanks a lot I really appreciate it!
  *
  * You can sponsor me on [GitHub Sponsors](https://github.com/sponsors/n67094)
  *
@@ -134,6 +134,14 @@ extern "C" {
 #define SDL_GP_INVALID_ID 0
 #define SDL_GP_IMPOSSIBLE_ID 0xFFFFFFFF
 
+// Get a default value if the provided value is 0
+#define SDL_GP_DEFAULT(val, def) (((val) == 0) ? (def) : (val))
+
+// Get the offset of an element in a structure
+#define SDL_GP_OFFSET_OF(TYPE, ELEMENT) ((size_t)&(((TYPE *)0)->ELEMENT))
+
+// TODO DEfault macro
+
 // Pool (Public for users who want to re-use it as-is for other resources).
 // ----------------------------------------------------------------------------
 // The pool is a simple resource management system.
@@ -183,7 +191,7 @@ int SDL_GPPoolIdToSlot(Uint32 id);
 // (width and height). The image creation function will create a GPU texture
 // from an SDL_Surface and upload the surface pixels to the GPU texture.
 //
-// TODO ? NOTE: The surface will be converted to the target texture format if
+// NOTE: The surface will be converted to the swapchain texture format if
 // needed.
 
 typedef enum {
@@ -214,6 +222,9 @@ int SDL_GPGetImageWidth(SDL_GPImage image);
 
 // Get the height of an image in pixels. Returns 0 if the image is invalid.
 int SDL_GPGetImageHeight(SDL_GPImage image);
+
+// Sampler (Public)
+// ----------------------------------------------------------------------------
 
 // Shader (Public)
 // ----------------------------------------------------------------------------
@@ -282,9 +293,10 @@ typedef struct SDL_GPPipeline {
   Uint32 id;
 } SDL_GPPipeline;
 
-// Create a graphics pipeline from a GPU graphics pipeline. Returns an invalid
-// pipeline if creation failed.
-SDL_GPPipeline SDL_GPCreatePipeline(SDL_GPUGraphicsPipeline *pipeline);
+// Create a graphics pipeline
+SDL_GPPipeline SDL_GPCreatePipeline(SDL_GPShader shader,
+                                    SDL_GPPrimitiveType primitive_type,
+                                    SDL_GPBlendMode blend_mode);
 
 // Destroy a graphics pipeline and free its resources.
 void SDL_GPPipelineDestroy(SDL_GPPipeline pipeline);
@@ -390,10 +402,12 @@ typedef struct SDL_GPState {
 } SDL_GPState;
 
 typedef struct SDL_GPDesc {
+  Uint32 max_vertices;
+  Uint32 max_commands;
+  SDL_Window *window;
   SDL_GPUDevice *gpu_device;
-  SDL_GPUTexture *target_texture;
+  SDL_GPUTexture *target_texture; // Swapchain
   SDL_GPUCommandBuffer *cmd_buffer;
-  SDL_GPUTextureFormat texture_format; // Target texture format
 } SDL_GPDesc;
 
 void SDL_GPSetup(SDL_GPDesc *desc);
@@ -566,12 +580,12 @@ static SDL_GPPool *_image_pool = NULL;
 static SDL_GPUTransferBuffer *_image_texture_transfer_buffer = NULL;
 static SDL_GPUDevice *_image_gpu_device = NULL;
 static SDL_GPUCommandBuffer *_image_cmd_buffer = NULL;
-static SDL_GPUTextureFormat *_image_texture_format = NULL;
+static SDL_PixelFormat *_image_pixel_format = NULL;
 
 // Setup image resources management.
 static void _SDL_GPImageSetup(SDL_GPUDevice *gpu_device,
                               SDL_GPUCommandBuffer *cmd_buffer,
-                              SDL_GPUTextureFormat texture_format) {
+                              SDL_PixelFormat pixel_format) {
   SDL_assert(_image_initialized == 0);
   SDL_assert(gpu_device);
   SDL_assert(cmd_buffer);
@@ -613,6 +627,22 @@ SDL_GPImage SDL_GPCreateImage(SDL_Surface *surface) {
   SDL_assert(_image_initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(surface);
 
+  SDL_Surface *inner_surface = surface;
+
+  // Convert the surface to the swapchain texture format if needed
+
+  bool converted = false;
+  if (surface->format != *_image_pixel_format) {
+    inner_surface = SDL_ConvertSurface(surface, _image_pixel_format);
+
+    if (inner_surface == NULL) {
+      // TODO SDL_GPSetError(SDL_GP_ERROR_IMAGE_CREATE);
+      return (SDL_GPImage){.id = SDL_GP_INVALID_ID};
+    }
+
+    converted = true;
+  }
+
   // Transfer surface pixels to the GPU transfer buffer
 
   void *texture_transfer_ptr = SDL_MapGPUTransferBuffer(
@@ -628,9 +658,12 @@ SDL_GPImage SDL_GPCreateImage(SDL_Surface *surface) {
 
   // Create GPU texture and copy the transfer buffer to it
 
+  SDL_GPUTextureFormat _image_texture_format =
+      SDL_GetGPUTextureFormatFromPixelFormat(*_image_pixel_format);
+
   SDL_GPUTextureCreateInfo texture_create_info = {
       .type = SDL_GPU_TEXTURETYPE_2D,
-      .format = *_image_texture_format,
+      .format = _image_texture_format,
       .width = (Uint32)surface->w,
       .height = (Uint32)surface->h,
       .layer_count_or_depth = 1,
@@ -678,6 +711,11 @@ SDL_GPImage SDL_GPCreateImage(SDL_Surface *surface) {
       .width = surface->w,
       .height = surface->h,
   };
+
+  // Destroy the converted surface if we created one
+  if (converted) {
+    SDL_DestroySurface(inner_surface);
+  }
 
   return (SDL_GPImage){.id = SDL_GPGeneratePoolId(_image_pool, slot)};
 }
@@ -889,9 +927,12 @@ typedef struct _SDL_GPPipeline {
 static Uint32 _pipeline_initialized = 0;
 static _SDL_GPPipeline *_pipelines = NULL;
 static SDL_GPPool *_pipeline_pool = NULL;
+static SDL_GPUDevice *_pipeline_gpu_device = NULL;
+static SDL_Window *_pipeline_window = NULL;
 
 // Setup pipeline resources management.
-static void _SDL_GPPipelineSetup() {
+static void _SDL_GPPipelineSetup(SDL_GPUDevice *gpu_device,
+                                 SDL_Window *window) {
   SDL_assert(_pipeline_initialized == 0);
 
   _pipeline_initialized = _SDL_GP_INIT_COOKIE;
@@ -910,9 +951,138 @@ static void _SDL_GPPipelineShutdown() {
   SDL_free(_pipelines);
 }
 
-SDL_GPPipeline SDL_GPCreatePipeline(SDL_GPUGraphicsPipeline *pipeline) {
+static SDL_GPUColorTargetBlendState
+_SDL_GPPipelineBlendState(SDL_GPBlendMode blend_mode) {
+  SDL_GPUColorTargetBlendState blend;
+
+  SDL_memset(&blend, 0, sizeof(SDL_GPUColorTargetBlendState));
+
+  switch (blend_mode) {
+  case SDL_GP_BLENDMODE_BLEND:
+    blend.enable_blend = true;
+    blend.src_color_blendfactor = SDL_GPU_BLENDFACTOR_SRC_ALPHA;
+    blend.dst_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
+    blend.color_blend_op = SDL_GPU_BLENDOP_ADD;
+    blend.src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE;
+    blend.dst_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
+    blend.alpha_blend_op = SDL_GPU_BLENDOP_ADD;
+    break;
+  case SDL_GP_BLENDMODE_BLEND_PREMULTIPLIED:
+    blend.enable_blend = true;
+    blend.src_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE;
+    blend.dst_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
+    blend.color_blend_op = SDL_GPU_BLENDOP_ADD;
+    blend.src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE;
+    blend.dst_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
+    blend.alpha_blend_op = SDL_GPU_BLENDOP_ADD;
+    break;
+  case SDL_GP_BLENDMODE_ADD:
+    blend.enable_blend = true;
+    blend.src_color_blendfactor = SDL_GPU_BLENDFACTOR_SRC_ALPHA;
+    blend.dst_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE;
+    blend.color_blend_op = SDL_GPU_BLENDOP_ADD;
+    blend.src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ZERO;
+    blend.dst_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE;
+    blend.alpha_blend_op = SDL_GPU_BLENDOP_ADD;
+    break;
+  case SDL_GP_BLENDMODE_ADD_PREMULTIPLIED:
+    blend.enable_blend = true;
+    blend.src_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE;
+    blend.dst_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE;
+    blend.color_blend_op = SDL_GPU_BLENDOP_ADD;
+    blend.src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ZERO;
+    blend.dst_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE;
+    blend.alpha_blend_op = SDL_GPU_BLENDOP_ADD;
+    break;
+  case SDL_GP_BLENDMODE_MOD:
+    blend.enable_blend = true;
+    blend.src_color_blendfactor = SDL_GPU_BLENDFACTOR_DST_COLOR;
+    blend.dst_color_blendfactor = SDL_GPU_BLENDFACTOR_ZERO;
+    blend.color_blend_op = SDL_GPU_BLENDOP_ADD;
+    blend.src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ZERO;
+    blend.dst_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE;
+    blend.alpha_blend_op = SDL_GPU_BLENDOP_ADD;
+    break;
+  case SDL_GP_BLENDMODE_MUL:
+    blend.enable_blend = true;
+    blend.src_color_blendfactor = SDL_GPU_BLENDFACTOR_DST_COLOR;
+    blend.dst_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
+    blend.color_blend_op = SDL_GPU_BLENDOP_ADD;
+    blend.src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_DST_ALPHA;
+    blend.dst_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
+    blend.alpha_blend_op = SDL_GPU_BLENDOP_ADD;
+    break;
+  default: // SDL_GP_BLENDMODE_NONE
+    blend.enable_blend = false;
+    blend.src_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE;
+    blend.dst_color_blendfactor = SDL_GPU_BLENDFACTOR_ZERO;
+    blend.color_blend_op = SDL_GPU_BLENDOP_ADD;
+    blend.src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE;
+    blend.dst_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ZERO;
+    blend.alpha_blend_op = SDL_GPU_BLENDOP_ADD;
+    break;
+  }
+
+  return blend;
+}
+
+SDL_GPPipeline SDL_GPCreatePipeline(SDL_GPShader shader,
+                                    SDL_GPPrimitiveType primitive_type,
+                                    SDL_GPBlendMode blend_mode) {
   SDL_assert(_pipeline_initialized == _SDL_GP_INIT_COOKIE);
-  SDL_assert(pipeline);
+
+  SDL_GPUVertexBufferDescription vertex_buffer_description[1] = {{
+      .slot = 0,
+      .pitch = sizeof(SDL_GPVertex),
+      .input_rate = SDL_GPU_VERTEXINPUTRATE_VERTEX,
+      .instance_step_rate = 0,
+  }};
+
+  SDL_GPUVertexAttribute vertex_attributes[2] = {
+      {.location = 0,
+       .buffer_slot = 0,
+       .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4,
+       .offset = (Uint32)SDL_GP_OFFSET_OF(SDL_GPVertex, position)},
+      {.location = 1,
+       .buffer_slot = 0,
+       .format = SDL_GPU_VERTEXELEMENTFORMAT_UBYTE4_NORM,
+       .offset = (Uint32)SDL_GP_OFFSET_OF(SDL_GPVertex, color)}};
+
+  SDL_GPUVertexInputState vertex_input_state = {
+      .vertex_buffer_descriptions = vertex_buffer_description,
+      .num_vertex_buffers = 1,
+      .vertex_attributes = vertex_attributes,
+      .num_vertex_attributes = 2,
+  };
+
+  SDL_GPUColorTargetBlendState blend_state =
+      _SDL_GPPipelineBlendState(blend_mode);
+
+  SDL_GPUColorTargetDescription color_target_description[1] = {
+      {.format = SDL_GetGPUSwapchainTextureFormat(_pipeline_gpu_device,
+                                                  _pipeline_window),
+       .blend_state = blend_state}};
+
+  SDL_GPUGraphicsPipelineTargetInfo target_info = {
+      .color_target_descriptions = color_target_description,
+      .num_color_targets = 1,
+  };
+
+  SDL_GPUGraphicsPipelineCreateInfo pipeline_create_info = {
+      .vertex_shader = SDL_GPGetGPUVertexShader(shader),
+      .fragment_shader = SDL_GPGetGPUFragmentShader(shader),
+      .vertex_input_state = vertex_input_state,
+      .primitive_type = (SDL_GPUPrimitiveType)primitive_type,
+      .target_info = target_info,
+  };
+
+  SDL_GPUGraphicsPipeline *pipeline = SDL_CreateGPUGraphicsPipeline(
+      _pipeline_gpu_device, &pipeline_create_info);
+
+  if (pipeline == NULL) {
+    // TODO SDL_GPSetError(SDL_GP_ERROR_PIPELINE_CREATE);
+    return (SDL_GPPipeline){.id = SDL_GP_INVALID_ID};
+  }
 
   int pipeline_slot = SDL_GPAcquirePoolSlot(_pipeline_pool);
   if (pipeline_slot == SDL_GP_POOL_INVALID_SLOT) {
@@ -970,7 +1140,7 @@ Uint8 _shader_frag_spv[] = {0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
                             0x00, 0x00, 0x00, 0x00, 0x07, 0x00,
                             0x72, 0x65, 0x6e, 0x64, 0x00, 0x00};
 
-// TODO add others shader formats (msl, dxil, dxbc) for testing and fallback
+// TODO add others shader bytformats (msl, dxil, dxbc) for testing and fallback
 
 typedef enum {
   _SDL_GP_COMMAND_NONE = 0,
@@ -1004,11 +1174,13 @@ typedef struct _SDL_GPCommand {
 } _SDL_GPCommand;
 
 typedef struct _SDL_GP {
+  SDL_GPDesc desc;
   SDL_GPUTransferBuffer *vertex_transfer_buffer;
   SDL_GPUBuffer *vertex_data_buffer;
   SDL_GPShader shader;
   SDL_GPPipeline pipelines[SDL_GP_PRIMITIVE_SIZE * SDL_GP_BLENDMODE_SIZE];
-  SDL_GPUSampler *samplers[SDL_GP_SAMPLER_SIZE];
+  SDL_GPUSampler *nearest_samplers;
+  SDL_PixelFormat pixel_format;
   SDL_GPImage white_image;
 
   // States stack
@@ -1094,14 +1266,202 @@ static SDL_GPShader _SDL_GPCreateCommonShader(SDL_GPUDevice *gpu_device) {
   return SDL_GPCreateShader(&shader_desc);
 }
 
+static SDL_GPPipeline
+_SDL_GP_FindOrCreatePipeline(SDL_GPPrimitiveType primitive_type,
+                             SDL_GPBlendMode blend_mode) {
+  SDL_GPPipeline pipeline =
+      _gp.pipelines[primitive_type * SDL_GP_BLENDMODE_SIZE + blend_mode];
+
+  if (pipeline.id == SDL_GP_INVALID_ID) {
+    pipeline = SDL_GPCreatePipeline(_gp.shader, primitive_type, blend_mode);
+    _gp.pipelines[primitive_type * SDL_GP_BLENDMODE_SIZE + blend_mode] =
+        pipeline;
+  }
+
+  return pipeline;
+}
+
 // TODO static functions
 
 void SDL_GPSetup(SDL_GPDesc *desc) {
-  // TODO
+  SDL_assert(_gp_initialized == 0);
+  SDL_assert(desc);
+
+  _gp_initialized = _SDL_GP_INIT_COOKIE;
+  // TODO reset error
+
+  _gp.desc = *desc;
+  _gp.desc.max_vertices =
+      SDL_GP_DEFAULT(desc->max_vertices, SDL_GP_VERTICES_MAX);
+  _gp.desc.max_commands =
+      SDL_GP_DEFAULT(desc->max_commands, SDL_GP_COMMANDS_MAX);
+
+  // Get Swapchain pixel format
+  SDL_GPUTextureFormat texture_format =
+      SDL_GetGPUSwapchainTextureFormat(_gp.desc.gpu_device, _gp.desc.window);
+
+  SDL_PixelFormat pixel_format =
+      SDL_GetPixelFormatFromGPUTextureFormat(texture_format);
+
+  _gp.pixel_format = pixel_format;
+
+  // Setup resources management for shaders, pipelines and images
+
+  _SDL_GPShaderSetup(_gp.desc.gpu_device);
+  _SDL_GPPipelineSetup(_gp.desc.gpu_device, _gp.desc.window);
+  _SDL_GPImageSetup(_gp.desc.gpu_device, _gp.desc.cmd_buffer, _gp.pixel_format);
+
+  // Create a white texture
+
+  SDL_Surface *white_surface = SDL_CreateSurfaceFrom(
+      2, 2, SDL_PIXELFORMAT_RGBA8888,
+      (Uint32[]){0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF},
+      4 * sizeof(Uint32));
+
+  _gp.white_image = SDL_GPCreateImage(white_surface);
+
+  SDL_DestroySurface(white_surface);
+
+  // Create a GPU transfer buffer for vertex data
+
+  SDL_GPUTransferBufferCreateInfo vertex_transfer_buffer_create_info = {
+      .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
+      .size = (Uint32)(_gp.desc.max_vertices * sizeof(SDL_GPVertex)),
+  };
+
+  _gp.vertex_transfer_buffer = SDL_CreateGPUTransferBuffer(
+      desc->gpu_device, &vertex_transfer_buffer_create_info);
+
+  if (_gp.vertex_transfer_buffer == NULL) {
+    // TODO SDL_GPSetError(SDL_GP_ERROR_SETUP);
+    return;
+  }
+
+  // Create a GPU buffer for vertex data
+
+  SDL_GPUBufferCreateInfo vertex_data_buffer_create_info = {
+      .size = (Uint32)(_gp.desc.max_vertices * sizeof(SDL_GPVertex)),
+      .usage = SDL_GPU_BUFFERUSAGE_VERTEX,
+  };
+
+  _gp.vertex_data_buffer =
+      SDL_CreateGPUBuffer(desc->gpu_device, &vertex_data_buffer_create_info);
+
+  if (_gp.vertex_data_buffer == NULL) {
+    SDL_ReleaseGPUTransferBuffer(desc->gpu_device, _gp.vertex_transfer_buffer);
+    // TODO SDL_GPSetError(SDL_GP_ERROR_SETUP);
+    return;
+  }
+
+  // Create nearest sampler
+
+  SDL_GPUSamplerCreateInfo nearest_sampler_info = {
+      .min_filter = SDL_GPU_FILTER_NEAREST,
+      .mag_filter = SDL_GPU_FILTER_NEAREST,
+      .mipmap_mode = SDL_GPU_SAMPLERMIPMAPMODE_NEAREST,
+      .address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
+      .address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
+      .address_mode_w = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
+  };
+
+  _gp.nearest_samplers =
+      SDL_CreateGPUSampler(desc->gpu_device, &nearest_sampler_info);
+
+  // Create common shader
+
+  _gp.shader = _SDL_GPCreateCommonShader(desc->gpu_device);
+
+  // Create common pipelines
+
+  bool is_ok = true;
+  is_ok &= _SDL_GP_FindOrCreatePipeline(SDL_GP_PRIMITIVE_POINTS,
+                                        SDL_GP_BLENDMODE_NONE)
+               .id != SDL_GP_INVALID_ID;
+  is_ok &= _SDL_GP_FindOrCreatePipeline(SDL_GP_PRIMITIVE_POINTS,
+                                        SDL_GP_BLENDMODE_BLEND)
+               .id != SDL_GP_INVALID_ID;
+  is_ok &= _SDL_GP_FindOrCreatePipeline(SDL_GP_PRIMITIVE_LINES,
+                                        SDL_GP_BLENDMODE_NONE)
+               .id != SDL_GP_INVALID_ID;
+  is_ok &= _SDL_GP_FindOrCreatePipeline(SDL_GP_PRIMITIVE_LINES,
+                                        SDL_GP_BLENDMODE_BLEND)
+               .id != SDL_GP_INVALID_ID;
+  is_ok &= _SDL_GP_FindOrCreatePipeline(SDL_GP_PRIMITIVE_LINE_STRIP,
+                                        SDL_GP_BLENDMODE_NONE)
+               .id != SDL_GP_INVALID_ID;
+  is_ok &= _SDL_GP_FindOrCreatePipeline(SDL_GP_PRIMITIVE_LINE_STRIP,
+                                        SDL_GP_BLENDMODE_BLEND)
+               .id != SDL_GP_INVALID_ID;
+  is_ok &= _SDL_GP_FindOrCreatePipeline(SDL_GP_PRIMITIVE_TRIANGLES,
+                                        SDL_GP_BLENDMODE_NONE)
+               .id != SDL_GP_INVALID_ID;
+  is_ok &= _SDL_GP_FindOrCreatePipeline(SDL_GP_PRIMITIVE_TRIANGLES,
+                                        SDL_GP_BLENDMODE_BLEND)
+               .id != SDL_GP_INVALID_ID;
+
+  if (!is_ok) {
+    SDL_GPShutdown();
+    // TODO SDL_GPSetError(SDL_GP_ERROR_SETUP);
+    return;
+  }
 }
 
 void SDL_GPShutdown() {
-  // TODO
+  if (_gp_initialized != _SDL_GP_INIT_COOKIE) {
+    return;
+  }
+
+  // Destroy common pipelines
+
+  for (int i = 0; i < SDL_GP_PRIMITIVE_SIZE * SDL_GP_BLENDMODE_SIZE; ++i) {
+    if (_gp.pipelines[i].id != SDL_GP_INVALID_ID) {
+      SDL_GPPipelineDestroy(_gp.pipelines[i]);
+      _gp.pipelines[i] = (SDL_GPPipeline){.id = SDL_GP_INVALID_ID};
+    }
+  }
+
+  // Destroy common shader
+
+  if (_gp.shader.id != SDL_GP_INVALID_ID) {
+    SDL_GPDestroyShader(_gp.shader);
+    _gp.shader = (SDL_GPShader){.id = SDL_GP_INVALID_ID};
+  }
+
+  // Destroy nearest sampler
+
+  if (_gp.nearest_samplers) {
+    SDL_ReleaseGPUSampler(_gp.desc.gpu_device, _gp.nearest_samplers);
+    _gp.nearest_samplers = NULL;
+  }
+
+  // Destroy vertex data buffer
+
+  if (_gp.vertex_data_buffer) {
+    SDL_ReleaseGPUBuffer(_gp.desc.gpu_device, _gp.vertex_data_buffer);
+    _gp.vertex_data_buffer = NULL;
+  }
+
+  // Destroy vertex transfer buffer
+
+  if (_gp.vertex_transfer_buffer) {
+    SDL_ReleaseGPUTransferBuffer(_gp.desc.gpu_device,
+                                 _gp.vertex_transfer_buffer);
+    _gp.vertex_transfer_buffer = NULL;
+  }
+
+  // Destroy white texture
+
+  if (_gp.white_image.id != SDL_GP_INVALID_ID) {
+    SDL_GPDestroyImage(_gp.white_image);
+    _gp.white_image = (SDL_GPImage){.id = SDL_GP_INVALID_ID};
+  }
+
+  // Shutdown resources management for shaders, pipelines and images
+  _SDL_GPImageShutdown();
+  _SDL_GPPipelineShutdown();
+  _SDL_GPShaderShutdown();
+
+  SDL_memset(&_gp, 0, sizeof(_SDL_GP));
 }
 
 void SDL_GPBegin() {
