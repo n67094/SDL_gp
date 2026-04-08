@@ -140,7 +140,25 @@ extern "C" {
 // Get the offset of an element in a structure
 #define SDL_GP_OFFSET_OF(TYPE, ELEMENT) ((size_t)&(((TYPE *)0)->ELEMENT))
 
-// TODO DEfault macro
+// Error handling (Public)
+// ----------------------------------------------------------------------------
+
+typedef enum SDL_GP_Error {
+  SDL_GP_ERROR_NONE = 0,
+  SDL_GP_ERROR_SETUP_IMAGE_FAILED,
+  SDL_GP_ERROR_CREATE_IMAGE_FAILED,
+  SDL_GP_ERROR_CREATE_SHADER_FAILED,
+  SDL_GP_ERROR_CREATE_PIPELINE_FAILED,
+  SDL_GP_ERROR_CREATE_COMMON_SHADER_FAILED,
+  SDL_GP_ERROR_CREATE_WHITE_TEXTURE_FAILED,
+  SDL_GP_ERROR_CREATE_TRANSFER_BUFFER_FAILED,
+  SDL_GP_ERROR_CREATE_VERTEX_BUFFER_FAILED,
+  SDL_GP_ERROR_CREATE_COMMON_PIPELINE_FAILED,
+} SDL_GP_Error;
+
+SDL_GP_Error SDL_GPGetLastError(void);
+
+const char *SDL_GPGetErrorMessage(SDL_GP_Error error);
 
 // Pool (Public for users who want to re-use it as-is for other resources).
 // ----------------------------------------------------------------------------
@@ -307,10 +325,6 @@ SDL_GPUGraphicsPipeline *SDL_GPGetGPUPipeline(SDL_GPPipeline pipeline);
 
 // Painter (Public)
 // ----------------------------------------------------------------------------
-
-typedef enum {
-  // TODO
-} SDL_GPError;
 
 typedef enum {
   SDL_GP_UNIFORM_SLOT_VS = 0,
@@ -494,6 +508,42 @@ void SDL_GPDrawRectsTextured(int channel, const SDL_GPTexturedRect *rects,
 
 #define _SDL_GP_INIT_COOKIE 0xC0DED1ED
 
+// Error handling (Private)
+// ----------------------------------------------------------------------------
+
+static SDL_GP_Error _last_error = SDL_GP_ERROR_NONE;
+
+static void _SDL_GPSetError(SDL_GP_Error error) { _last_error = error; }
+
+SDL_GP_Error SDL_GPGetLastError(void) { return _last_error; }
+
+const char *SDL_GPGetErrorMessage(SDL_GP_Error error) {
+  switch (error) {
+  case SDL_GP_ERROR_NONE:
+    return "No error";
+  case SDL_GP_ERROR_SETUP_IMAGE_FAILED:
+    return "Failed to setup image resources";
+  case SDL_GP_ERROR_CREATE_IMAGE_FAILED:
+    return "Failed to create image";
+  case SDL_GP_ERROR_CREATE_SHADER_FAILED:
+    return "Failed to create shader";
+  case SDL_GP_ERROR_CREATE_PIPELINE_FAILED:
+    return "Failed to create pipeline";
+  case SDL_GP_ERROR_CREATE_COMMON_SHADER_FAILED:
+    return "Failed to create common shader";
+  case SDL_GP_ERROR_CREATE_WHITE_TEXTURE_FAILED:
+    return "Failed to create white texture";
+  case SDL_GP_ERROR_CREATE_TRANSFER_BUFFER_FAILED:
+    return "Failed to create transfer buffer";
+  case SDL_GP_ERROR_CREATE_VERTEX_BUFFER_FAILED:
+    return "Failed to create vertex buffer";
+  case SDL_GP_ERROR_CREATE_COMMON_PIPELINE_FAILED:
+    return "Failed to create common pipeline";
+  default:
+    return "Unknown error";
+  }
+}
+
 // Pool (Private)
 // ----------------------------------------------------------------------------
 
@@ -607,7 +657,7 @@ static void _SDL_GPImageSetup(SDL_GPUDevice *gpu_device,
       SDL_CreateGPUTransferBuffer(gpu_device, &transfer_buffer_create_info);
 
   if (!_image_texture_transfer_buffer) {
-    // TODO SDL_GPSetError(SDL_GP_ERROR_SETUP_IMAGE);
+    _SDL_GPSetError(SDL_GP_ERROR_SETUP_IMAGE_FAILED);
     return;
   }
 }
@@ -636,7 +686,7 @@ SDL_GPImage SDL_GPCreateImage(SDL_Surface *surface) {
     inner_surface = SDL_ConvertSurface(surface, _image_pixel_format);
 
     if (inner_surface == NULL) {
-      // TODO SDL_GPSetError(SDL_GP_ERROR_IMAGE_CREATE);
+      _SDL_GPSetError(SDL_GP_ERROR_CREATE_IMAGE_FAILED);
       return (SDL_GPImage){.id = SDL_GP_INVALID_ID};
     }
 
@@ -674,7 +724,7 @@ SDL_GPImage SDL_GPCreateImage(SDL_Surface *surface) {
       SDL_CreateGPUTexture(_image_gpu_device, &texture_create_info);
 
   if (texture == NULL) {
-    // TODO SDL_GPSetError(SDL_GP_ERROR_IMAGE_CREATE);
+    _SDL_GPSetError(SDL_GP_ERROR_CREATE_IMAGE_FAILED);
     return (SDL_GPImage){.id = SDL_GP_INVALID_ID};
   }
 
@@ -697,12 +747,18 @@ SDL_GPImage SDL_GPCreateImage(SDL_Surface *surface) {
 
   SDL_EndGPUCopyPass(copy_pass);
 
+  // Destroy the converted surface if we created one
+
+  if (converted) {
+    SDL_DestroySurface(inner_surface);
+  }
+
   // Allocate image from resource
 
   int slot = SDL_GPAcquirePoolSlot(_image_pool);
   if (slot == SDL_GP_POOL_INVALID_SLOT) {
     SDL_ReleaseGPUTexture(_image_gpu_device, texture);
-    // TODO SDL_GPSetError(SDL_GP_ERROR_IMAGE_CREATE);
+    _SDL_GPSetError(SDL_GP_ERROR_CREATE_IMAGE_FAILED);
     return (SDL_GPImage){.id = SDL_GP_INVALID_ID};
   }
 
@@ -711,11 +767,6 @@ SDL_GPImage SDL_GPCreateImage(SDL_Surface *surface) {
       .width = surface->w,
       .height = surface->h,
   };
-
-  // Destroy the converted surface if we created one
-  if (converted) {
-    SDL_DestroySurface(inner_surface);
-  }
 
   return (SDL_GPImage){.id = SDL_GPGeneratePoolId(_image_pool, slot)};
 }
@@ -831,7 +882,7 @@ SDL_GPShader SDL_GPCreateShader(SDL_GPShaderDesc *desc) {
       SDL_CreateGPUShader(_shader_gpu_device, &vert_shader_create_info);
 
   if (!vert_shader) {
-    // TODO SDL_GPSetError(SDL_GP_ERROR_SHADER_CREATE);
+    _SDL_GPSetError(SDL_GP_ERROR_CREATE_SHADER_FAILED);
     return (SDL_GPShader){.id = SDL_GP_INVALID_ID};
   }
 
@@ -853,7 +904,7 @@ SDL_GPShader SDL_GPCreateShader(SDL_GPShaderDesc *desc) {
 
   if (!frag_shader) {
     SDL_ReleaseGPUShader(_shader_gpu_device, vert_shader);
-    // TODO SDL_GPSetError(SDL_GP_ERROR_SHADER_CREATE);
+    _SDL_GPSetError(SDL_GP_ERROR_CREATE_SHADER_FAILED);
     return (SDL_GPShader){.id = SDL_GP_INVALID_ID};
   }
 
@@ -861,7 +912,7 @@ SDL_GPShader SDL_GPCreateShader(SDL_GPShaderDesc *desc) {
   if (slot == SDL_GP_POOL_INVALID_SLOT) {
     SDL_ReleaseGPUShader(_shader_gpu_device, vert_shader);
     SDL_ReleaseGPUShader(_shader_gpu_device, frag_shader);
-    // TODO SDL_GPSetError(SDL_GP_ERROR_SHADER_CREATE);
+    _SDL_GPSetError(SDL_GP_ERROR_CREATE_SHADER_FAILED);
     return (SDL_GPShader){.id = SDL_GP_INVALID_ID};
   }
 
@@ -1080,13 +1131,13 @@ SDL_GPPipeline SDL_GPCreatePipeline(SDL_GPShader shader,
       _pipeline_gpu_device, &pipeline_create_info);
 
   if (pipeline == NULL) {
-    // TODO SDL_GPSetError(SDL_GP_ERROR_PIPELINE_CREATE);
+    _SDL_GPSetError(SDL_GP_ERROR_CREATE_PIPELINE_FAILED);
     return (SDL_GPPipeline){.id = SDL_GP_INVALID_ID};
   }
 
   int pipeline_slot = SDL_GPAcquirePoolSlot(_pipeline_pool);
   if (pipeline_slot == SDL_GP_POOL_INVALID_SLOT) {
-    // TODO SDL_GPSetError(SDL_GP_ERROR_PIPELINE_CREATE);
+    _SDL_GPSetError(SDL_GP_ERROR_CREATE_PIPELINE_FAILED);
     return (SDL_GPPipeline){.id = SDL_GP_INVALID_ID};
   }
 
@@ -1237,7 +1288,7 @@ static SDL_GPShader _SDL_GPCreateCommonShader(SDL_GPUDevice *gpu_device) {
     format = SDL_GPU_SHADERFORMAT_DXBC;
     // TODO
   } else {
-    // TODO SDL_GPSetError(SDL_GP_ERROR_SHADER_FORMAT_UNSUPPORTED);
+    _SDL_GPSetError(SDL_GP_ERROR_CREATE_COMMON_SHADER_FAILED);
     return (SDL_GPShader){.id = SDL_GP_INVALID_ID};
   }
 
@@ -1287,8 +1338,9 @@ void SDL_GPSetup(SDL_GPDesc *desc) {
   SDL_assert(_gp_initialized == 0);
   SDL_assert(desc);
 
+  _last_error = SDL_GP_ERROR_NONE;
+
   _gp_initialized = _SDL_GP_INIT_COOKIE;
-  // TODO reset error
 
   _gp.desc = *desc;
   _gp.desc.max_vertices =
@@ -1318,6 +1370,12 @@ void SDL_GPSetup(SDL_GPDesc *desc) {
       (Uint32[]){0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF},
       4 * sizeof(Uint32));
 
+  if (white_surface == NULL) {
+    SDL_GPShutdown();
+    _SDL_GPSetError(SDL_GP_ERROR_CREATE_WHITE_TEXTURE_FAILED);
+    return;
+  }
+
   _gp.white_image = SDL_GPCreateImage(white_surface);
 
   SDL_DestroySurface(white_surface);
@@ -1333,7 +1391,7 @@ void SDL_GPSetup(SDL_GPDesc *desc) {
       desc->gpu_device, &vertex_transfer_buffer_create_info);
 
   if (_gp.vertex_transfer_buffer == NULL) {
-    // TODO SDL_GPSetError(SDL_GP_ERROR_SETUP);
+    _SDL_GPSetError(SDL_GP_ERROR_CREATE_TRANSFER_BUFFER_FAILED);
     return;
   }
 
@@ -1349,7 +1407,7 @@ void SDL_GPSetup(SDL_GPDesc *desc) {
 
   if (_gp.vertex_data_buffer == NULL) {
     SDL_ReleaseGPUTransferBuffer(desc->gpu_device, _gp.vertex_transfer_buffer);
-    // TODO SDL_GPSetError(SDL_GP_ERROR_SETUP);
+    _SDL_GPSetError(SDL_GP_ERROR_CREATE_VERTEX_BUFFER_FAILED);
     return;
   }
 
@@ -1401,7 +1459,7 @@ void SDL_GPSetup(SDL_GPDesc *desc) {
 
   if (!is_ok) {
     SDL_GPShutdown();
-    // TODO SDL_GPSetError(SDL_GP_ERROR_SETUP);
+    _SDL_GPSetError(SDL_GP_ERROR_CREATE_COMMON_PIPELINE_FAILED);
     return;
   }
 }
