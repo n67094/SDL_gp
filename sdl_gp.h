@@ -1,4 +1,5 @@
 /**
+ * TODO re-organize structures to take less memory.
  * https://github.com/n67094/SDL_gp
  *
  * SDL_gp: A minimal and efficient 2D (g)raphics (p)ainter for SDL3.
@@ -334,16 +335,65 @@ typedef struct SDL_GPTexturedRect {
   SDL_GPRect src;
 } SDL_GPTexturedRect;
 
+typedef struct SDL_GPMat2x3 {
+  float m00, m01, m02;
+  float m10, m11, m12;
+} SDL_GPMat2x3;
+
+// Create an immutable 2x3 matrix
+#define SDL_GPCreateMat2x3(m00, m01, m02, m10, m11, m12)                       \
+  ((const SDL_GPMat2x3){m00, m01, m02, m10, m11, m12})
+
+// Create an immutable identity 2x3 matrix
+#define SDL_GPCreateMat2x3Identity()                                           \
+  ((const SDL_GPMat2x3){1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f})
+
 typedef struct SDL_GPVertex {
   SDL_GPVec2 position;
   SDL_GPVec2 texcoord;
   SDL_GPColor color;
 } SDL_GPVertex;
 
+typedef union SDL_GPUniformData {
+  float floats[SDL_GP_UNIFORM_FLOATS_MAX];
+  uint8_t bytes[SDL_GP_UNIFORM_FLOATS_MAX * sizeof(float)];
+} SDL_GPUniformData;
+
+typedef struct SDL_GPUniform {
+  Uint16 vs_size;
+  Uint16 fs_size;
+  SDL_GPUniformData data;
+} SDL_GPUniform;
+
+typedef struct SDL_GPTextureUniform {
+  Uint32 count;
+  SDL_GPImage images[SDL_GP_TEXTURE_SLOTS_MAX];
+  SDL_GPUSampler *samplers[SDL_GP_TEXTURE_SLOTS_MAX];
+} SDL_GPTextureUniform;
+
+typedef struct SDL_GPState {
+  SDL_GPMat2x3 projection;
+  SDL_GPMat2x3 transform;
+  SDL_GPMat2x3 mvp;
+  SDL_GPTextureUniform texture;
+  SDL_GPUniform uniform;
+  SDL_GPPipeline pipeline;
+  SDL_GPBlendMode blend_mode;
+  SDL_GPVec2 frame_dimension;
+  SDL_GPRect viewport;
+  SDL_GPRect scissor;
+  SDL_Color color;
+  float thickness;
+  Uint32 base_uniform;
+  Uint32 base_vertex;
+  Uint32 base_command;
+} SDL_GPState;
+
 typedef struct SDL_GPDesc {
   SDL_GPUDevice *gpu_device;
   SDL_GPUTexture *target_texture;
   SDL_GPUCommandBuffer *cmd_buffer;
+  SDL_GPUTextureFormat texture_format; // Target texture format
 } SDL_GPDesc;
 
 void SDL_GPSetup(SDL_GPDesc *desc);
@@ -516,10 +566,12 @@ static SDL_GPPool *_image_pool = NULL;
 static SDL_GPUTransferBuffer *_image_texture_transfer_buffer = NULL;
 static SDL_GPUDevice *_image_gpu_device = NULL;
 static SDL_GPUCommandBuffer *_image_cmd_buffer = NULL;
+static SDL_GPUTextureFormat *_image_texture_format = NULL;
 
 // Setup image resources management.
 static void _SDL_GPImageSetup(SDL_GPUDevice *gpu_device,
-                              SDL_GPUCommandBuffer *cmd_buffer) {
+                              SDL_GPUCommandBuffer *cmd_buffer,
+                              SDL_GPUTextureFormat texture_format) {
   SDL_assert(_image_initialized == 0);
   SDL_assert(gpu_device);
   SDL_assert(cmd_buffer);
@@ -576,17 +628,17 @@ SDL_GPImage SDL_GPCreateImage(SDL_Surface *surface) {
 
   // Create GPU texture and copy the transfer buffer to it
 
-  SDL_GPUTexture *texture = SDL_CreateGPUTexture(
-      _image_gpu_device,
-      &(SDL_GPUTextureCreateInfo){
-          .type = SDL_GPU_TEXTURETYPE_2D,
-          .format = _texture_format, // TODO fix this should be the target
-                                     // texture format
-          .width = surface->w,
-          .height = surface->h,
-          .layer_count_or_depth = 1,
-          .num_levels = 1,
-          .usage = SDL_GPU_TEXTUREUSAGE_SAMPLER});
+  SDL_GPUTextureCreateInfo texture_create_info = {
+      .type = SDL_GPU_TEXTURETYPE_2D,
+      .format = *_image_texture_format,
+      .width = (Uint32)surface->w,
+      .height = (Uint32)surface->h,
+      .layer_count_or_depth = 1,
+      .num_levels = 1,
+      .usage = SDL_GPU_TEXTUREUSAGE_SAMPLER};
+
+  SDL_GPUTexture *texture =
+      SDL_CreateGPUTexture(_image_gpu_device, &texture_create_info);
 
   if (texture == NULL) {
     // TODO SDL_GPSetError(SDL_GP_ERROR_IMAGE_CREATE);
@@ -745,18 +797,17 @@ SDL_GPShader SDL_GPCreateShader(SDL_GPShaderDesc *desc) {
     return (SDL_GPShader){.id = SDL_GP_INVALID_ID};
   }
 
-  SDL_GPUShaderCreateInfo frag_shader_create_info =
-      {
-          .code_size = desc->frag_code_size,
-          .code = desc->frag_code,
-          .entrypoint = desc->frag_entrypoint,
-          .format = desc->frag_format,
-          .stage = SDL_GPU_SHADERSTAGE_FRAGMENT,
-          .num_samplers = desc->frag_num_samplers,
-          .num_storage_textures = desc->frag_num_storage_textures,
-          .num_storage_buffers = desc->frag_num_storage_buffers,
-          .num_uniform_buffers = desc->frag_num_uniform_buffers,
-      }
+  SDL_GPUShaderCreateInfo frag_shader_create_info = {
+      .code_size = desc->frag_code_size,
+      .code = desc->frag_code,
+      .entrypoint = desc->frag_entrypoint,
+      .format = desc->frag_format,
+      .stage = SDL_GPU_SHADERSTAGE_FRAGMENT,
+      .num_samplers = desc->frag_num_samplers,
+      .num_storage_textures = desc->frag_num_storage_textures,
+      .num_storage_buffers = desc->frag_num_storage_buffers,
+      .num_uniform_buffers = desc->frag_num_uniform_buffers,
+  };
 
   // Create the shader from the bytecode
   SDL_GPUShader *frag_shader =
@@ -922,21 +973,68 @@ Uint8 _shader_frag_spv[] = {0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
 // TODO add others shader formats (msl, dxil, dxbc) for testing and fallback
 
 typedef enum {
-  SDL_GP_SHADER_STAGE_VERTEX = 0,
-  SDL_GP_SHADER_STAGE_FRAGMENT = 1,
-} SDL_GPShaderStage;
-
-typedef enum {
   _SDL_GP_COMMAND_NONE = 0,
   _SDL_GP_COMMAND_DRAW,
   _SDL_GP_COMMAND_VIEWPORT,
   _SDL_GPCOMMAND_SCISSOR
 } _SDL_GPCommandType;
 
-typedef struct SDL_GPMat2x3 {
-  float m00, m01, m02;
-  float m10, m11, m12;
-} SDL_GPMat2x3;
+typedef struct _SDL_GPRegion {
+  float x1, y1, x2, y2;
+} _SDL_GPRegion;
+
+typedef struct _SDL_GPDrawArgs {
+  _SDL_GPRegion region;
+  SDL_GPPipeline pipeline;
+  SDL_GPTextureUniform texture;
+  Uint32 uniform_index;
+  Uint32 vertex_index;
+  Uint32 vertices_count;
+} _SDL_GPDrawArgs;
+
+typedef union _SDL_GPCommandArgs {
+  _SDL_GPDrawArgs draw;
+  SDL_GPRect viewport;
+  SDL_GPRect scissor;
+} _SDL_GPCommandArgs;
+
+typedef struct _SDL_GPCommand {
+  _SDL_GPCommandType cmd;
+  _SDL_GPCommandArgs args;
+} _SDL_GPCommand;
+
+typedef struct _SDL_GP {
+  SDL_GPUTransferBuffer *vertex_transfer_buffer;
+  SDL_GPUBuffer *vertex_data_buffer;
+  SDL_GPShader shader;
+  SDL_GPPipeline pipelines[SDL_GP_PRIMITIVE_SIZE * SDL_GP_BLENDMODE_SIZE];
+  SDL_GPUSampler *samplers[SDL_GP_SAMPLER_SIZE];
+  SDL_GPImage white_image;
+
+  // States stack
+  Uint32 current_state;
+  SDL_GPState states[SDL_GP_STATE_MAX];
+  SDL_GPState state;
+
+  // Transforms stack
+  Uint32 current_transform;
+  SDL_GPMat2x3 transforms[SDL_GP_TRANSFORMS_MAX];
+
+  // Vertecies stack
+  Uint32 current_vertex;
+  SDL_GPVertex vertices[SDL_GP_VERTICES_MAX];
+
+  // Uniforms stack
+  Uint32 current_uniform;
+  SDL_GPUniform uniforms[SDL_GP_COMMANDS_MAX];
+
+  // Commands management
+  Uint32 current_command;
+  _SDL_GPCommand commands[SDL_GP_COMMANDS_MAX];
+} _SDL_GP;
+
+static _SDL_GP _gp = {0};
+static Uint32 _gp_initialized = 0;
 
 // Create painter common shader.
 static SDL_GPShader _SDL_GPCreateCommonShader(SDL_GPUDevice *gpu_device) {
@@ -987,7 +1085,7 @@ static SDL_GPShader _SDL_GPCreateCommonShader(SDL_GPUDevice *gpu_device) {
       .frag_code = code_frag,
       .frag_entrypoint = "main",
       .frag_format = format,
-      .frag_num_samplers = SDL_GP_UNIFORM_FLOATS_MAX,
+      .frag_num_samplers = SDL_GP_TEXTURE_SLOTS_MAX,
       .frag_num_storage_textures = 0,
       .frag_num_storage_buffers = 0,
       .frag_num_uniform_buffers = 0,
