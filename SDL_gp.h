@@ -358,6 +358,10 @@ typedef struct SDL_GPTriangle {
   SDL_GPPoint a, b, c;
 } SDL_GPTriangle;
 
+typedef struct SDL_GPIRect {
+  int x, y, w, h;
+} SDL_GPIRect;
+
 typedef struct SDL_GPRect {
   float x, y, w, h;
 } SDL_GPRect;
@@ -412,8 +416,8 @@ typedef struct SDL_GPState {
   SDL_GPPipeline pipeline;
   SDL_GPBlendMode blend_mode;
   SDL_GPISize frame_size;
-  SDL_GPRect viewport;
-  SDL_GPRect scissor;
+  SDL_GPIRect viewport;
+  SDL_GPIRect scissor;
   SDL_Color color;
   float thickness;
   Uint32 base_uniform;
@@ -465,11 +469,11 @@ void SDL_GPSetSampler(int channel, SDL_GPSampler sampler);
 void SDL_GPResetSampler(int channel);
 
 // Set the viewport for subsequent draw calls.
-void SDL_GPViewport(float x, float y, float w, float h);
+void SDL_GPViewport(int x, int y, int w, int h);
 void SDL_GPResetViewport(void);
 
 // Set the scissor for subsequent draw calls.
-void SDL_GPScissor(float x, float y, float w, float h);
+void SDL_GPScissor(int x, int y, int w, int h);
 void SDL_GPResetScissor(void);
 
 void SDL_GPClear(void);
@@ -1201,7 +1205,7 @@ typedef enum {
   _SDL_GP_COMMAND_NONE = 0,
   _SDL_GP_COMMAND_DRAW,
   _SDL_GP_COMMAND_VIEWPORT,
-  _SDL_GPCOMMAND_SCISSOR
+  _SDL_GP_COMMAND_SCISSOR
 } _SDL_GPCommandType;
 
 typedef struct _SDL_GPRegion {
@@ -1219,8 +1223,8 @@ typedef struct _SDL_GPDrawArgs {
 
 typedef union _SDL_GPCommandArgs {
   _SDL_GPDrawArgs draw;
-  SDL_GPRect viewport;
-  SDL_GPRect scissor;
+  SDL_GPIRect viewport;
+  SDL_GPIRect scissor;
 } _SDL_GPCommandArgs;
 
 typedef struct _SDL_GPCommand {
@@ -1336,13 +1340,89 @@ _SDL_GP_FindOrCreatePipeline(SDL_GPPrimitiveType primitive_type,
   return pipeline;
 }
 
-// TODO static functions
+SDL_GP_INLINE SDL_GPUniform *_SDL_GPNextUniform(void) {
+  if (_gp.current_uniform < SDL_GP_COMMANDS_MAX) {
+    return &_gp.uniforms[_gp.current_uniform++];
+  } else {
+    // TODO _SDL_GPSetError(SDL_GP_ERROR_PAINTER_UNIFORMS_FULL);
+    return NULL;
+  }
+}
+
+SDL_GP_INLINE SDL_GPUniform *_SDL_GPPrevUniform(void) {
+  if (_gp.current_uniform > 0) {
+    return &_gp.uniforms[_gp.current_uniform - 1];
+  } else {
+    return NULL;
+  }
+}
+
+SDL_GP_INLINE SDL_GPVertex *_SDL_GPNextVertices(Uint32 count) {
+  if (_gp.current_vertex + count <= SDL_GP_VERTICES_MAX) {
+    SDL_GPVertex *vertices = &_gp.vertices[_gp.current_vertex];
+    _gp.current_vertex += count;
+
+    return vertices;
+  } else {
+    // TODO _SDL_GPSetError(SDL_GP_ERROR_PAINTER_VERTICES_FULL);
+    return NULL;
+  }
+}
+
+SDL_GP_INLINE _SDL_GPCommand *_SDL_GPNextCommand(void) {
+  if ((_gp.current_command < SDL_GP_COMMANDS_MAX)) {
+    return &_gp.commands[_gp.current_command++];
+  } else {
+    // bxr_set_error(BXR_ERROR_PAINTER_COMMANDS_FULL);
+    // TODO _SDL_GPSetError(SDL_GP_ERROR_PAINTER_COMMANDS_FULL);
+    return NULL;
+  }
+}
+
+SDL_GP_INLINE _SDL_GPCommand *_SDL_GPPrevCommand(Uint32 count) {
+  if (_gp.current_command - _gp.state.base_command >= count) {
+    return &_gp.commands[_gp.current_command - count];
+  } else {
+    return NULL;
+  }
+}
 
 SDL_GP_INLINE SDL_GPMat2x3 _SDL_GPDefaultProjection(int width, int height) {
   float w = (float)width;
   float h = (float)height;
 
   return SDL_GPCreateMat2x3(2.0f / w, 0.0f, -1.0f, 0.0f, -2.0f / h, 1.0f);
+}
+
+SDL_GP_INLINE SDL_GPMat2x3 _SDL_GPMulProjectionTransform(
+    SDL_GPMat2x3 *projection, SDL_GPMat2x3 *transform) {
+  float x = projection->m00;
+  float y = projection->m11;
+
+  SDL_GPMat2x3 out = {0};
+
+  out.m00 = x * transform->m00;
+  out.m01 = x * transform->m01;
+  out.m02 = x * transform->m02 + projection->m02;
+
+  out.m10 = y * transform->m10;
+  out.m11 = y * transform->m11;
+  out.m12 = y * transform->m12 + projection->m12;
+
+  return out;
+}
+
+SDL_GP_INLINE SDL_GPVec2 _SDL_GPMat3MulVec2(SDL_GPMat2x3 *m,
+                                            const SDL_GPVec2 *v) {
+  return (SDL_GPVec2){m->m00 * v->x + m->m01 * v->y + m->m02,
+                      m->m10 * v->x + m->m11 * v->y + m->m12};
+}
+
+SDL_GP_INLINE void _SDL_GPTransform(SDL_GPMat2x3 *matrix, SDL_GPVec2 *dst,
+                                    const SDL_GPVec2 *src, Uint32 count) {
+  for (Uint32 i = 0; i < count; ++i) {
+    dst[i] = _SDL_GPMat3MulVec2(matrix, &src[i]);
+  }
 }
 
 void SDL_GPSetup(SDL_GPDesc *desc) {
@@ -1743,14 +1823,14 @@ void SDL_GPFlush() {
     }
     case _SDL_GP_COMMAND_VIEWPORT:
       viewport = (SDL_GPUViewport){
-          .x = cmd->args.viewport.x,
-          .y = cmd->args.viewport.y,
-          .w = cmd->args.viewport.w,
-          .h = cmd->args.viewport.h,
+          .x = (float)cmd->args.viewport.x,
+          .y = (float)cmd->args.viewport.y,
+          .w = (float)cmd->args.viewport.w,
+          .h = (float)cmd->args.viewport.h,
       };
       SDL_SetGPUViewport(render_pass, &viewport);
       break;
-    case _SDL_GPCOMMAND_SCISSOR:
+    case _SDL_GP_COMMAND_SCISSOR:
       scissor = (SDL_Rect){
           .x = (int)cmd->args.scissor.x,
           .y = (int)cmd->args.scissor.y,
@@ -1776,123 +1856,373 @@ void SDL_GPEnd() {
 }
 
 void SDL_GPSetProjection(float left, float right, float bottom, float top) {
-  // TODO
+  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.current_state > 0);
+
+  float width = right - left;
+  float height = top - bottom;
+
+  _gp.state.projection =
+      SDL_GPCreateMat2x3(2.0f / width, 0.0f, -(right + left) / width, 0.0f,
+                         2.0f / height, -(top + bottom) / height);
+
+  _gp.state.mvp = _SDL_GPMulProjectionTransform(&_gp.state.projection,
+                                                &_gp.state.transform);
 }
 
 void SDL_GPResetProjection() {
-  // TODO
+  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.current_state > 0);
+
+  _gp.state.projection = _SDL_GPDefaultProjection((int)_gp.state.viewport.w,
+                                                  (int)_gp.state.viewport.h);
+
+  _gp.state.mvp = _SDL_GPMulProjectionTransform(&_gp.state.projection,
+                                                &_gp.state.transform);
 }
 
 void SDL_GPPushTransform() {
-  // TODO
+  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.current_state > 0);
+  SDL_assert(_gp.current_transform < SDL_GP_TRANSFORMS_MAX);
+
+  _gp.transforms[_gp.current_transform++] = _gp.state.transform;
 }
 
 void SDL_GPPopTransform() {
-  // TODO
+  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.current_state > 0);
+  SDL_assert(_gp.current_transform > 0);
+
+  _gp.state.transform = _gp.transforms[--_gp.current_transform];
+  _gp.state.mvp = _SDL_GPMulProjectionTransform(&_gp.state.projection,
+                                                &_gp.state.transform);
 }
 
 void SDL_GPResetTransform() {
-  // TODO
+  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.current_state > 0);
+
+  _gp.state.transform = SDL_GPCreateMat2x3Identity();
+  _gp.state.mvp = _SDL_GPMulProjectionTransform(&_gp.state.projection,
+                                                &_gp.state.transform);
 }
 
 void SDL_GPTranslate(float x, float y) {
-  // TODO
+  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.current_state > 0);
+
+  // multiply by translate matrix:
+  // 1.0f, 0.0f, tx,
+  // 0.0f, 1.0f, ty,
+
+  _gp.state.transform.m02 +=
+      x * _gp.state.transform.m00 + y * _gp.state.transform.m01;
+  _gp.state.transform.m12 +=
+      x * _gp.state.transform.m10 + y * _gp.state.transform.m11;
+
+  _gp.state.mvp = _SDL_GPMulProjectionTransform(&_gp.state.projection,
+                                                &_gp.state.transform);
 }
 
 void SDL_GPRotateAt(float angle, float ax, float ay) {
-  // TODO
+  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.current_state > 0);
+
+  float c = SDL_cos(angle);
+  float s = SDL_sin(angle);
+
+  // Multiply by rotation matrix:
+  //   c,   -s, 0.0f,
+  //   s,    c, 0.0f,
+
+  SDL_GPMat2x3 rotation = SDL_GPCreateMat2x3(
+      c * _gp.state.transform.m00 + s * _gp.state.transform.m01,
+      -s * _gp.state.transform.m00 + c * _gp.state.transform.m01,
+      _gp.state.transform.m02,
+      c * _gp.state.transform.m10 + s * _gp.state.transform.m11,
+      -s * _gp.state.transform.m10 + c * _gp.state.transform.m11,
+      _gp.state.transform.m12);
+
+  _gp.state.transform = rotation;
+  _gp.state.mvp = _SDL_GPMulProjectionTransform(&_gp.state.projection,
+                                                &_gp.state.transform);
 }
 
 void SDL_GPScale(float sx, float sy) {
-  // TODO
+  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.current_state > 0);
+
+  // Multiply by scale matrix:
+  //   sx, 0.0f, 0.0f,
+  // 0.0f,   sy, 0.0f,
+
+  _gp.state.transform.m00 *= sx;
+  _gp.state.transform.m01 *= sy;
+  _gp.state.transform.m10 *= sx;
+  _gp.state.transform.m11 *= sy;
+
+  _gp.state.mvp = _SDL_GPMulProjectionTransform(&_gp.state.projection,
+                                                &_gp.state.transform);
 }
 
 void SDL_GPScaleAt(float sx, float sy, float ax, float ay) {
-  // TODO
+  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.current_state > 0);
+
+  SDL_GPTranslate(ax, ay);
+  SDL_GPScale(sx, sy);
+  SDL_GPTranslate(-ax, -ay);
 }
 
 void SDL_GPSetPipeline(SDL_GPPipeline pipeline) {
-  // TODO
+  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+
+  _gp.state.pipeline = pipeline;
+
+  // Reset uniforms when pipeline changes
+  SDL_memset(&_gp.state.uniform, 0, sizeof(SDL_GPUniform));
 }
 
 void SDL_GPResetPipeline() {
-  // TODO
+  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+
+  SDL_GPPipeline pipeline = {.id = SDL_GP_INVALID_ID};
+
+  SDL_GPSetPipeline(pipeline);
 }
 
 void SDL_GPSetUniform(const void *vs_data, size_t vs_size, const void *fs_data,
                       size_t fs_size) {
-  // TODO
+  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.state.pipeline.id != SDL_GP_INVALID_ID);
+
+  size_t size = vs_size + fs_size;
+
+  SDL_assert(size <= SDL_GP_UNIFORM_FLOATS_MAX * sizeof(float));
+
+  if (vs_size > 0) {
+    SDL_assert(vs_data != NULL);
+    SDL_memcpy(&_gp.state.uniform.data.bytes[0], vs_data, vs_size);
+  }
+  if (fs_size > 0) {
+    SDL_assert(fs_data != NULL);
+    SDL_memcpy(&_gp.state.uniform.data.bytes[vs_size], fs_data, fs_size);
+  }
+
+  size_t old_size = _gp.state.uniform.vs_size + _gp.state.uniform.fs_size;
+
+  if (size != old_size) {
+    // Zero out the rest of the uniform data
+    SDL_memset((Uint8 *)(&_gp.state.uniform) + size, 0, old_size - size);
+  }
+
+  _gp.state.uniform.vs_size = (Uint16)vs_size;
+  _gp.state.uniform.fs_size = (Uint16)fs_size;
 }
 
 void SDL_GPResetUniform() {
-  // TODO
+  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.state.pipeline.id != SDL_GP_INVALID_ID);
+
+  SDL_GPSetUniform(NULL, 0, NULL, 0);
 }
 
 void SDL_GPPainterSetBlendMode(SDL_GPBlendMode blend_mode) {
-  // TODO
+  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.current_state > 0);
+
+  _gp.state.blend_mode = blend_mode;
 }
 
 void SDL_GPPainterResetBlendMode() {
-  // TODO
+  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.current_state > 0);
+
+  _gp.state.blend_mode = SDL_GP_BLENDMODE_NONE;
 }
 
 void SDL_GPPainterSetColor(SDL_Color color) {
   SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
+
   _gp.state.color = color;
 }
 
 SDL_Color SDL_GPGetColor() {
   SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
-  return (SDL_Color){255, 255, 255, 255};
+
+  return _gp.state.color;
 }
 
 void SDL_GPResetColor() {
-  // TODO
+  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.current_state > 0);
+
+  _gp.state.color = (SDL_Color){255, 255, 255, 255};
 }
 
 void SDL_GPSetImage(int channel, SDL_GPImage image) {
-  // TODO
+  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.current_state > 0);
+  SDL_assert(channel >= 0 && channel < SDL_GP_TEXTURE_SLOTS_MAX);
+
+  if (_gp.state.texture.images[channel].id == image.id) {
+    return;
+  }
+
+  _gp.state.texture.images[channel] = image;
+
+  // Recalculate texture count
+  int texture_count = _gp.state.texture.count;
+  for (int i = SDL_max(channel, texture_count - 1); i >= 0; --i) {
+    if (_gp.state.texture.images[i].id != SDL_GP_INVALID_ID) {
+      texture_count = i + 1;
+      break;
+    }
+  }
+
+  _gp.state.texture.count = texture_count;
 }
 
 SDL_GPImage SDL_GPGetImage(int channel) {
-  // TODO
-  return (SDL_GPImage){0};
+  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.current_state > 0);
+  SDL_assert(channel >= 0 && channel < SDL_GP_TEXTURE_SLOTS_MAX);
+
+  return _gp.state.texture.images[channel];
 }
 
 void SDL_GPResetImage(int channel) {
-  // TODO
+  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.current_state > 0);
+  SDL_assert(channel >= 0 && channel < SDL_GP_TEXTURE_SLOTS_MAX);
+
+  SDL_GPSetImage(channel, _gp.white_image);
 }
 
 void SDL_GPUnsetImage(int channel) {
-  // TODO
+  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.current_state > 0);
+  SDL_assert(channel >= 0 && channel < SDL_GP_TEXTURE_SLOTS_MAX);
+
+  SDL_GPSetImage(channel, (SDL_GPImage){.id = SDL_GP_INVALID_ID});
 }
 
-void SDL_GPSetSampler(int channel, SDL_GPSampler sampler) {
-  // TODO
+void SDL_GPSetSampler(int channel, SDL_GPUSampler *sampler) {
+  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.current_state > 0);
+  SDL_assert(channel >= 0 && channel < SDL_GP_TEXTURE_SLOTS_MAX);
+
+  _gp.state.texture.samplers[channel] = sampler;
 }
 
 void SDL_GPResetSampler(int channel) {
-  // TODO
+  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.current_state > 0);
+  SDL_assert(channel >= 0 && channel < SDL_GP_TEXTURE_SLOTS_MAX);
+
+  _gp.state.texture.samplers[channel] = _gp.nearest_samplers;
 }
 
 // Set the viewport for subsequent draw calls.
-void SDL_GPViewport(float x, float y, float w, float h) {
-  // TODO
+void SDL_GPViewport(int x, int y, int w, int h) {
+  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.current_state > 0);
+
+  // If no change in viewport, skip
+  if (_gp.state.viewport.x == x && _gp.state.viewport.y == y &&
+      _gp.state.viewport.w == w && _gp.state.viewport.h == h) {
+    return;
+  }
+
+  // Try to reuse previous command
+  _SDL_GPCommand *cmd = _SDL_GPPrevCommand(1);
+  if (cmd && cmd->cmd != _SDL_GP_COMMAND_VIEWPORT) {
+    cmd = _SDL_GPNextCommand();
+  }
+  if (!cmd) {
+    return;
+  }
+
+  SDL_memset(&cmd->args.viewport, 0, sizeof(SDL_GPIRect));
+
+  SDL_GPIRect viewport = {
+      .x = x,
+      .y = y,
+      .w = w,
+      .h = h,
+  };
+
+  cmd->cmd = _SDL_GP_COMMAND_VIEWPORT;
+  cmd->args.viewport = viewport;
+
+  // When viewport changes, scissor needs to be updated to keep the same region
+  if (!(_gp.state.scissor.w < 0 && _gp.state.scissor.h < 0)) {
+    _gp.state.scissor.x += x - _gp.state.viewport.x;
+    _gp.state.scissor.y += y - _gp.state.viewport.y;
+  }
+
+  _gp.state.viewport = viewport;
+  _gp.state.thickness = SDL_max(1.0f / w, 1.0f / h);
+  _gp.state.projection = _SDL_GPDefaultProjection(w, h);
+  _gp.state.mvp = _SDL_GPMulProjectionTransform(&_gp.state.projection,
+                                                &_gp.state.transform);
 }
 
 void SDL_GPResetViewport(void) {
-  // TODO
+  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.current_state > 0);
+
+  SDL_GPViewport(0, 0, _gp.state.frame_size.w, _gp.state.frame_size.h);
 }
 
 // Set the scissor for subsequent draw calls.
-void SDL_GPScissor(float x, float y, float w, float h) {
-  // TODO
+void SDL_GPScissor(int x, int y, int w, int h) {
+  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.current_state > 0);
+
+  // Skip if scissor is the same
+  if (_gp.state.scissor.x == x && _gp.state.scissor.y == y &&
+      _gp.state.scissor.w == w && _gp.state.scissor.h == h) {
+    return;
+  }
+
+  // Try to reuse previous command
+  _SDL_GPCommand *cmd = _SDL_GPPrevCommand(1);
+  if (cmd && cmd->cmd != _SDL_GP_COMMAND_SCISSOR) {
+    cmd = _SDL_GPNextCommand();
+  }
+  if (!cmd) {
+    return;
+  }
+
+  // Coordinates scissor relative to viewport
+  SDL_GPIRect viewport_scissor =
+      (SDL_GPIRect){_gp.state.viewport.x + x, _gp.state.viewport.y + y, w, h};
+
+  // Reset scissor
+  if (w < 0 && h < 0) {
+    viewport_scissor.x = 0;
+    viewport_scissor.y = 0;
+    viewport_scissor.w = _gp.state.frame_size.w;
+    viewport_scissor.h = _gp.state.frame_size.h;
+  }
+
+  SDL_memset(&cmd->args.scissor, 0, sizeof(SDL_GPIRect));
+
+  cmd->cmd = _SDL_GP_COMMAND_SCISSOR;
+  cmd->args.scissor = viewport_scissor;
+
+  _gp.state.scissor = (SDL_GPIRect){.x = x, .y = y, .w = w, .h = h};
 }
 
 void SDL_GPResetScissor() {
-  // TODO
+  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.current_state > 0);
+
+  _gp.state.scissor = (SDL_GPIRect){.x = 0, .y = 0, .w = -1, .h = -1};
 }
 
 void SDL_GPClear() {
