@@ -1,5 +1,6 @@
 /**
  * TODO re-organize structures to take less memory.
+ * TODO add extern "c" for C++ compatibility.
  * https://github.com/n67094/SDL_gp
  *
  * SDL_gp: A minimal and efficient 2D (g)raphics (p)ainter for SDL3.
@@ -55,6 +56,14 @@
 #define SDL_GP_H_
 
 #include <SDL3/SDL.h>
+
+#if defined(_MSC_VER)
+#define INLINE __forceinline
+#elif defined(__GNUC__) || defined(__clang__)
+#define SDL_GP_INLINE static inline __attribute((always_inline))
+#else
+#define INLINE
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -331,12 +340,9 @@ typedef enum {
   SDL_GP_UNIFORM_SLOT_FS = 1
 } SDL_GPUniformSlot;
 
-typedef struct SDL_GPColor {
-  Uint8 r;
-  Uint8 g;
-  Uint8 b;
-  Uint8 a;
-} SDL_GPColor;
+typedef struct SDL_GPISize {
+  int w, h;
+} SDL_GPISize;
 
 typedef struct SDL_GPVec2 {
   float x, y;
@@ -377,7 +383,7 @@ typedef struct SDL_GPMat2x3 {
 typedef struct SDL_GPVertex {
   SDL_GPVec2 position;
   SDL_GPVec2 texcoord;
-  SDL_GPColor color;
+  SDL_Color color;
 } SDL_GPVertex;
 
 typedef union SDL_GPUniformData {
@@ -405,7 +411,7 @@ typedef struct SDL_GPState {
   SDL_GPUniform uniform;
   SDL_GPPipeline pipeline;
   SDL_GPBlendMode blend_mode;
-  SDL_GPVec2 frame_dimension;
+  SDL_GPISize frame_size;
   SDL_GPRect viewport;
   SDL_GPRect scissor;
   SDL_Color color;
@@ -427,11 +433,9 @@ typedef struct SDL_GPDesc {
 void SDL_GPSetup(SDL_GPDesc *desc);
 void SDL_GPShutdown();
 
-void SDL_GPBegin(void);
+void SDL_GPBegin(int width, int height);
 void SDL_GPFlush(void);
 void SDL_GPEnd(void);
-
-SDL_GPVec2 SDL_GPGetFrameSize(void);
 
 void SDL_GPSetProjection(float left, float right, float bottom, float top);
 void SDL_GPResetProjection(void);
@@ -450,8 +454,8 @@ void SDL_GPSetUniform(const void *vs_data, size_t vs_size, const void *fs_data,
 void SDL_GPResetUniform(void);
 void SDL_GPPainterSetBlendMode(SDL_GPBlendMode blend_mode);
 void SDL_GPPainterResetBlendMode(void);
-void SDL_GPPainterSetColor(SDL_GPColor color);
-SDL_GPColor SDL_GPGetColor(void);
+void SDL_GPPainterSetColor(SDL_Color color);
+SDL_Color SDL_GPGetColor(void);
 void SDL_GPResetColor(void);
 void SDL_GPSetImage(int channel, SDL_GPImage image);
 SDL_GPImage SDL_GPGetImage(int channel);
@@ -1334,6 +1338,13 @@ _SDL_GP_FindOrCreatePipeline(SDL_GPPrimitiveType primitive_type,
 
 // TODO static functions
 
+SDL_GP_INLINE SDL_GPMat2x3 _SDL_GPDefaultProjection(int width, int height) {
+  float w = (float)width;
+  float h = (float)height;
+
+  return SDL_GPCreateMat2x3(2.0f / w, 0.0f, -1.0f, 0.0f, -2.0f / h, 1.0f);
+}
+
 void SDL_GPSetup(SDL_GPDesc *desc) {
   SDL_assert(_gp_initialized == 0);
   SDL_assert(desc);
@@ -1522,21 +1533,246 @@ void SDL_GPShutdown() {
   SDL_memset(&_gp, 0, sizeof(_SDL_GP));
 }
 
-void SDL_GPBegin() {
-  // TODO
+void SDL_GPBegin(int width, int height) {
+  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+
+  _gp.states[_gp.current_state++] = _gp.state;
+
+  _gp.state.projection = _SDL_GPDefaultProjection(width, height);
+  _gp.state.transform = SDL_GPCreateMat2x3Identity();
+  _gp.state.mvp = _gp.state.projection;
+
+  _gp.state.texture.count = 1;
+  _gp.state.texture.images[0] = _gp.white_image;
+  _gp.state.texture.samplers[0] = _gp.nearest_samplers;
+
+  SDL_GPImage image = {.id = SDL_GP_INVALID_ID};
+  for (int i = 1; i < SDL_GP_TEXTURE_SLOTS_MAX; ++i) {
+    _gp.state.texture.images[i] = image;
+    _gp.state.texture.samplers[i] = _gp.nearest_samplers;
+  }
+
+  SDL_memset(_gp.state.uniform, 0, sizeof(SDL_GPUniform));
+  _gp.state.uniform = (SDL_GPUniform){.vs_size = 0, .fs_size = 0};
+
+  _gp.state.blend_mode = SDL_GP_BLENDMODE_NONE;
+
+  _gp.state.frame_size.w = width;
+  _gp.state.frame_size.h = height;
+  _gp.state.viewport =
+      (SDL_GPRect){.x = 0, .y = 0, .w = (float)width, .h = (float)height};
+  _gp.state.scissor = (SDL_GPRect){.x = 0, .y = 0, .w = -1, .h = -1};
+  _gp.state.color = (SDL_Color){.r = 255, .g = 255, .b = 255, .a = 255};
+
+  _gp.state.thickness = SDL_max(1.0f / width, 1.0f / height);
+  _gp.state.base_vertex = _gp.current_vertex;
+  _gp.state.base_uniform = _gp.current_uniform;
+  _gp.state.base_command = _gp.current_command;
 }
 
 void SDL_GPFlush() {
-  // TODO
+  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.current_state > 0);
+
+  Uint32 end_command = _gp.current_command;
+  Uint32 end_vertex = _gp.current_vertex;
+
+  Uint32 vertices_count =
+      end_vertex - _gp.state.base_vertex; // Number of vertices to draw
+
+  // Rewind Index
+  _gp.current_command = _gp.state.base_command;
+  _gp.current_uniform = _gp.state.base_uniform;
+  _gp.current_vertex = _gp.state.base_vertex;
+
+  // Error, Nothing to draw
+  if (_last_error != SDL_GP_ERROR_NONE) {
+    return;
+  }
+
+  // Nothing to draw
+  if (end_command <= _gp.state.base_command) {
+    return;
+  }
+
+  // Upload vertex data to GPU
+
+  SDL_GPVertex *vertex_data = (SDL_GPVertex *)SDL_MapGPUTransferBuffer(
+      _gp.desc.gpu_device, _gp.vertex_transfer_buffer, true);
+
+  if (vertex_data == NULL) {
+    // TODO _SDL_GPSetError(SDL_GP_ERROR_FLUSH_FAILED);
+    return;
+  }
+
+  SDL_memcpy(vertex_data, &_gp.vertices[_gp.state.base_vertex],
+             vertices_count * sizeof(SDL_GPVertex));
+
+  SDL_UnmapGPUTransferBuffer(_gp.desc.gpu_device, _gp.vertex_transfer_buffer);
+
+  // Copy pass
+
+  SDL_GPUCopyPass *copy_pass = SDL_BeginGPUCopyPass(_gp.desc.cmd_buffer);
+
+  SDL_GPUTransferBufferLocation vertex_transfer_location = {
+      .transfer_buffer = _gp.vertex_transfer_buffer, .offset = 0};
+
+  SDL_GPUBufferRegion vertex_buffer_region = {
+      .buffer = _gp.vertex_data_buffer,
+      .offset = (Uint32)(_gp.state.base_vertex * sizeof(SDL_GPVertex)),
+      .size = (Uint32)((vertices_count) * sizeof(SDL_GPVertex))};
+
+  SDL_UploadToGPUBuffer(copy_pass, &vertex_transfer_location,
+                        &vertex_buffer_region, true);
+
+  SDL_EndGPUCopyPass(copy_pass);
+
+  // Render pass
+
+  SDL_GPUColorTargetInfo color_target_info = {
+      .texture = _gp.desc.target_texture,
+      .clear_color = {0, 0, 0, 1},
+      .load_op = SDL_GPU_LOADOP_CLEAR,
+      .store_op = SDL_GPU_STOREOP_STORE,
+      .cycle = false,
+  };
+
+  SDL_GPURenderPass *render_pass =
+      SDL_BeginGPURenderPass(_gp.desc.cmd_buffer, &color_target_info, 1, NULL);
+
+  Uint32 cur_pipeline_id = SDL_GP_IMPOSSIBLE_ID;
+  Uint32 cur_uniform_index = SDL_GP_IMPOSSIBLE_ID;
+  Uint32 cur_image_ids[SDL_GP_TEXTURE_SLOTS_MAX];
+  for (int i = 0; i < SDL_GP_TEXTURE_SLOTS_MAX; ++i) {
+    cur_image_ids[i] = SDL_GP_IMPOSSIBLE_ID;
+  }
+
+  // Flush commands
+
+  for (Uint32 i = _gp.state.base_command; i < end_command; ++i) {
+    _SDL_GPCommand *cmd = &_gp.commands[i];
+
+    SDL_Rect scissor = {0};
+    SDL_GPUViewport viewport = {0};
+
+    switch (cmd->cmd) {
+    case _SDL_GP_COMMAND_DRAW: {
+      if (vertices_count == 0) {
+        break;
+      }
+
+      bool rebind_uniforms = false;
+      bool rebind_texture = false;
+
+      // Check if pipeline needs to be changed
+      if (cmd->args.draw.pipeline.id != cur_pipeline_id) {
+        cur_pipeline_id = cmd->args.draw.pipeline.id;
+
+        // Bind pipeline
+        SDL_BindGPUGraphicsPipeline(
+            render_pass, SDL_GPGetGPUPipeline(cmd->args.draw.pipeline));
+
+        // When pipeline changes we need to rebind uniforms and textures
+        rebind_uniforms = true;
+        rebind_texture = true;
+      }
+
+      // Check if texture needs to be changed
+      SDL_GPUTextureSamplerBinding image_bindings[SDL_GP_TEXTURE_SLOTS_MAX];
+
+      for (int j = 0; j < SDL_GP_TEXTURE_SLOTS_MAX; ++j) {
+        Uint32 image_id = SDL_GP_INVALID_ID;
+
+        if (j < cmd->args.draw.texture.count) {
+          image_id = cmd->args.draw.texture.images[j].id;
+        }
+
+        if (image_id != cur_image_ids[j]) {
+          cur_image_ids[j] = image_id;
+
+          if (image_id != SDL_GP_INVALID_ID) {
+            image_bindings[j] = (SDL_GPUTextureSamplerBinding){
+                .texture =
+                    SDL_GPGetImageGPUTexture(cmd->args.draw.texture.images[j]),
+                .sampler = cmd->args.draw.texture.samplers[j]};
+          } else {
+            image_bindings[j] = (SDL_GPUTextureSamplerBinding){
+                .texture = SDL_GPGetImageGPUTexture(_gp.white_image),
+                .sampler = _gp.nearest_samplers,
+            };
+          }
+
+          // When image changes we need to rebind textures
+          rebind_texture = true;
+        }
+      }
+
+      // Rebind textures if needed
+      if (rebind_texture) {
+        SDL_BindGPUFragmentSamplers(render_pass, 0, image_bindings,
+                                    SDL_GP_TEXTURE_DIMENSION_MAX);
+      }
+
+      // Rebind uniforms if needed
+      if (rebind_uniforms && cur_uniform_index != SDL_GP_IMPOSSIBLE_ID) {
+        SDL_GPUniform *uniform = &_gp.uniforms[cmd->args.draw.uniform_index];
+
+        if (uniform->vs_size > 0) {
+          SDL_PushGPUVertexUniformData(
+              _gp.desc.cmd_buffer, SDL_GP_UNIFORM_SLOT_VS,
+              &uniform->data.bytes[0], uniform->vs_size);
+        }
+        if (uniform->fs_size > 0) {
+          SDL_PushGPUFragmentUniformData(
+              _gp.desc.cmd_buffer, SDL_GP_UNIFORM_SLOT_FS,
+              &uniform->data.bytes[0], uniform->fs_size);
+        }
+      }
+
+      SDL_GPUBufferBinding vertex_buffer_binding = {
+          .buffer = _gp.vertex_data_buffer,
+          .offset =
+              (Uint32)(cmd->args.draw.vertex_index * sizeof(SDL_GPVertex))};
+
+      // In every case we need to bind vertex buffers
+      SDL_BindGPUVertexBuffers(render_pass, 0, &vertex_buffer_binding, 1);
+
+      SDL_DrawGPUPrimitives(render_pass, cmd->args.draw.vertices_count, 1, 0,
+                            0);
+      break;
+    }
+    case _SDL_GP_COMMAND_VIEWPORT:
+      viewport = (SDL_GPUViewport){
+          .x = cmd->args.viewport.x,
+          .y = cmd->args.viewport.y,
+          .w = cmd->args.viewport.w,
+          .h = cmd->args.viewport.h,
+      };
+      SDL_SetGPUViewport(render_pass, &viewport);
+      break;
+    case _SDL_GPCOMMAND_SCISSOR:
+      scissor = (SDL_Rect){
+          .x = (int)cmd->args.scissor.x,
+          .y = (int)cmd->args.scissor.y,
+          .w = (int)cmd->args.scissor.w,
+          .h = (int)cmd->args.scissor.h,
+      };
+      SDL_SetGPUScissor(render_pass, &scissor);
+      break;
+    default:
+      break;
+    }
+  }
+
+  // End render pass
+
+  SDL_EndGPURenderPass(render_pass);
 }
 
 void SDL_GPEnd() {
-  // TODO
-}
+  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
 
-SDL_GPVec2 SDL_GPGetFrameSize() {
-  // TODO
-  return (SDL_GPVec2){0, 0};
+  _gp.state = _gp.states[--_gp.current_state];
 }
 
 void SDL_GPSetProjection(float left, float right, float bottom, float top) {
@@ -1600,13 +1836,16 @@ void SDL_GPPainterResetBlendMode() {
   // TODO
 }
 
-void SDL_GPPainterSetColor(SDL_GPColor color) {
-  // TODO
+void SDL_GPPainterSetColor(SDL_Color color) {
+  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.current_state > 0);
+  _gp.state.color = color;
 }
 
-SDL_GPColor SDL_GPGetColor() {
-  // TODO
-  return (SDL_GPColor){0, 0, 0, 0};
+SDL_Color SDL_GPGetColor() {
+  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.current_state > 0);
+  return (SDL_Color){255, 255, 255, 255};
 }
 
 void SDL_GPResetColor() {
