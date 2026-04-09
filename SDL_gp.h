@@ -1201,16 +1201,16 @@ Uint8 _shader_frag_spv[] = {0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
 
 // TODO add others shader bytformats (msl, dxil, dxbc) for testing and fallback
 
+typedef struct _SDL_GPRegion {
+  float x1, y1, x2, y2;
+} _SDL_GPRegion;
+
 typedef enum {
   _SDL_GP_COMMAND_NONE = 0,
   _SDL_GP_COMMAND_DRAW,
   _SDL_GP_COMMAND_VIEWPORT,
   _SDL_GP_COMMAND_SCISSOR
 } _SDL_GPCommandType;
-
-typedef struct _SDL_GPRegion {
-  float x1, y1, x2, y2;
-} _SDL_GPRegion;
 
 typedef struct _SDL_GPDrawArgs {
   _SDL_GPRegion region;
@@ -2225,62 +2225,445 @@ void SDL_GPResetScissor() {
   _gp.state.scissor = (SDL_GPIRect){.x = 0, .y = 0, .w = -1, .h = -1};
 }
 
+static bool _SDL_GPMergeDrawCommands(SDL_GPUGraphicsPipeline *pipeline,
+                                     SDL_GPTextureUniform *texture,
+                                     SDL_GPUniform *uniform,
+                                     Uint32 vertex_index, Uint32 vertices_count,
+                                     SDL_GPUPrimitiveType primitive_type) {
+#if BXR_PAINTER_OPTIMIZE_DEPTH > 0
+  _bxr_command_t *prev_cmd = NULL;
+  _bxr_command_t *inter_cmds[BXR_PAINTER_OPTIMIZE_DEPTH];
+  Uint32 inter_count = 0;
+
+  // Find a command that is mergeable
+  Uint32 lookup_depht = BXR_PAINTER_OPTIMIZE_DEPTH;
+  for (Uint32 depth = 1; depth <= lookup_depht; ++depth) {
+    _bxr_command_t *cmd = _bxr_prev_command(depth + 1);
+
+    // Stop on nonexistent command
+    if (!cmd) {
+      break;
+    }
+
+    // command was optimized awaw, continue looking
+    if (cmd->cmd == BXR_COMMAND_NONE) {
+      lookup_depht++;
+      continue;
+    }
+
+    // Stop on scissor or viewport
+    if (cmd->cmd != BXR_COMMAND_DRAW) {
+      break;
+    }
+
+    // Only command with the same pipeline, bindings and (TODO uniforms) can be
+    // merged
+    // TODO
+  }
+
+#endif
+  return false;
+}
+
+static void _SDL_GPQueueDraw(SDL_GPPipeline pipeline, _SDL_GPRegion region,
+                             Uint32 vertex_index, Uint32 vertices_count,
+                             SDL_GPPrimitiveType primitive_type) {
+  /*
+  if (region.x0 > 1.0f || region.y0 > 1.0f || region.x1 < 0.0f
+      || region.y1 < 0.0f) {
+    _cur_vertex -= vertices_count; // rollback allocated vertices
+    return;
+  }
+  */
+
+  /* TODO
+  // Try to merge with previous draw command
+  if (primitive_type != SDL_GPU_PRIMITIVETYPE_TRIANGLESTRIP
+      && primitive_type != SDL_GPU_PRIMITIVETYPE_LINESTRIP
+      && _bxr_painter_merge_draw_commands(pipeline,
+                                         _state.image,
+                                         vertex_index,
+                                         vertices_count,
+                                         primitive_type)) {
+    return;
+  }
+  */
+
+  SDL_GPUniform *uniform = NULL;
+  if (_gp.state.pipeline.id != SDL_GP_INVALID_ID) {
+    pipeline = _gp.state.pipeline;
+    uniform = &_gp.state.uniform;
+  }
+
+  Uint32 uniform_index = SDL_GP_IMPOSSIBLE_ID;
+
+  if (uniform) {
+    SDL_GPUniform *prev_uniform = _SDL_GPPrevUniform();
+
+    bool reuse_uniform =
+        prev_uniform &&
+        (SDL_memcmp(prev_uniform, uniform, sizeof(SDL_GPUniform)) == 0);
+
+    if (!reuse_uniform) {
+      SDL_GPUniform *next_uniform = _SDL_GPNextUniform();
+      if (!next_uniform) {
+        _gp.current_vertex -= vertices_count; // rollback allocated vertices
+        return;
+      }
+      *next_uniform = _gp.state.uniform;
+    }
+
+    uniform_index =
+        _gp.current_uniform - 1; // - 1 since _bxr_painter_next_uniform
+                                 // already incremented the index
+  }
+
+  // New draw command
+  _SDL_GPCommand *cmd = _SDL_GPNextCommand();
+
+  if (!cmd) {
+    _gp.current_vertex -= vertices_count; // rollback allocated vertices
+    return;
+  }
+
+  cmd->cmd = _SDL_GP_COMMAND_DRAW;
+  cmd->args.draw.pipeline = pipeline;
+  cmd->args.draw.texture = _gp.state.texture;
+  // TODO region for optimization
+  cmd->args.draw.uniform_index = uniform_index;
+  cmd->args.draw.vertex_index = vertex_index;
+  cmd->args.draw.vertices_count = vertices_count;
+}
+
+static void _SDL_GPDrawSolid(SDL_GPPrimitiveType primitive_type,
+                             const SDL_GPVec2 *vertices,
+                             Uint32 vertices_count) {
+  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.current_state > 0);
+
+  if (vertices_count == 0) {
+    return;
+  }
+
+  // Setup vertices
+  Uint32 vertex_index = _gp.current_vertex;
+  SDL_GPVertex *v = _SDL_GPNextVertices(vertices_count);
+  if (!v) {
+    return;
+  }
+
+  float thickness = (primitive_type == SDL_GP_PRIMITIVE_POINTS ||
+                     primitive_type == SDL_GP_PRIMITIVE_LINES ||
+                     primitive_type == SDL_GP_PRIMITIVE_LINE_STRIP)
+                        ? _gp.state.thickness
+                        : 1.0f;
+  SDL_Color color = _gp.state.color;
+  SDL_GPMat2x3 mvp = _gp.state.mvp;
+  _SDL_GPRegion region = {FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX};
+
+  for (Uint32 i = 0; i < vertices_count; ++i) {
+    SDL_GPVec2 p = _SDL_GPMat3MulVec2(&mvp, &vertices[i]);
+
+    region.x1 = SDL_min(region.x1, p.x - thickness);
+    region.y1 = SDL_min(region.y1, p.y - thickness);
+    region.x2 = SDL_max(region.x2, p.x + thickness);
+    region.y2 = SDL_max(region.y2, p.y + thickness);
+
+    v[i].position = p;
+    v[i].texcoord = (SDL_GPVec2){0.0f, 0.0f};
+    v[i].color = color;
+  }
+
+  SDL_GPPipeline pipeline =
+      _SDL_GP_FindOrCreatePipeline(primitive_type, _gp.state.blend_mode);
+
+  // Queue draw
+  _SDL_GPQueueDraw(pipeline, region, vertex_index, vertices_count,
+                   primitive_type);
+}
+
 void SDL_GPClear() {
-  // TODO
+  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.current_state > 0);
+
+  // Setup vertices
+  Uint32 vertices_count = 6;
+  Uint32 vertex_index = _gp.current_vertex;
+
+  SDL_GPVertex *v = _SDL_GPNextVertices(vertices_count);
+  if (!v) {
+    return;
+  }
+
+  // Compute vertices
+  const SDL_GPVec2 quad[4] = {
+      {-1.0f, -1.0f}, // bottom-left
+      {1.0f, -1.0f},  // bottom-right
+      {1.0f, 1.0f},   // top-right
+      {-1.0f, 1.0f}   // top-left
+  };
+
+  const SDL_GPVec2 texcoord = {0.0f, 0.0f};
+  SDL_Color color = _gp.state.color;
+
+  v[0] =
+      (SDL_GPVertex){.position = quad[0], .texcoord = texcoord, .color = color};
+  v[1] =
+      (SDL_GPVertex){.position = quad[1], .texcoord = texcoord, .color = color};
+  v[2] =
+      (SDL_GPVertex){.position = quad[2], .texcoord = texcoord, .color = color};
+  v[3] =
+      (SDL_GPVertex){.position = quad[2], .texcoord = texcoord, .color = color};
+  v[4] =
+      (SDL_GPVertex){.position = quad[3], .texcoord = texcoord, .color = color};
+  v[5] =
+      (SDL_GPVertex){.position = quad[0], .texcoord = texcoord, .color = color};
+
+  _SDL_GPRegion region = {-1.0f, -1.0f, 1.0f, 1.0f};
+
+  SDL_GPPipeline pipeline = _SDL_GP_FindOrCreatePipeline(
+      SDL_GP_PRIMITIVE_TRIANGLES, _gp.state.blend_mode);
+
+  _SDL_GPQueueDraw(pipeline, region, vertex_index, vertices_count,
+                   SDL_GP_PRIMITIVE_TRIANGLES);
 }
 
 void SDL_GPDraw(SDL_GPPrimitiveType primitive_type,
                 const SDL_GPVertex *vertices, Uint32 vertices_count) {
-  // TODO
+  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.current_state > 0);
+
+  if (vertices_count == 0) {
+    return;
+  }
+
+  // Setup vertices
+  Uint32 vertex_index = _gp.current_vertex;
+  SDL_GPVertex *v = _SDL_GPNextVertices(vertices_count);
+  if (!v) {
+    return;
+  }
+
+  float thickness = (primitive_type == SDL_GP_PRIMITIVE_POINTS ||
+                     primitive_type == SDL_GP_PRIMITIVE_LINES ||
+                     primitive_type == SDL_GP_PRIMITIVE_LINE_STRIP)
+                        ? _gp.state.thickness
+                        : 1.0f;
+  SDL_GPMat2x3 mvp = _gp.state.mvp;
+  _SDL_GPRegion region = {FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX};
+
+  for (Uint32 i = 0; i < vertices_count; ++i) {
+    SDL_GPVec2 p = _SDL_GPMat3MulVec2(&mvp, &vertices[i].position);
+
+    region.x1 = SDL_min(region.x1, p.x - thickness);
+    region.y1 = SDL_min(region.y1, p.y - thickness);
+    region.x2 = SDL_max(region.x2, p.x + thickness);
+    region.y2 = SDL_max(region.y2, p.y + thickness);
+
+    v[i].position = p;
+    v[i].texcoord = vertices[i].texcoord;
+    v[i].color = vertices[i].color;
+  }
+
+  SDL_GPPipeline pipeline =
+      _SDL_GP_FindOrCreatePipeline(primitive_type, _gp.state.blend_mode);
+
+  // Queue draw
+  _SDL_GPQueueDraw(pipeline, region, vertex_index, vertices_count,
+                   primitive_type);
 }
 
 void SDL_GPDrawPoints(const SDL_GPVec2 *points, Uint32 count) {
-  // TODO
+  _SDL_GPDrawSolid(SDL_GP_PRIMITIVE_POINTS, points, count);
 }
 
-void SDL_GPDrawPoint(SDL_GPVec2 point) {
-  // TODO
-}
-
-void SDL_GPDrawLine(SDL_GPLine line) {
-  // TODO
-}
+void SDL_GPDrawPoint(SDL_GPVec2 point) { SDL_GPDrawPoints(&point, 1); }
 
 void SDL_GPDrawLines(const SDL_GPLine *lines, Uint32 count) {
-  // TODO
+  _SDL_GPDrawSolid(SDL_GP_PRIMITIVE_LINES, (const SDL_GPVec2 *)lines,
+                   count * 2);
 }
+
+void SDL_GPDrawLine(SDL_GPLine line) { SDL_GPDrawLines(&line, 1); }
 
 void SDL_GPDrawLinesStrip(const SDL_GPVec2 *points, Uint32 count) {
-  // TODO
-}
-
-void SDL_GPDrawTriangleFilled(SDL_GPTriangle triangle) {
-  // TODO
+  _SDL_GPDrawSolid(SDL_GP_PRIMITIVE_LINE_STRIP, points, count);
 }
 
 void SDL_GPDrawTriangles(const SDL_GPTriangle *triangles, Uint32 count) {
-  // TODO
+  _SDL_GPDrawSolid(SDL_GP_PRIMITIVE_TRIANGLES, (const SDL_GPVec2 *)triangles,
+                   count * 3);
+}
+
+void SDL_GPDrawTriangleFilled(SDL_GPTriangle triangle) {
+  SDL_GPDrawTriangles(&triangle, 1);
 }
 
 void SDL_GPDrawTrianglesStrip(const SDL_GPVec2 *points, Uint32 count) {
-  // TODO
-}
-
-void SDL_GPDrawRectFilled(SDL_GPRect rect) {
-  // TODO
+  _SDL_GPDrawSolid(SDL_GP_PRIMITIVE_TRIANGLE_STRIP, points, count);
 }
 
 void SDL_GPDrawRectsFilled(const SDL_GPRect *rects, Uint32 count) {
-  // TODO
+  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.current_state > 0);
+
+  if (count == 0) {
+    return;
+  }
+
+  // Setup vertices
+  Uint32 total_vertices = count * 6; // 2 triangles per rect, 3 vertices each
+  Uint32 vertex_index = _gp.current_vertex;
+  SDL_GPVertex *v = _SDL_GPNextVertices(total_vertices);
+  if (!v) {
+    return;
+  }
+
+  // Compute vertices
+  const SDL_GPRect *rect = rects;
+  SDL_Color color = _gp.state.color;
+  SDL_GPMat2x3 mvp = _gp.state.mvp;
+  _SDL_GPRegion region = {FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX};
+
+  for (Uint32 i = 0; i < count; ++i, ++rect) {
+    SDL_GPVec2 quad[4] = {
+        {rect->x, rect->y + rect->h},           // bottom-left
+        {rect->x + rect->w, rect->y + rect->h}, // bottom-right
+        {rect->x + rect->w, rect->y},           // top-right
+        {rect->x, rect->y},                     // top-left
+    };
+
+    _SDL_GPTransform(&mvp, quad, quad, 4);
+
+    for (Uint32 j = 0; j < 4; ++j) {
+      region.x1 = SDL_min(region.x1, quad[j].x);
+      region.y1 = SDL_min(region.y1, quad[j].y);
+      region.x2 = SDL_max(region.x2, quad[j].x);
+      region.y2 = SDL_max(region.y2, quad[j].y);
+    }
+
+    const SDL_GPVec2 texcoords[4] = {
+        {0.0f, 1.0f}, // bottom-left
+        {1.0f, 1.0f}, // bottom-right
+        {1.0f, 0.0f}, // top-right
+        {0.0f, 0.0f}  // top-left
+    };
+
+    // Make two triangles to form the quad
+    v[0] = (SDL_GPVertex){
+        .position = quad[0], .texcoord = texcoords[0], .color = color};
+    v[1] = (SDL_GPVertex){
+        .position = quad[1], .texcoord = texcoords[1], .color = color};
+    v[2] = (SDL_GPVertex){
+        .position = quad[2], .texcoord = texcoords[2], .color = color};
+    v[3] = (SDL_GPVertex){
+        .position = quad[3], .texcoord = texcoords[3], .color = color};
+    v[4] = (SDL_GPVertex){
+        .position = quad[0], .texcoord = texcoords[0], .color = color};
+    v[5] = (SDL_GPVertex){
+        .position = quad[2], .texcoord = texcoords[2], .color = color};
+    v += 6;
+  }
+
+  // Queue draw
+  SDL_GPPipeline pipeline = _SDL_GP_FindOrCreatePipeline(
+      SDL_GP_PRIMITIVE_TRIANGLES, _gp.state.blend_mode);
+
+  _SDL_GPQueueDraw(pipeline, region, vertex_index, total_vertices,
+                   SDL_GP_PRIMITIVE_TRIANGLES);
 }
 
-void SDL_GPDrawRectTextured(int channel, SDL_GPTexturedRect rect) {
-  // TODO
-}
+void SDL_GPDrawRectFilled(SDL_GPRect rect) { SDL_GPDrawRectsFilled(&rect, 1); }
 
 void SDL_GPDrawRectsTextured(int channel, const SDL_GPTexturedRect *rects,
                              Uint32 count) {
-  // TODO
+  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.current_state > 0);
+
+  if (count == 0) {
+    return;
+  }
+
+  // Setup vertices
+  Uint32 total_vertices = count * 6; // 2 triangles per rect, 3 vertices each
+  Uint32 vertex_index = _gp.current_vertex;
+  SDL_GPVertex *vertices = _SDL_GPNextVertices(total_vertices);
+  if (!vertices) {
+    return;
+  }
+
+  // Get image info
+  SDL_GPImage image = _gp.state.texture.images[channel];
+
+  int width = SDL_GPGetImageWidth(image);
+  int height = SDL_GPGetImageHeight(image);
+
+  // Check image dimension with unlikely
+
+  float iw = 1.0f / (float)width;
+  float ih = 1.0f / (float)height;
+
+  // Compute vertices
+  SDL_GPMat2x3 mvp = _gp.state.mvp;
+  SDL_Color color = _gp.state.color;
+  _SDL_GPRegion region = {FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX};
+
+  for (Uint32 i = 0; i < count; ++i) {
+    SDL_GPVec2 quad[4] = {
+        {rects[i].dst.x, rects[i].dst.y + rects[i].dst.h}, // bottom left
+        {rects[i].dst.x + rects[i].dst.w,
+         rects[i].dst.y + rects[i].dst.h},                 // bottom right
+        {rects[i].dst.x + rects[i].dst.w, rects[i].dst.y}, // top right
+        {rects[i].dst.x, rects[i].dst.y},                  // top left
+    };
+
+    _SDL_GPTransform(&mvp, quad, quad, 4);
+
+    for (Uint32 j = 0; j < 4; ++j) {
+      region.x1 = SDL_min(region.x1, quad[j].x);
+      region.y1 = SDL_min(region.y1, quad[j].y);
+      region.x2 = SDL_max(region.x2, quad[j].x);
+      region.y2 = SDL_max(region.y2, quad[j].y);
+    }
+
+    float tl = rects[i].src.x * iw;
+    float tt = rects[i].src.y * ih;
+    float tr = (rects[i].src.x + rects[i].src.w) * iw;
+    float tb = (rects[i].src.y + rects[i].src.h) * ih;
+
+    SDL_GPVec2 vtexquad[4] = {
+        {tl, tb}, // bottom-left
+        {tr, tb}, // bottom-right
+        {tr, tt}, // top-right
+        {tl, tt}  // top-left
+    };
+
+    SDL_GPVertex *v = &vertices[i * 6];
+
+    v[0] = (SDL_GPVertex){
+        .position = quad[0], .texcoord = vtexquad[0], .color = color};
+    v[1] = (SDL_GPVertex){
+        .position = quad[1], .texcoord = vtexquad[1], .color = color};
+    v[2] = (SDL_GPVertex){
+        .position = quad[2], .texcoord = vtexquad[2], .color = color};
+    v[3] = (SDL_GPVertex){
+        .position = quad[3], .texcoord = vtexquad[3], .color = color};
+    v[4] = (SDL_GPVertex){
+        .position = quad[0], .texcoord = vtexquad[0], .color = color};
+    v[5] = (SDL_GPVertex){
+        .position = quad[2], .texcoord = vtexquad[2], .color = color};
+  }
+
+  // Queue draw
+  SDL_GPPipeline pipeline = _SDL_GP_FindOrCreatePipeline(
+      SDL_GP_PRIMITIVE_TRIANGLES, _gp.state.blend_mode);
+
+  _SDL_GPQueueDraw(pipeline, region, vertex_index, total_vertices,
+                   SDL_GP_PRIMITIVE_TRIANGLES);
+}
+
+void SDL_GPDrawRectTextured(int channel, SDL_GPTexturedRect rect) {
+  SDL_GPDrawRectsTextured(channel, &rect, 1);
 }
 
 #endif // SDL_GP_IMPLEMENTATION
