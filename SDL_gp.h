@@ -1,6 +1,5 @@
 /**
  * TODO re-organize structures to take less memory.
- * TODO add extern "c" for C++ compatibility.
  * https://github.com/n67094/SDL_gp
  *
  * SDL_gp: A minimal and efficient 2D (g)raphics (p)ainter for SDL3.
@@ -66,11 +65,12 @@
 #endif
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
-// Resource limits
-// ----------------------------------------------------------------------------
+  // Resource limits
+  // ----------------------------------------------------------------------------
 
 #ifndef SDL_GP_PATH_MAX
 #define SDL_GP_PATH_MAX 512
@@ -136,9 +136,9 @@ extern "C" {
 #define SDL_GP_OPTIMIZER_DEPTH 8
 #endif
 
-// ----------------------------------------------------------------------------
-// Public API
-// ----------------------------------------------------------------------------
+  // ----------------------------------------------------------------------------
+  // Public API
+  // ----------------------------------------------------------------------------
 
 #define SDL_GP_INVALID_ID 0
 #define SDL_GP_IMPOSSIBLE_ID 0xFFFFFFFF
@@ -149,359 +149,390 @@ extern "C" {
 // Get the offset of an element in a structure
 #define SDL_GP_OFFSET_OF(TYPE, ELEMENT) ((size_t)&(((TYPE *)0)->ELEMENT))
 
-// Error handling (Public)
-// ----------------------------------------------------------------------------
+  // Error handling (Public)
+  // ----------------------------------------------------------------------------
 
-typedef enum SDL_GP_Error {
-  SDL_GP_ERROR_NONE = 0,
-  SDL_GP_ERROR_SETUP_IMAGE_FAILED,
-  SDL_GP_ERROR_CREATE_IMAGE_FAILED,
-  SDL_GP_ERROR_CREATE_SHADER_FAILED,
-  SDL_GP_ERROR_CREATE_PIPELINE_FAILED,
-  SDL_GP_ERROR_CREATE_COMMON_SHADER_FAILED,
-  SDL_GP_ERROR_CREATE_WHITE_TEXTURE_FAILED,
-  SDL_GP_ERROR_CREATE_TRANSFER_BUFFER_FAILED,
-  SDL_GP_ERROR_CREATE_VERTEX_BUFFER_FAILED,
-  SDL_GP_ERROR_CREATE_COMMON_PIPELINE_FAILED,
-  SDL_GP_ERROR_PAINTER_UNIFORMS_FULL,
-  SDL_GP_ERROR_PAINTER_VERTICES_FULL,
-  SDL_GP_ERROR_PAINTER_COMMANDS_FULL,
-  SDL_GP_ERROR_FLUSH_FAILED
-} SDL_GP_Error;
+  typedef enum SDL_GP_Error
+  {
+    SDL_GP_ERROR_NONE = 0,
+    SDL_GP_ERROR_SETUP_IMAGE_FAILED,
+    SDL_GP_ERROR_CREATE_IMAGE_FAILED,
+    SDL_GP_ERROR_CREATE_SHADER_FAILED,
+    SDL_GP_ERROR_CREATE_PIPELINE_FAILED,
+    SDL_GP_ERROR_CREATE_COMMON_SHADER_FAILED,
+    SDL_GP_ERROR_CREATE_WHITE_TEXTURE_FAILED,
+    SDL_GP_ERROR_CREATE_TRANSFER_BUFFER_FAILED,
+    SDL_GP_ERROR_CREATE_VERTEX_BUFFER_FAILED,
+    SDL_GP_ERROR_CREATE_COMMON_PIPELINE_FAILED,
+    SDL_GP_ERROR_PAINTER_UNIFORMS_FULL,
+    SDL_GP_ERROR_PAINTER_VERTICES_FULL,
+    SDL_GP_ERROR_PAINTER_COMMANDS_FULL,
+    SDL_GP_ERROR_FLUSH_FAILED
+  } SDL_GP_Error;
 
-SDL_GP_Error SDL_GPGetLastError(void);
+  SDL_GP_Error SDL_GPGetLastError(void);
 
-const char *SDL_GPGetErrorMessage(SDL_GP_Error error);
+  const char *SDL_GPGetErrorMessage(SDL_GP_Error error);
 
-// Pool (Public for users who want to re-use it as-is for other resources).
-// ----------------------------------------------------------------------------
-// The pool is a simple resource management system.
-//
-// The pool work like this, there is a fixed number of slots (defined at pool
-// creation) that can be acquired and released. Each slot has an incrementing
-// generation counter, which is used to generate unique ids for each slot. When
-// a slot is released, its generation counter is incremented, so that any ids
-// generated from that slot will be invalid until the slot is acquired again.
+  // Pool (Public for users who want to re-use it as-is for other resources).
+  // ----------------------------------------------------------------------------
+  // The pool is a simple resource management system.
+  //
+  // The pool work like this, there is a fixed number of slots (defined at pool
+  // creation) that can be acquired and released. Each slot has an incrementing
+  // generation counter, which is used to generate unique ids for each slot.
+  // When a slot is released, its generation counter is incremented, so that any
+  // ids generated from that slot will be invalid until the slot is acquired
+  // again.
 
 #define SDL_GP_POOL_INVALID_SLOT 0
 #define SDL_GP_POOL_SLOT_SHIFT 16
 #define SDL_GP_POOL_SLOT_MASK ((1 << SDL_GP_POOL_SLOT_SHIFT) - 1)
 
-typedef struct SDL_GPPool {
-  size_t size; // total number of slots in the pool (counting the invalid slot)
-  int queue_top;    // index of the top of the free queue
-  Uint32 *counters; // incrementing generation counters for each slot
-  int *free_queue;  // queue of free slots
-} SDL_GPPool;
+  typedef struct SDL_GPPool
+  {
+    size_t
+        size; // total number of slots in the pool (counting the invalid slot)
+    int queue_top;    // index of the top of the free queue
+    Uint32 *counters; // incrementing generation counters for each slot
+    int *free_queue;  // queue of free slots
+  } SDL_GPPool;
 
-// Create a pool with the specified number of slots (not counting the invalid
-// slot).
-SDL_GPPool *SDL_GPCeatePool(size_t number_of_slots);
+  // Create a pool with the specified number of slots (not counting the invalid
+  // slot).
+  SDL_GPPool *SDL_GPCeatePool(size_t number_of_slots);
 
-// Destroy a pool and free its resources.
-void SDL_GPDestroyPool(SDL_GPPool *resource);
+  // Destroy a pool and free its resources.
+  void SDL_GPDestroyPool(SDL_GPPool *resource);
 
-// Acquire a slot from the pool and return its index. Returns
-// SDL_GP_POOL_INVALID_SLOT if no more slots are available.
-int SDL_GPAcquirePoolSlot(SDL_GPPool *resource);
+  // Acquire a slot from the pool and return its index. Returns
+  // SDL_GP_POOL_INVALID_SLOT if no more slots are available.
+  int SDL_GPAcquirePoolSlot(SDL_GPPool *resource);
 
-// Release a slot back to the pool, making it available for future acquisitions.
-void SDL_GPReleasePoolSlot(SDL_GPPool *resource, int slot_index);
+  // Release a slot back to the pool, making it available for future
+  // acquisitions.
+  void SDL_GPReleasePoolSlot(SDL_GPPool *resource, int slot_index);
 
-// Generate a unique id for a slot in the pool using its index and generation
-// counter.
-Uint32 SDL_GPGeneratePoolId(SDL_GPPool *resource, int slot_index);
+  // Generate a unique id for a slot in the pool using its index and generation
+  // counter.
+  Uint32 SDL_GPGeneratePoolId(SDL_GPPool *resource, int slot_index);
 
-// Extract the slot index from a generated id.
-int SDL_GPPoolIdToSlot(Uint32 id);
+  // Extract the slot index from a generated id.
+  int SDL_GPPoolIdToSlot(Uint32 id);
 
-// Image (Public)
-// ----------------------------------------------------------------------------
-//
-// An image is a wrapper around a GPU texture, with some additional metadata
-// (width and height). The image creation function will create a GPU texture
-// from an SDL_Surface and upload the surface pixels to the GPU texture.
-//
-// NOTE: The surface will be converted to the swapchain texture format if
-// needed.
+  // Image (Public)
+  // ----------------------------------------------------------------------------
+  //
+  // An image is a wrapper around a GPU texture, with some additional metadata
+  // (width and height). The image creation function will create a GPU texture
+  // from an SDL_Surface and upload the surface pixels to the GPU texture.
+  //
+  // NOTE: The surface will be converted to the swapchain texture format if
+  // needed.
 
-typedef enum {
-  SDL_GP_SAMPLER_POINT_CLAMP = 0,
-  SDL_GP_SAMPLER_POINT_WRAP,
-  SDL_GP_SAMPLER_LINEAR_CLAMP,
-  SDL_GP_SAMPLER_LINEAR_WRAP,
-  SDL_GP_SAMPLER_SIZE,
-} SDL_GPSampler;
+  typedef enum
+  {
+    SDL_GP_SAMPLER_POINT_CLAMP = 0,
+    SDL_GP_SAMPLER_POINT_WRAP,
+    SDL_GP_SAMPLER_LINEAR_CLAMP,
+    SDL_GP_SAMPLER_LINEAR_WRAP,
+    SDL_GP_SAMPLER_SIZE,
+  } SDL_GPSampler;
 
-typedef struct SDL_GPImage {
-  Uint32 id;
-} SDL_GPImage;
+  typedef struct SDL_GPImage
+  {
+    Uint32 id;
+  } SDL_GPImage;
 
-// Create an image from an SDL_Surface. Returns an invalid image if creation
-// failed.
-SDL_GPImage SDL_GPCreateImage(SDL_Surface *surface);
+  // Create an image from an SDL_Surface. Returns an invalid image if creation
+  // failed.
+  SDL_GPImage SDL_GPCreateImage(SDL_Surface *surface);
 
-// Destroy an image and free its resources.
-void SDL_GPDestroyImage(SDL_GPImage image);
+  // Destroy an image and free its resources.
+  void SDL_GPDestroyImage(SDL_GPImage image);
 
-// Get the GPU texture associated with an image. Returns NULL if the image is
-// invalid.
-SDL_GPUTexture *SDL_GPGetImageGPUTexture(SDL_GPImage image);
+  // Get the GPU texture associated with an image. Returns NULL if the image is
+  // invalid.
+  SDL_GPUTexture *SDL_GPGetImageGPUTexture(SDL_GPImage image);
 
-// Get the width of an image in pixels. Returns 0 if the image is invalid.
-int SDL_GPGetImageWidth(SDL_GPImage image);
+  // Get the width of an image in pixels. Returns 0 if the image is invalid.
+  int SDL_GPGetImageWidth(SDL_GPImage image);
 
-// Get the height of an image in pixels. Returns 0 if the image is invalid.
-int SDL_GPGetImageHeight(SDL_GPImage image);
+  // Get the height of an image in pixels. Returns 0 if the image is invalid.
+  int SDL_GPGetImageHeight(SDL_GPImage image);
 
-// Sampler (Public)
-// ----------------------------------------------------------------------------
+  // Sampler (Public)
+  // ----------------------------------------------------------------------------
 
-// Shader (Public)
-// ----------------------------------------------------------------------------
+  // Shader (Public)
+  // ----------------------------------------------------------------------------
 
-typedef struct SDL_GPShader {
-  Uint32 id;
-} SDL_GPShader;
+  typedef struct SDL_GPShader
+  {
+    Uint32 id;
+  } SDL_GPShader;
 
-typedef struct SDL_GPShaderDesc {
-  // Vertex shader description
-  size_t vert_code_size;
-  const Uint8 *vert_code;
-  const char *vert_entrypoint;
-  SDL_GPUShaderFormat vert_format;
-  Uint32 vert_num_samplers;
-  Uint32 vert_num_storage_textures;
-  Uint32 vert_num_storage_buffers;
-  Uint32 vert_num_uniform_buffers;
+  typedef struct SDL_GPShaderDesc
+  {
+    // Vertex shader description
+    size_t vert_code_size;
+    const Uint8 *vert_code;
+    const char *vert_entrypoint;
+    SDL_GPUShaderFormat vert_format;
+    Uint32 vert_num_samplers;
+    Uint32 vert_num_storage_textures;
+    Uint32 vert_num_storage_buffers;
+    Uint32 vert_num_uniform_buffers;
 
-  // Fragment shader description
-  size_t frag_code_size;
-  const Uint8 *frag_code;
-  const char *frag_entrypoint;
-  SDL_GPUShaderFormat frag_format;
-  Uint32 frag_num_samplers;
-  Uint32 frag_num_storage_textures;
-  Uint32 frag_num_storage_buffers;
-  Uint32 frag_num_uniform_buffers;
-} SDL_GPShaderDesc;
+    // Fragment shader description
+    size_t frag_code_size;
+    const Uint8 *frag_code;
+    const char *frag_entrypoint;
+    SDL_GPUShaderFormat frag_format;
+    Uint32 frag_num_samplers;
+    Uint32 frag_num_storage_textures;
+    Uint32 frag_num_storage_buffers;
+    Uint32 frag_num_uniform_buffers;
+  } SDL_GPShaderDesc;
 
-// Create a shader from vertex and fragment shader descriptions. Returns an
-// invalid shader if creation failed.
-SDL_GPShader SDL_GPCreateShader(SDL_GPShaderDesc *desc);
+  // Create a shader from vertex and fragment shader descriptions. Returns an
+  // invalid shader if creation failed.
+  SDL_GPShader SDL_GPCreateShader(SDL_GPShaderDesc *desc);
 
-SDL_GPUShader *SDL_GPGetGPUVertexShader(SDL_GPShader shader);
+  SDL_GPUShader *SDL_GPGetGPUVertexShader(SDL_GPShader shader);
 
-SDL_GPUShader *SDL_GPGetGPUFragmentShader(SDL_GPShader shader);
+  SDL_GPUShader *SDL_GPGetGPUFragmentShader(SDL_GPShader shader);
 
-// Destroy a shader and free its resources.
-void SDL_GPDestroyShader(SDL_GPShader shader);
+  // Destroy a shader and free its resources.
+  void SDL_GPDestroyShader(SDL_GPShader shader);
 
-// Pipeline (Public)
-// ----------------------------------------------------------------------------
+  // Pipeline (Public)
+  // ----------------------------------------------------------------------------
 
-typedef enum {
-  SDL_GP_BLENDMODE_NONE = SDL_BLENDMODE_NONE,
-  SDL_GP_BLENDMODE_BLEND = SDL_BLENDMODE_BLEND,
-  SDL_GP_BLENDMODE_BLEND_PREMULTIPLIED = SDL_BLENDMODE_BLEND_PREMULTIPLIED,
-  SDL_GP_BLENDMODE_ADD = SDL_BLENDMODE_ADD,
-  SDL_GP_BLENDMODE_ADD_PREMULTIPLIED = SDL_BLENDMODE_ADD_PREMULTIPLIED,
-  SDL_GP_BLENDMODE_MOD = SDL_BLENDMODE_MOD,
-  SDL_GP_BLENDMODE_MUL = SDL_BLENDMODE_MUL,
-  SDL_GP_BLENDMODE_SIZE = 7,
-} SDL_GPBlendMode;
+  typedef enum
+  {
+    SDL_GP_BLENDMODE_NONE                = SDL_BLENDMODE_NONE,
+    SDL_GP_BLENDMODE_BLEND               = SDL_BLENDMODE_BLEND,
+    SDL_GP_BLENDMODE_BLEND_PREMULTIPLIED = SDL_BLENDMODE_BLEND_PREMULTIPLIED,
+    SDL_GP_BLENDMODE_ADD                 = SDL_BLENDMODE_ADD,
+    SDL_GP_BLENDMODE_ADD_PREMULTIPLIED   = SDL_BLENDMODE_ADD_PREMULTIPLIED,
+    SDL_GP_BLENDMODE_MOD                 = SDL_BLENDMODE_MOD,
+    SDL_GP_BLENDMODE_MUL                 = SDL_BLENDMODE_MUL,
+    SDL_GP_BLENDMODE_SIZE                = 7,
+  } SDL_GPBlendMode;
 
-typedef enum {
-  SDL_GP_PRIMITIVE_TRIANGLES = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
-  SDL_GP_PRIMITIVE_TRIANGLE_STRIP = SDL_GPU_PRIMITIVETYPE_TRIANGLESTRIP,
-  SDL_GP_PRIMITIVE_LINES = SDL_GPU_PRIMITIVETYPE_LINELIST,
-  SDL_GP_PRIMITIVE_LINE_STRIP = SDL_GPU_PRIMITIVETYPE_LINESTRIP,
-  SDL_GP_PRIMITIVE_POINTS = SDL_GPU_PRIMITIVETYPE_POINTLIST,
-  SDL_GP_PRIMITIVE_SIZE = 5,
-} SDL_GPPrimitiveType;
+  typedef enum
+  {
+    SDL_GP_PRIMITIVE_TRIANGLES      = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
+    SDL_GP_PRIMITIVE_TRIANGLE_STRIP = SDL_GPU_PRIMITIVETYPE_TRIANGLESTRIP,
+    SDL_GP_PRIMITIVE_LINES          = SDL_GPU_PRIMITIVETYPE_LINELIST,
+    SDL_GP_PRIMITIVE_LINE_STRIP     = SDL_GPU_PRIMITIVETYPE_LINESTRIP,
+    SDL_GP_PRIMITIVE_POINTS         = SDL_GPU_PRIMITIVETYPE_POINTLIST,
+    SDL_GP_PRIMITIVE_SIZE           = 5,
+  } SDL_GPPrimitiveType;
 
-typedef struct SDL_GPPipeline {
-  Uint32 id;
-} SDL_GPPipeline;
+  typedef struct SDL_GPPipeline
+  {
+    Uint32 id;
+  } SDL_GPPipeline;
 
-// Create a graphics pipeline
-SDL_GPPipeline SDL_GPCreatePipeline(SDL_GPShader shader,
-                                    SDL_GPPrimitiveType primitive_type,
-                                    SDL_GPBlendMode blend_mode);
+  // Create a graphics pipeline
+  SDL_GPPipeline SDL_GPCreatePipeline(SDL_GPShader shader,
+                                      SDL_GPPrimitiveType primitive_type,
+                                      SDL_GPBlendMode blend_mode);
 
-// Destroy a graphics pipeline and free its resources.
-void SDL_GPPipelineDestroy(SDL_GPPipeline pipeline);
+  // Destroy a graphics pipeline and free its resources.
+  void SDL_GPPipelineDestroy(SDL_GPPipeline pipeline);
 
-// Get the GPU graphics pipeline associated with a pipeline. Returns NULL if the
-// pipeline is invalid.
-SDL_GPUGraphicsPipeline *SDL_GPGetGPUPipeline(SDL_GPPipeline pipeline);
+  // Get the GPU graphics pipeline associated with a pipeline. Returns NULL if
+  // the pipeline is invalid.
+  SDL_GPUGraphicsPipeline *SDL_GPGetGPUPipeline(SDL_GPPipeline pipeline);
 
-// Painter (Public)
-// ----------------------------------------------------------------------------
+  // Painter (Public)
+  // ----------------------------------------------------------------------------
 
-typedef enum {
-  SDL_GP_UNIFORM_SLOT_VS = 0,
-  SDL_GP_UNIFORM_SLOT_FS = 1
-} SDL_GPUniformSlot;
+  typedef enum
+  {
+    SDL_GP_UNIFORM_SLOT_VS = 0,
+    SDL_GP_UNIFORM_SLOT_FS = 1
+  } SDL_GPUniformSlot;
 
-typedef struct SDL_GPISize {
-  int w, h;
-} SDL_GPISize;
+  typedef struct SDL_GPISize
+  {
+    int w, h;
+  } SDL_GPISize;
 
-typedef struct SDL_GPVec2 {
-  float x, y;
-} SDL_GPVec2;
+  typedef struct SDL_GPVec2
+  {
+    float x, y;
+  } SDL_GPVec2;
 
-typedef SDL_GPVec2 SDL_GPPoint;
+  typedef SDL_GPVec2 SDL_GPPoint;
 
-typedef struct SDL_GPLine {
-  SDL_GPPoint a, b;
-} SDL_GPLine;
+  typedef struct SDL_GPLine
+  {
+    SDL_GPPoint a, b;
+  } SDL_GPLine;
 
-typedef struct SDL_GPTriangle {
-  SDL_GPPoint a, b, c;
-} SDL_GPTriangle;
+  typedef struct SDL_GPTriangle
+  {
+    SDL_GPPoint a, b, c;
+  } SDL_GPTriangle;
 
-typedef struct SDL_GPIRect {
-  int x, y, w, h;
-} SDL_GPIRect;
+  typedef struct SDL_GPIRect
+  {
+    int x, y, w, h;
+  } SDL_GPIRect;
 
-typedef struct SDL_GPRect {
-  float x, y, w, h;
-} SDL_GPRect;
+  typedef struct SDL_GPRect
+  {
+    float x, y, w, h;
+  } SDL_GPRect;
 
-typedef struct SDL_GPTexturedRect {
-  SDL_GPRect dst;
-  SDL_GPRect src;
-} SDL_GPTexturedRect;
+  typedef struct SDL_GPTexturedRect
+  {
+    SDL_GPRect dst;
+    SDL_GPRect src;
+  } SDL_GPTexturedRect;
 
-typedef struct SDL_GPMat2x3 {
-  float m00, m01, m02;
-  float m10, m11, m12;
-} SDL_GPMat2x3;
+  typedef struct SDL_GPMat2x3
+  {
+    float m00, m01, m02;
+    float m10, m11, m12;
+  } SDL_GPMat2x3;
 
 // Create an immutable 2x3 matrix
 #define SDL_GPCreateMat2x3(m00, m01, m02, m10, m11, m12)                       \
-  ((const SDL_GPMat2x3){m00, m01, m02, m10, m11, m12})
+  ((const SDL_GPMat2x3){ m00, m01, m02, m10, m11, m12 })
 
 // Create an immutable identity 2x3 matrix
 #define SDL_GPCreateMat2x3Identity()                                           \
-  ((const SDL_GPMat2x3){1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f})
+  ((const SDL_GPMat2x3){ 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f })
 
-typedef struct SDL_GPVertex {
-  SDL_GPVec2 position;
-  SDL_GPVec2 texcoord;
-  SDL_Color color;
-} SDL_GPVertex;
+  typedef struct SDL_GPVertex
+  {
+    SDL_GPVec2 position;
+    SDL_GPVec2 texcoord;
+    SDL_Color color;
+  } SDL_GPVertex;
 
-typedef union SDL_GPUniformData {
-  float floats[SDL_GP_UNIFORM_FLOATS_MAX];
-  uint8_t bytes[SDL_GP_UNIFORM_FLOATS_MAX * sizeof(float)];
-} SDL_GPUniformData;
+  typedef union SDL_GPUniformData
+  {
+    float floats[SDL_GP_UNIFORM_FLOATS_MAX];
+    uint8_t bytes[SDL_GP_UNIFORM_FLOATS_MAX * sizeof(float)];
+  } SDL_GPUniformData;
 
-typedef struct SDL_GPUniform {
-  Uint16 vs_size;
-  Uint16 fs_size;
-  SDL_GPUniformData data;
-} SDL_GPUniform;
+  typedef struct SDL_GPUniform
+  {
+    Uint16 vs_size;
+    Uint16 fs_size;
+    SDL_GPUniformData data;
+  } SDL_GPUniform;
 
-typedef struct SDL_GPTextureUniform {
-  Uint32 count;
-  SDL_GPImage images[SDL_GP_TEXTURE_SLOTS_MAX];
-  SDL_GPUSampler *samplers[SDL_GP_TEXTURE_SLOTS_MAX];
-} SDL_GPTextureUniform;
+  typedef struct SDL_GPTextureUniform
+  {
+    Uint32 count;
+    SDL_GPImage images[SDL_GP_TEXTURE_SLOTS_MAX];
+    SDL_GPUSampler *samplers[SDL_GP_TEXTURE_SLOTS_MAX];
+  } SDL_GPTextureUniform;
 
-typedef struct SDL_GPState {
-  SDL_GPMat2x3 projection;
-  SDL_GPMat2x3 transform;
-  SDL_GPMat2x3 mvp;
-  SDL_GPTextureUniform texture;
-  SDL_GPUniform uniform;
-  SDL_GPPipeline pipeline;
-  SDL_GPBlendMode blend_mode;
-  SDL_GPISize frame_size;
-  SDL_GPIRect viewport;
-  SDL_GPIRect scissor;
-  SDL_Color color;
-  float thickness;
-  Uint32 base_uniform;
-  Uint32 base_vertex;
-  Uint32 base_command;
-} SDL_GPState;
+  typedef struct SDL_GPState
+  {
+    SDL_GPMat2x3 projection;
+    SDL_GPMat2x3 transform;
+    SDL_GPMat2x3 mvp;
+    SDL_GPTextureUniform texture;
+    SDL_GPUniform uniform;
+    SDL_GPPipeline pipeline;
+    SDL_GPBlendMode blend_mode;
+    SDL_GPISize frame_size;
+    SDL_GPIRect viewport;
+    SDL_GPIRect scissor;
+    SDL_Color color;
+    float thickness;
+    Uint32 base_uniform;
+    Uint32 base_vertex;
+    Uint32 base_command;
+  } SDL_GPState;
 
-typedef struct SDL_GPDesc {
-  Uint32 max_vertices;
-  Uint32 max_commands;
-  SDL_Window *window;
-  SDL_GPUDevice *gpu_device;
-  SDL_GPUTexture *target_texture; // Swapchain
-  SDL_GPUCommandBuffer *cmd_buffer;
-} SDL_GPDesc;
+  typedef struct SDL_GPDesc
+  {
+    Uint32 max_vertices;
+    Uint32 max_commands;
+    SDL_Window *window;
+    SDL_GPUDevice *gpu_device;
+    SDL_GPUTexture *target_texture; // Swapchain
+    SDL_GPUCommandBuffer *cmd_buffer;
+  } SDL_GPDesc;
 
-void SDL_GPSetup(SDL_GPDesc *desc);
-void SDL_GPShutdown();
+  void SDL_GPSetup(SDL_GPDesc *desc);
+  void SDL_GPShutdown();
 
-void SDL_GPBegin(int width, int height);
-void SDL_GPFlush(void);
-void SDL_GPEnd(void);
+  void SDL_GPBegin(int width, int height);
+  void SDL_GPFlush(void);
+  void SDL_GPEnd(void);
 
-void SDL_GPSetProjection(float left, float right, float bottom, float top);
-void SDL_GPResetProjection(void);
-void SDL_GPPushTransform(void);
-void SDL_GPPopTransform(void);
-void SDL_GPResetTransform(void);
-void SDL_GPTranslate(float x, float y);
-void SDL_GPRotateAt(float angle, float ax, float ay);
-void SDL_GPScale(float sx, float sy);
-void SDL_GPScaleAt(float sx, float sy, float ax, float ay);
+  void SDL_GPSetProjection(float left, float right, float bottom, float top);
+  void SDL_GPResetProjection(void);
+  void SDL_GPPushTransform(void);
+  void SDL_GPPopTransform(void);
+  void SDL_GPResetTransform(void);
+  void SDL_GPTranslate(float x, float y);
+  void SDL_GPRotateAt(float angle, float ax, float ay);
+  void SDL_GPScale(float sx, float sy);
+  void SDL_GPScaleAt(float sx, float sy, float ax, float ay);
 
-void SDL_GPSetPipeline(SDL_GPPipeline pipeline);
-void SDL_GPResetPipeline(void);
-void SDL_GPSetUniform(const void *vs_data, size_t vs_size, const void *fs_data,
-                      size_t fs_size);
-void SDL_GPResetUniform(void);
-void SDL_GPPainterSetBlendMode(SDL_GPBlendMode blend_mode);
-void SDL_GPPainterResetBlendMode(void);
-void SDL_GPPainterSetColor(SDL_Color color);
-SDL_Color SDL_GPGetColor(void);
-void SDL_GPResetColor(void);
-void SDL_GPSetImage(int channel, SDL_GPImage image);
-SDL_GPImage SDL_GPGetImage(int channel);
-void SDL_GPResetImage(int channel);
-void SDL_GPUnsetImage(int channel);
-void SDL_GPSetSampler(int channel, SDL_GPSampler sampler);
-void SDL_GPResetSampler(int channel);
+  void SDL_GPSetPipeline(SDL_GPPipeline pipeline);
+  void SDL_GPResetPipeline(void);
+  void SDL_GPSetUniform(const void *vs_data,
+                        size_t vs_size,
+                        const void *fs_data,
+                        size_t fs_size);
+  void SDL_GPResetUniform(void);
+  void SDL_GPPainterSetBlendMode(SDL_GPBlendMode blend_mode);
+  void SDL_GPPainterResetBlendMode(void);
+  void SDL_GPPainterSetColor(SDL_Color color);
+  SDL_Color SDL_GPGetColor(void);
+  void SDL_GPResetColor(void);
+  void SDL_GPSetImage(int channel, SDL_GPImage image);
+  SDL_GPImage SDL_GPGetImage(int channel);
+  void SDL_GPResetImage(int channel);
+  void SDL_GPUnsetImage(int channel);
+  void SDL_GPSetSampler(int channel, SDL_GPUSampler *sampler);
+  void SDL_GPResetSampler(int channel);
 
-// Set the viewport for subsequent draw calls.
-void SDL_GPViewport(int x, int y, int w, int h);
-void SDL_GPResetViewport(void);
+  // Set the viewport for subsequent draw calls.
+  void SDL_GPViewport(int x, int y, int w, int h);
+  void SDL_GPResetViewport(void);
 
-// Set the scissor for subsequent draw calls.
-void SDL_GPScissor(int x, int y, int w, int h);
-void SDL_GPResetScissor(void);
+  // Set the scissor for subsequent draw calls.
+  void SDL_GPScissor(int x, int y, int w, int h);
+  void SDL_GPResetScissor(void);
 
-void SDL_GPClear(void);
+  void SDL_GPClear(void);
 
-void SDL_GPDraw(SDL_GPPrimitiveType primitive_type,
-                const SDL_GPVertex *vertices, Uint32 vertices_count);
+  void SDL_GPDraw(SDL_GPPrimitiveType primitive_type,
+                  const SDL_GPVertex *vertices,
+                  Uint32 vertices_count);
 
-void SDL_GPDrawPoints(const SDL_GPVec2 *points, Uint32 count);
-void SDL_GPDrawPoint(SDL_GPVec2 point);
+  void SDL_GPDrawPoints(const SDL_GPVec2 *points, Uint32 count);
+  void SDL_GPDrawPoint(SDL_GPVec2 point);
 
-void SDL_GPDrawLine(SDL_GPLine line);
-void SDL_GPDrawLines(const SDL_GPLine *lines, Uint32 count);
-void SDL_GPDrawLinesStrip(const SDL_GPVec2 *points, Uint32 count);
+  void SDL_GPDrawLine(SDL_GPLine line);
+  void SDL_GPDrawLines(const SDL_GPLine *lines, Uint32 count);
+  void SDL_GPDrawLinesStrip(const SDL_GPVec2 *points, Uint32 count);
 
-void SDL_GPDrawTriangleFilled(SDL_GPTriangle triangle);
-void SDL_GPDrawTriangles(const SDL_GPTriangle *triangles, Uint32 count);
-void SDL_GPDrawTrianglesStrip(const SDL_GPVec2 *points, Uint32 count);
+  void SDL_GPDrawTriangleFilled(SDL_GPTriangle triangle);
+  void SDL_GPDrawTriangles(const SDL_GPTriangle *triangles, Uint32 count);
+  void SDL_GPDrawTrianglesStrip(const SDL_GPVec2 *points, Uint32 count);
 
-void SDL_GPDrawRectFilled(SDL_GPRect rect);
-void SDL_GPDrawRectsFilled(const SDL_GPRect *rects, Uint32 count);
+  void SDL_GPDrawRectFilled(SDL_GPRect rect);
+  void SDL_GPDrawRectsFilled(const SDL_GPRect *rects, Uint32 count);
 
-void SDL_GPDrawRectTextured(int channel, SDL_GPTexturedRect rect);
-void SDL_GPDrawRectsTextured(int channel, const SDL_GPTexturedRect *rects,
-                             Uint32 count);
+  void SDL_GPDrawRectTextured(int channel, SDL_GPTexturedRect rect);
+  void SDL_GPDrawRectsTextured(int channel,
+                               const SDL_GPTexturedRect *rects,
+                               Uint32 count);
 
 #ifdef __cplusplus
 }
@@ -525,11 +556,21 @@ void SDL_GPDrawRectsTextured(int channel, const SDL_GPTexturedRect *rects,
 
 static SDL_GP_Error _last_error = SDL_GP_ERROR_NONE;
 
-static void _SDL_GPSetError(SDL_GP_Error error) { _last_error = error; }
+static void
+_SDL_GPSetError(SDL_GP_Error error)
+{
+  _last_error = error;
+}
 
-SDL_GP_Error SDL_GPGetLastError(void) { return _last_error; }
+SDL_GP_Error
+SDL_GPGetLastError(void)
+{
+  return _last_error;
+}
 
-const char *SDL_GPGetErrorMessage(SDL_GP_Error error) {
+const char *
+SDL_GPGetErrorMessage(SDL_GP_Error error)
+{
   switch (error) {
   case SDL_GP_ERROR_NONE:
     return "No error";
@@ -551,6 +592,14 @@ const char *SDL_GPGetErrorMessage(SDL_GP_Error error) {
     return "Failed to create vertex buffer";
   case SDL_GP_ERROR_CREATE_COMMON_PIPELINE_FAILED:
     return "Failed to create common pipeline";
+  case SDL_GP_ERROR_PAINTER_UNIFORMS_FULL:
+    return "Painter uniforms are full";
+  case SDL_GP_ERROR_PAINTER_VERTICES_FULL:
+    return "Painter vertices are full";
+  case SDL_GP_ERROR_PAINTER_COMMANDS_FULL:
+    return "Painter commands are full";
+  case SDL_GP_ERROR_FLUSH_FAILED:
+    return "Failed to flush painter";
   default:
     return "Unknown error";
   }
@@ -559,33 +608,39 @@ const char *SDL_GPGetErrorMessage(SDL_GP_Error error) {
 // Pool (Private)
 // ----------------------------------------------------------------------------
 
-SDL_GPPool *SDL_GPCeatePool(size_t number_of_slots) {
+SDL_GPPool *
+SDL_GPCeatePool(size_t number_of_slots)
+{
   SDL_GPPool *pool = (SDL_GPPool *)SDL_malloc(sizeof(SDL_GPPool));
 
   // the 0 slot is used for invalid ids, so we need to add 1 to the size to
   // account for it
-  pool->size = number_of_slots + 1;
-  pool->queue_top = 0;
-  pool->counters = (Uint32 *)SDL_malloc(pool->size * sizeof(Uint32));
+  pool->size       = number_of_slots + 1;
+  pool->queue_top  = 0;
+  pool->counters   = (Uint32 *)SDL_malloc(pool->size * sizeof(Uint32));
   pool->free_queue = (int *)SDL_malloc(pool->size * sizeof(int));
 
   // Initialize the free queue with all the slots (except 0) and set the
   // generation counters to 0
   for (int i = pool->size - 1; i >= 1; --i) {
     pool->free_queue[pool->queue_top++] = i;
-    pool->counters[i] = 0;
+    pool->counters[i]                   = 0;
   }
 
   return pool;
 }
 
-void SDL_GPDestroyPool(SDL_GPPool *pool) {
+void
+SDL_GPDestroyPool(SDL_GPPool *pool)
+{
   SDL_free(pool->counters);
   SDL_free(pool->free_queue);
   SDL_free(pool);
 }
 
-int SDL_GPAcquirePoolSlot(SDL_GPPool *pool) {
+int
+SDL_GPAcquirePoolSlot(SDL_GPPool *pool)
+{
   SDL_assert(pool);
   SDL_assert(pool->free_queue);
 
@@ -597,7 +652,9 @@ int SDL_GPAcquirePoolSlot(SDL_GPPool *pool) {
   }
 }
 
-void SDL_GPReleasePoolSlot(SDL_GPPool *pool, int slot) {
+void
+SDL_GPReleasePoolSlot(SDL_GPPool *pool, int slot)
+{
   SDL_assert(slot > SDL_GP_POOL_INVALID_SLOT && slot < (int)pool->size);
   SDL_assert(pool);
   SDL_assert(pool->free_queue);
@@ -608,20 +665,24 @@ void SDL_GPReleasePoolSlot(SDL_GPPool *pool, int slot) {
   SDL_assert(pool->queue_top <= (int)pool->size);
 }
 
-Uint32 SDL_GPGeneratePoolId(SDL_GPPool *pool, int slot) {
+Uint32
+SDL_GPGeneratePoolId(SDL_GPPool *pool, int slot)
+{
   SDL_assert(slot > SDL_GP_POOL_INVALID_SLOT && slot < (int)pool->size);
   SDL_assert(pool);
   SDL_assert(pool->counters);
 
   uint32_t counter = ++pool->counters[slot]; // increment generation
 
-  Uint32 id =
-      (counter << SDL_GP_POOL_SLOT_SHIFT) | (slot & SDL_GP_POOL_SLOT_MASK);
+  Uint32 id
+      = (counter << SDL_GP_POOL_SLOT_SHIFT) | (slot & SDL_GP_POOL_SLOT_MASK);
 
   return id;
 }
 
-int SDL_GPPoolIdToSlot(Uint32 id) {
+int
+SDL_GPPoolIdToSlot(Uint32 id)
+{
   int slot_index = (int)(id & SDL_GP_POOL_SLOT_MASK);
   return slot_index;
   return -1;
@@ -630,24 +691,27 @@ int SDL_GPPoolIdToSlot(Uint32 id) {
 // Image (Private)
 // ----------------------------------------------------------------------------
 
-typedef struct _SDL_GPImage {
+typedef struct _SDL_GPImage
+{
   SDL_GPUTexture *texture;
   int width;
   int height;
 } _SDL_GPImage;
 
-static Uint32 _image_initialized = 0;
-static _SDL_GPImage *_images = NULL;
-static SDL_GPPool *_image_pool = NULL;
+static Uint32 _image_initialized                             = 0;
+static _SDL_GPImage *_images                                 = NULL;
+static SDL_GPPool *_image_pool                               = NULL;
 static SDL_GPUTransferBuffer *_image_texture_transfer_buffer = NULL;
-static SDL_GPUDevice *_image_gpu_device = NULL;
-static SDL_GPUCommandBuffer *_image_cmd_buffer = NULL;
-static SDL_PixelFormat *_image_pixel_format = NULL;
+static SDL_GPUDevice *_image_gpu_device                      = NULL;
+static SDL_GPUCommandBuffer *_image_cmd_buffer               = NULL;
+static SDL_PixelFormat *_image_pixel_format                  = NULL;
 
 // Setup image resources management.
-static void _SDL_GPImageSetup(SDL_GPUDevice *gpu_device,
-                              SDL_GPUCommandBuffer *cmd_buffer,
-                              SDL_PixelFormat pixel_format) {
+static void
+_SDL_GPImageSetup(SDL_GPUDevice *gpu_device,
+                  SDL_GPUCommandBuffer *cmd_buffer,
+                  SDL_PixelFormat pixel_format)
+{
   SDL_assert(_image_initialized == 0);
   SDL_assert(gpu_device);
   SDL_assert(cmd_buffer);
@@ -661,12 +725,13 @@ static void _SDL_GPImageSetup(SDL_GPUDevice *gpu_device,
 
   _images = (_SDL_GPImage *)SDL_malloc(SDL_GP_IMAGE_MAX * sizeof(_SDL_GPImage));
 
-  SDL_GPUTransferBufferCreateInfo transfer_buffer_create_info = {
-      .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
-      .size = 4 * SDL_GP_TEXTURE_DIMENSION_MAX * SDL_GP_TEXTURE_DIMENSION_MAX};
+  SDL_GPUTransferBufferCreateInfo transfer_buffer_create_info
+      = { .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
+          .size
+          = 4 * SDL_GP_TEXTURE_DIMENSION_MAX * SDL_GP_TEXTURE_DIMENSION_MAX };
 
-  _image_texture_transfer_buffer =
-      SDL_CreateGPUTransferBuffer(gpu_device, &transfer_buffer_create_info);
+  _image_texture_transfer_buffer
+      = SDL_CreateGPUTransferBuffer(gpu_device, &transfer_buffer_create_info);
 
   if (!_image_texture_transfer_buffer) {
     _SDL_GPSetError(SDL_GP_ERROR_SETUP_IMAGE_FAILED);
@@ -675,7 +740,9 @@ static void _SDL_GPImageSetup(SDL_GPUDevice *gpu_device,
 }
 
 // Shutdown image resources management and free resources.
-static void _SDL_GPImageShutdown() {
+static void
+_SDL_GPImageShutdown()
+{
   SDL_assert(_image_initialized == _SDL_GP_INIT_COOKIE);
   _image_initialized = 0;
 
@@ -685,7 +752,9 @@ static void _SDL_GPImageShutdown() {
                                _image_texture_transfer_buffer);
 }
 
-SDL_GPImage SDL_GPCreateImage(SDL_Surface *surface) {
+SDL_GPImage
+SDL_GPCreateImage(SDL_Surface *surface)
+{
   SDL_assert(_image_initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(surface);
 
@@ -695,11 +764,11 @@ SDL_GPImage SDL_GPCreateImage(SDL_Surface *surface) {
 
   bool converted = false;
   if (surface->format != *_image_pixel_format) {
-    inner_surface = SDL_ConvertSurface(surface, _image_pixel_format);
+    inner_surface = SDL_ConvertSurface(surface, *_image_pixel_format);
 
     if (inner_surface == NULL) {
       _SDL_GPSetError(SDL_GP_ERROR_CREATE_IMAGE_FAILED);
-      return (SDL_GPImage){.id = SDL_GP_INVALID_ID};
+      return (SDL_GPImage){ .id = SDL_GP_INVALID_ID };
     }
 
     converted = true;
@@ -710,34 +779,35 @@ SDL_GPImage SDL_GPCreateImage(SDL_Surface *surface) {
   void *texture_transfer_ptr = SDL_MapGPUTransferBuffer(
       _image_gpu_device, _image_texture_transfer_buffer, true);
 
-  SDL_assert(surface->w * surface->h * 4 <=
-             SDL_GP_TEXTURE_DIMENSION_MAX * SDL_GP_TEXTURE_DIMENSION_MAX * 4);
+  SDL_assert(surface->w * surface->h * 4 <= SDL_GP_TEXTURE_DIMENSION_MAX
+                                                * SDL_GP_TEXTURE_DIMENSION_MAX
+                                                * 4);
 
-  SDL_memcpy(texture_transfer_ptr, surface->pixels,
-             surface->w * surface->h * 4);
+  SDL_memcpy(
+      texture_transfer_ptr, surface->pixels, surface->w * surface->h * 4);
 
   SDL_UnmapGPUTransferBuffer(_image_gpu_device, _image_texture_transfer_buffer);
 
   // Create GPU texture and copy the transfer buffer to it
 
-  SDL_GPUTextureFormat _image_texture_format =
-      SDL_GetGPUTextureFormatFromPixelFormat(*_image_pixel_format);
+  SDL_GPUTextureFormat _image_texture_format
+      = SDL_GetGPUTextureFormatFromPixelFormat(*_image_pixel_format);
 
-  SDL_GPUTextureCreateInfo texture_create_info = {
-      .type = SDL_GPU_TEXTURETYPE_2D,
-      .format = _image_texture_format,
-      .width = (Uint32)surface->w,
-      .height = (Uint32)surface->h,
-      .layer_count_or_depth = 1,
-      .num_levels = 1,
-      .usage = SDL_GPU_TEXTUREUSAGE_SAMPLER};
+  SDL_GPUTextureCreateInfo texture_create_info
+      = { .type                 = SDL_GPU_TEXTURETYPE_2D,
+          .format               = _image_texture_format,
+          .width                = (Uint32)surface->w,
+          .height               = (Uint32)surface->h,
+          .layer_count_or_depth = 1,
+          .num_levels           = 1,
+          .usage                = SDL_GPU_TEXTUREUSAGE_SAMPLER };
 
-  SDL_GPUTexture *texture =
-      SDL_CreateGPUTexture(_image_gpu_device, &texture_create_info);
+  SDL_GPUTexture *texture
+      = SDL_CreateGPUTexture(_image_gpu_device, &texture_create_info);
 
   if (texture == NULL) {
     _SDL_GPSetError(SDL_GP_ERROR_CREATE_IMAGE_FAILED);
-    return (SDL_GPImage){.id = SDL_GP_INVALID_ID};
+    return (SDL_GPImage){ .id = SDL_GP_INVALID_ID };
   }
 
   // Copy the texture data from the transfer buffer to the GPU texture using a
@@ -746,14 +816,13 @@ SDL_GPImage SDL_GPCreateImage(SDL_Surface *surface) {
   SDL_GPUCopyPass *copy_pass = SDL_BeginGPUCopyPass(_image_cmd_buffer);
 
   SDL_GPUTextureTransferInfo transfer_info = {
-      .transfer_buffer = _image_texture_transfer_buffer,
-      .offset = 0,
+    .transfer_buffer = _image_texture_transfer_buffer,
+    .offset          = 0,
   };
 
-  SDL_GPUTextureRegion region = {.texture = texture,
-                                 .w = (Uint32)surface->w,
-                                 .h = (Uint32)surface->h,
-                                 .d = 1};
+  SDL_GPUTextureRegion region = {
+    .texture = texture, .w = (Uint32)surface->w, .h = (Uint32)surface->h, .d = 1
+  };
 
   SDL_UploadToGPUTexture(copy_pass, &transfer_info, &region, false);
 
@@ -771,19 +840,21 @@ SDL_GPImage SDL_GPCreateImage(SDL_Surface *surface) {
   if (slot == SDL_GP_POOL_INVALID_SLOT) {
     SDL_ReleaseGPUTexture(_image_gpu_device, texture);
     _SDL_GPSetError(SDL_GP_ERROR_CREATE_IMAGE_FAILED);
-    return (SDL_GPImage){.id = SDL_GP_INVALID_ID};
+    return (SDL_GPImage){ .id = SDL_GP_INVALID_ID };
   }
 
   _images[slot] = (_SDL_GPImage){
-      .texture = texture,
-      .width = surface->w,
-      .height = surface->h,
+    .texture = texture,
+    .width   = surface->w,
+    .height  = surface->h,
   };
 
-  return (SDL_GPImage){.id = SDL_GPGeneratePoolId(_image_pool, slot)};
+  return (SDL_GPImage){ .id = SDL_GPGeneratePoolId(_image_pool, slot) };
 }
 
-void SDL_GPDestroyImage(SDL_GPImage image) {
+void
+SDL_GPDestroyImage(SDL_GPImage image)
+{
   SDL_assert(_image_initialized == _SDL_GP_INIT_COOKIE);
 
   if (image.id == SDL_GP_INVALID_ID) {
@@ -799,13 +870,15 @@ void SDL_GPDestroyImage(SDL_GPImage image) {
   SDL_ReleaseGPUTexture(_image_gpu_device, inner_image.texture);
 
   _images[slot] = (_SDL_GPImage){
-      .texture = NULL,
-      .width = 0,
-      .height = 0,
+    .texture = NULL,
+    .width   = 0,
+    .height  = 0,
   };
 }
 
-SDL_GPUTexture *SDL_GPGetImageGPUTexture(SDL_GPImage image) {
+SDL_GPUTexture *
+SDL_GPGetImageGPUTexture(SDL_GPImage image)
+{
   SDL_assert(_image_initialized == _SDL_GP_INIT_COOKIE);
 
   if (image.id == SDL_GP_INVALID_ID) {
@@ -816,7 +889,9 @@ SDL_GPUTexture *SDL_GPGetImageGPUTexture(SDL_GPImage image) {
   return _images[slot].texture;
 }
 
-int SDL_GPGetImageWidth(SDL_GPImage image) {
+int
+SDL_GPGetImageWidth(SDL_GPImage image)
+{
   SDL_assert(_image_initialized == _SDL_GP_INIT_COOKIE);
 
   if (image.id == SDL_GP_INVALID_ID) {
@@ -827,7 +902,9 @@ int SDL_GPGetImageWidth(SDL_GPImage image) {
   return _images[slot].width;
 }
 
-int SDL_GPGetImageHeight(SDL_GPImage image) {
+int
+SDL_GPGetImageHeight(SDL_GPImage image)
+{
   SDL_assert(_image_initialized == _SDL_GP_INIT_COOKIE);
 
   if (image.id == SDL_GP_INVALID_ID) {
@@ -841,31 +918,36 @@ int SDL_GPGetImageHeight(SDL_GPImage image) {
 // Shader (Private)
 // ----------------------------------------------------------------------------
 
-typedef struct _SDL_GPShader {
+typedef struct _SDL_GPShader
+{
   SDL_GPUShader *vertex;
   SDL_GPUShader *fragment;
 } _SDL_GPShader;
 
-static Uint32 _shader_initialized = 0;
-static _SDL_GPShader *_shaders = NULL;
-static SDL_GPPool *_shader_pool = NULL;
+static Uint32 _shader_initialized        = 0;
+static _SDL_GPShader *_shaders           = NULL;
+static SDL_GPPool *_shader_pool          = NULL;
 static SDL_GPUDevice *_shader_gpu_device = NULL;
 
 // Setup shader resources management.
-static void _SDL_GPShaderSetup(SDL_GPUDevice *gpu_device) {
+static void
+_SDL_GPShaderSetup(SDL_GPUDevice *gpu_device)
+{
   SDL_assert(_shader_initialized == 0);
   SDL_assert(gpu_device);
 
   _shader_initialized = _SDL_GP_INIT_COOKIE;
-  _shader_gpu_device = gpu_device;
+  _shader_gpu_device  = gpu_device;
 
   _shader_pool = SDL_GPCeatePool(SDL_GP_SHADER_MAX);
-  _shaders =
-      (_SDL_GPShader *)SDL_malloc(SDL_GP_SHADER_MAX * sizeof(_SDL_GPShader));
+  _shaders
+      = (_SDL_GPShader *)SDL_malloc(SDL_GP_SHADER_MAX * sizeof(_SDL_GPShader));
 }
 
 // Shutdown shader resources management and free resources.
-static void _SDL_GPShaderShutdown() {
+static void
+_SDL_GPShaderShutdown()
+{
   SDL_assert(_shader_initialized == _SDL_GP_INIT_COOKIE);
   _shader_initialized = 0;
 
@@ -873,51 +955,53 @@ static void _SDL_GPShaderShutdown() {
   SDL_free(_shaders);
 }
 
-SDL_GPShader SDL_GPCreateShader(SDL_GPShaderDesc *desc) {
+SDL_GPShader
+SDL_GPCreateShader(SDL_GPShaderDesc *desc)
+{
   SDL_assert(_shader_initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(desc);
 
   SDL_GPUShaderCreateInfo vert_shader_create_info = {
-      .code_size = desc->vert_code_size,
-      .code = desc->vert_code,
-      .entrypoint = desc->vert_entrypoint,
-      .format = desc->vert_format,
-      .stage = SDL_GPU_SHADERSTAGE_VERTEX,
-      .num_samplers = desc->vert_num_samplers,
-      .num_storage_textures = desc->vert_num_storage_textures,
-      .num_storage_buffers = desc->vert_num_storage_buffers,
-      .num_uniform_buffers = desc->vert_num_uniform_buffers,
+    .code_size            = desc->vert_code_size,
+    .code                 = desc->vert_code,
+    .entrypoint           = desc->vert_entrypoint,
+    .format               = desc->vert_format,
+    .stage                = SDL_GPU_SHADERSTAGE_VERTEX,
+    .num_samplers         = desc->vert_num_samplers,
+    .num_storage_textures = desc->vert_num_storage_textures,
+    .num_storage_buffers  = desc->vert_num_storage_buffers,
+    .num_uniform_buffers  = desc->vert_num_uniform_buffers,
   };
 
   // Create the shader from the bytecode
-  SDL_GPUShader *vert_shader =
-      SDL_CreateGPUShader(_shader_gpu_device, &vert_shader_create_info);
+  SDL_GPUShader *vert_shader
+      = SDL_CreateGPUShader(_shader_gpu_device, &vert_shader_create_info);
 
   if (!vert_shader) {
     _SDL_GPSetError(SDL_GP_ERROR_CREATE_SHADER_FAILED);
-    return (SDL_GPShader){.id = SDL_GP_INVALID_ID};
+    return (SDL_GPShader){ .id = SDL_GP_INVALID_ID };
   }
 
   SDL_GPUShaderCreateInfo frag_shader_create_info = {
-      .code_size = desc->frag_code_size,
-      .code = desc->frag_code,
-      .entrypoint = desc->frag_entrypoint,
-      .format = desc->frag_format,
-      .stage = SDL_GPU_SHADERSTAGE_FRAGMENT,
-      .num_samplers = desc->frag_num_samplers,
-      .num_storage_textures = desc->frag_num_storage_textures,
-      .num_storage_buffers = desc->frag_num_storage_buffers,
-      .num_uniform_buffers = desc->frag_num_uniform_buffers,
+    .code_size            = desc->frag_code_size,
+    .code                 = desc->frag_code,
+    .entrypoint           = desc->frag_entrypoint,
+    .format               = desc->frag_format,
+    .stage                = SDL_GPU_SHADERSTAGE_FRAGMENT,
+    .num_samplers         = desc->frag_num_samplers,
+    .num_storage_textures = desc->frag_num_storage_textures,
+    .num_storage_buffers  = desc->frag_num_storage_buffers,
+    .num_uniform_buffers  = desc->frag_num_uniform_buffers,
   };
 
   // Create the shader from the bytecode
-  SDL_GPUShader *frag_shader =
-      SDL_CreateGPUShader(_shader_gpu_device, &frag_shader_create_info);
+  SDL_GPUShader *frag_shader
+      = SDL_CreateGPUShader(_shader_gpu_device, &frag_shader_create_info);
 
   if (!frag_shader) {
     SDL_ReleaseGPUShader(_shader_gpu_device, vert_shader);
     _SDL_GPSetError(SDL_GP_ERROR_CREATE_SHADER_FAILED);
-    return (SDL_GPShader){.id = SDL_GP_INVALID_ID};
+    return (SDL_GPShader){ .id = SDL_GP_INVALID_ID };
   }
 
   int slot = SDL_GPAcquirePoolSlot(_shader_pool);
@@ -925,18 +1009,20 @@ SDL_GPShader SDL_GPCreateShader(SDL_GPShaderDesc *desc) {
     SDL_ReleaseGPUShader(_shader_gpu_device, vert_shader);
     SDL_ReleaseGPUShader(_shader_gpu_device, frag_shader);
     _SDL_GPSetError(SDL_GP_ERROR_CREATE_SHADER_FAILED);
-    return (SDL_GPShader){.id = SDL_GP_INVALID_ID};
+    return (SDL_GPShader){ .id = SDL_GP_INVALID_ID };
   }
 
   _shaders[slot] = (_SDL_GPShader){
-      .vertex = vert_shader,
-      .fragment = frag_shader,
+    .vertex   = vert_shader,
+    .fragment = frag_shader,
   };
 
-  return (SDL_GPShader){.id = SDL_GPGeneratePoolId(_shader_pool, slot)};
+  return (SDL_GPShader){ .id = SDL_GPGeneratePoolId(_shader_pool, slot) };
 }
 
-void SDL_GPDestroyShader(SDL_GPShader shader) {
+void
+SDL_GPDestroyShader(SDL_GPShader shader)
+{
   SDL_assert(_shader_initialized == _SDL_GP_INIT_COOKIE);
 
   if (shader.id == SDL_GP_INVALID_ID) {
@@ -953,12 +1039,14 @@ void SDL_GPDestroyShader(SDL_GPShader shader) {
   SDL_GPReleasePoolSlot(_shader_pool, slot);
 
   _shaders[slot] = (_SDL_GPShader){
-      .vertex = NULL,
-      .fragment = NULL,
+    .vertex   = NULL,
+    .fragment = NULL,
   };
 }
 
-SDL_GPUShader *SDL_GPGetGPUVertexShader(SDL_GPShader shader) {
+SDL_GPUShader *
+SDL_GPGetGPUVertexShader(SDL_GPShader shader)
+{
   SDL_assert(_shader_initialized == _SDL_GP_INIT_COOKIE);
 
   if (shader.id == SDL_GP_INVALID_ID) {
@@ -969,7 +1057,9 @@ SDL_GPUShader *SDL_GPGetGPUVertexShader(SDL_GPShader shader) {
   return _shaders[slot].vertex;
 }
 
-SDL_GPUShader *SDL_GPGetGPUFragmentShader(SDL_GPShader shader) {
+SDL_GPUShader *
+SDL_GPGetGPUFragmentShader(SDL_GPShader shader)
+{
   SDL_assert(_shader_initialized == _SDL_GP_INIT_COOKIE);
 
   if (shader.id == SDL_GP_INVALID_ID) {
@@ -983,30 +1073,34 @@ SDL_GPUShader *SDL_GPGetGPUFragmentShader(SDL_GPShader shader) {
 // Pipeline (Private)
 // ----------------------------------------------------------------------------
 
-typedef struct _SDL_GPPipeline {
+typedef struct _SDL_GPPipeline
+{
   SDL_GPUGraphicsPipeline *pipeline;
 } _SDL_GPPipeline;
 
-static Uint32 _pipeline_initialized = 0;
-static _SDL_GPPipeline *_pipelines = NULL;
-static SDL_GPPool *_pipeline_pool = NULL;
+static Uint32 _pipeline_initialized        = 0;
+static _SDL_GPPipeline *_pipelines         = NULL;
+static SDL_GPPool *_pipeline_pool          = NULL;
 static SDL_GPUDevice *_pipeline_gpu_device = NULL;
-static SDL_Window *_pipeline_window = NULL;
+static SDL_Window *_pipeline_window        = NULL;
 
 // Setup pipeline resources management.
-static void _SDL_GPPipelineSetup(SDL_GPUDevice *gpu_device,
-                                 SDL_Window *window) {
+static void
+_SDL_GPPipelineSetup(SDL_GPUDevice *gpu_device, SDL_Window *window)
+{
   SDL_assert(_pipeline_initialized == 0);
 
   _pipeline_initialized = _SDL_GP_INIT_COOKIE;
 
   _pipeline_pool = SDL_GPCeatePool(SDL_GP_PIPELINE_MAX);
-  _pipelines = (_SDL_GPPipeline *)SDL_malloc(SDL_GP_PIPELINE_MAX *
-                                             sizeof(_SDL_GPPipeline));
+  _pipelines     = (_SDL_GPPipeline *)SDL_malloc(SDL_GP_PIPELINE_MAX
+                                                 * sizeof(_SDL_GPPipeline));
 }
 
 // Shutdown pipeline resources management and free resources.
-static void _SDL_GPPipelineShutdown() {
+static void
+_SDL_GPPipelineShutdown()
+{
   SDL_assert(_pipeline_initialized == _SDL_GP_INIT_COOKIE);
   _pipeline_initialized = 0;
 
@@ -1015,128 +1109,131 @@ static void _SDL_GPPipelineShutdown() {
 }
 
 static SDL_GPUColorTargetBlendState
-_SDL_GPPipelineBlendState(SDL_GPBlendMode blend_mode) {
+_SDL_GPPipelineBlendState(SDL_GPBlendMode blend_mode)
+{
   SDL_GPUColorTargetBlendState blend;
 
   SDL_memset(&blend, 0, sizeof(SDL_GPUColorTargetBlendState));
 
   switch (blend_mode) {
   case SDL_GP_BLENDMODE_BLEND:
-    blend.enable_blend = true;
+    blend.enable_blend          = true;
     blend.src_color_blendfactor = SDL_GPU_BLENDFACTOR_SRC_ALPHA;
     blend.dst_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
-    blend.color_blend_op = SDL_GPU_BLENDOP_ADD;
+    blend.color_blend_op        = SDL_GPU_BLENDOP_ADD;
     blend.src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE;
     blend.dst_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
-    blend.alpha_blend_op = SDL_GPU_BLENDOP_ADD;
+    blend.alpha_blend_op        = SDL_GPU_BLENDOP_ADD;
     break;
   case SDL_GP_BLENDMODE_BLEND_PREMULTIPLIED:
-    blend.enable_blend = true;
+    blend.enable_blend          = true;
     blend.src_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE;
     blend.dst_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
-    blend.color_blend_op = SDL_GPU_BLENDOP_ADD;
+    blend.color_blend_op        = SDL_GPU_BLENDOP_ADD;
     blend.src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE;
     blend.dst_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
-    blend.alpha_blend_op = SDL_GPU_BLENDOP_ADD;
+    blend.alpha_blend_op        = SDL_GPU_BLENDOP_ADD;
     break;
   case SDL_GP_BLENDMODE_ADD:
-    blend.enable_blend = true;
+    blend.enable_blend          = true;
     blend.src_color_blendfactor = SDL_GPU_BLENDFACTOR_SRC_ALPHA;
     blend.dst_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE;
-    blend.color_blend_op = SDL_GPU_BLENDOP_ADD;
+    blend.color_blend_op        = SDL_GPU_BLENDOP_ADD;
     blend.src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ZERO;
     blend.dst_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE;
-    blend.alpha_blend_op = SDL_GPU_BLENDOP_ADD;
+    blend.alpha_blend_op        = SDL_GPU_BLENDOP_ADD;
     break;
   case SDL_GP_BLENDMODE_ADD_PREMULTIPLIED:
-    blend.enable_blend = true;
+    blend.enable_blend          = true;
     blend.src_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE;
     blend.dst_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE;
-    blend.color_blend_op = SDL_GPU_BLENDOP_ADD;
+    blend.color_blend_op        = SDL_GPU_BLENDOP_ADD;
     blend.src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ZERO;
     blend.dst_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE;
-    blend.alpha_blend_op = SDL_GPU_BLENDOP_ADD;
+    blend.alpha_blend_op        = SDL_GPU_BLENDOP_ADD;
     break;
   case SDL_GP_BLENDMODE_MOD:
-    blend.enable_blend = true;
+    blend.enable_blend          = true;
     blend.src_color_blendfactor = SDL_GPU_BLENDFACTOR_DST_COLOR;
     blend.dst_color_blendfactor = SDL_GPU_BLENDFACTOR_ZERO;
-    blend.color_blend_op = SDL_GPU_BLENDOP_ADD;
+    blend.color_blend_op        = SDL_GPU_BLENDOP_ADD;
     blend.src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ZERO;
     blend.dst_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE;
-    blend.alpha_blend_op = SDL_GPU_BLENDOP_ADD;
+    blend.alpha_blend_op        = SDL_GPU_BLENDOP_ADD;
     break;
   case SDL_GP_BLENDMODE_MUL:
-    blend.enable_blend = true;
+    blend.enable_blend          = true;
     blend.src_color_blendfactor = SDL_GPU_BLENDFACTOR_DST_COLOR;
     blend.dst_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
-    blend.color_blend_op = SDL_GPU_BLENDOP_ADD;
+    blend.color_blend_op        = SDL_GPU_BLENDOP_ADD;
     blend.src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_DST_ALPHA;
     blend.dst_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
-    blend.alpha_blend_op = SDL_GPU_BLENDOP_ADD;
+    blend.alpha_blend_op        = SDL_GPU_BLENDOP_ADD;
     break;
   default: // SDL_GP_BLENDMODE_NONE
-    blend.enable_blend = false;
+    blend.enable_blend          = false;
     blend.src_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE;
     blend.dst_color_blendfactor = SDL_GPU_BLENDFACTOR_ZERO;
-    blend.color_blend_op = SDL_GPU_BLENDOP_ADD;
+    blend.color_blend_op        = SDL_GPU_BLENDOP_ADD;
     blend.src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE;
     blend.dst_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ZERO;
-    blend.alpha_blend_op = SDL_GPU_BLENDOP_ADD;
+    blend.alpha_blend_op        = SDL_GPU_BLENDOP_ADD;
     break;
   }
 
   return blend;
 }
 
-SDL_GPPipeline SDL_GPCreatePipeline(SDL_GPShader shader,
-                                    SDL_GPPrimitiveType primitive_type,
-                                    SDL_GPBlendMode blend_mode) {
+SDL_GPPipeline
+SDL_GPCreatePipeline(SDL_GPShader shader,
+                     SDL_GPPrimitiveType primitive_type,
+                     SDL_GPBlendMode blend_mode)
+{
   SDL_assert(_pipeline_initialized == _SDL_GP_INIT_COOKIE);
 
-  SDL_GPUVertexBufferDescription vertex_buffer_description[1] = {{
-      .slot = 0,
-      .pitch = sizeof(SDL_GPVertex),
-      .input_rate = SDL_GPU_VERTEXINPUTRATE_VERTEX,
+  SDL_GPUVertexBufferDescription vertex_buffer_description[1] = { {
+      .slot               = 0,
+      .pitch              = sizeof(SDL_GPVertex),
+      .input_rate         = SDL_GPU_VERTEXINPUTRATE_VERTEX,
       .instance_step_rate = 0,
-  }};
+  } };
 
-  SDL_GPUVertexAttribute vertex_attributes[2] = {
-      {.location = 0,
-       .buffer_slot = 0,
-       .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4,
-       .offset = (Uint32)SDL_GP_OFFSET_OF(SDL_GPVertex, position)},
-      {.location = 1,
-       .buffer_slot = 0,
-       .format = SDL_GPU_VERTEXELEMENTFORMAT_UBYTE4_NORM,
-       .offset = (Uint32)SDL_GP_OFFSET_OF(SDL_GPVertex, color)}};
+  SDL_GPUVertexAttribute vertex_attributes[2]
+      = { { .location    = 0,
+            .buffer_slot = 0,
+            .format      = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4,
+            .offset      = (Uint32)SDL_GP_OFFSET_OF(SDL_GPVertex, position) },
+          { .location    = 1,
+            .buffer_slot = 0,
+            .format      = SDL_GPU_VERTEXELEMENTFORMAT_UBYTE4_NORM,
+            .offset      = (Uint32)SDL_GP_OFFSET_OF(SDL_GPVertex, color) } };
 
   SDL_GPUVertexInputState vertex_input_state = {
-      .vertex_buffer_descriptions = vertex_buffer_description,
-      .num_vertex_buffers = 1,
-      .vertex_attributes = vertex_attributes,
-      .num_vertex_attributes = 2,
+    .vertex_buffer_descriptions = vertex_buffer_description,
+    .num_vertex_buffers         = 1,
+    .vertex_attributes          = vertex_attributes,
+    .num_vertex_attributes      = 2,
   };
 
-  SDL_GPUColorTargetBlendState blend_state =
-      _SDL_GPPipelineBlendState(blend_mode);
+  SDL_GPUColorTargetBlendState blend_state
+      = _SDL_GPPipelineBlendState(blend_mode);
 
-  SDL_GPUColorTargetDescription color_target_description[1] = {
-      {.format = SDL_GetGPUSwapchainTextureFormat(_pipeline_gpu_device,
-                                                  _pipeline_window),
-       .blend_state = blend_state}};
+  SDL_GPUColorTargetDescription color_target_description[1]
+      = { { .format = SDL_GetGPUSwapchainTextureFormat(_pipeline_gpu_device,
+                                                       _pipeline_window),
+            .blend_state = blend_state } };
 
   SDL_GPUGraphicsPipelineTargetInfo target_info = {
-      .color_target_descriptions = color_target_description,
-      .num_color_targets = 1,
+    .color_target_descriptions = color_target_description,
+    .num_color_targets         = 1,
   };
 
   SDL_GPUGraphicsPipelineCreateInfo pipeline_create_info = {
-      .vertex_shader = SDL_GPGetGPUVertexShader(shader),
-      .fragment_shader = SDL_GPGetGPUFragmentShader(shader),
-      .vertex_input_state = vertex_input_state,
-      .primitive_type = (SDL_GPUPrimitiveType)primitive_type,
-      .target_info = target_info,
+    .vertex_shader      = SDL_GPGetGPUVertexShader(shader),
+    .fragment_shader    = SDL_GPGetGPUFragmentShader(shader),
+    .vertex_input_state = vertex_input_state,
+    .primitive_type     = (SDL_GPUPrimitiveType)primitive_type,
+    .target_info        = target_info,
   };
 
   SDL_GPUGraphicsPipeline *pipeline = SDL_CreateGPUGraphicsPipeline(
@@ -1144,24 +1241,26 @@ SDL_GPPipeline SDL_GPCreatePipeline(SDL_GPShader shader,
 
   if (pipeline == NULL) {
     _SDL_GPSetError(SDL_GP_ERROR_CREATE_PIPELINE_FAILED);
-    return (SDL_GPPipeline){.id = SDL_GP_INVALID_ID};
+    return (SDL_GPPipeline){ .id = SDL_GP_INVALID_ID };
   }
 
   int pipeline_slot = SDL_GPAcquirePoolSlot(_pipeline_pool);
   if (pipeline_slot == SDL_GP_POOL_INVALID_SLOT) {
     _SDL_GPSetError(SDL_GP_ERROR_CREATE_PIPELINE_FAILED);
-    return (SDL_GPPipeline){.id = SDL_GP_INVALID_ID};
+    return (SDL_GPPipeline){ .id = SDL_GP_INVALID_ID };
   }
 
   _pipelines[pipeline_slot] = (_SDL_GPPipeline){
-      .pipeline = pipeline,
+    .pipeline = pipeline,
   };
 
-  return (SDL_GPPipeline){
-      .id = SDL_GPGeneratePoolId(_pipeline_pool, pipeline_slot)};
+  return (SDL_GPPipeline){ .id = SDL_GPGeneratePoolId(_pipeline_pool,
+                                                      pipeline_slot) };
 }
 
-void SDL_GPPipelineDestroy(SDL_GPPipeline pipeline) {
+void
+SDL_GPPipelineDestroy(SDL_GPPipeline pipeline)
+{
   SDL_assert(_pipeline_initialized == _SDL_GP_INIT_COOKIE);
 
   if (pipeline.id == SDL_GP_INVALID_ID) {
@@ -1173,11 +1272,13 @@ void SDL_GPPipelineDestroy(SDL_GPPipeline pipeline) {
   SDL_GPReleasePoolSlot(_pipeline_pool, slot);
 
   _pipelines[slot] = (_SDL_GPPipeline){
-      .pipeline = NULL,
+    .pipeline = NULL,
   };
 }
 
-SDL_GPUGraphicsPipeline *SDL_GPGetGPUPipeline(SDL_GPPipeline pipeline) {
+SDL_GPUGraphicsPipeline *
+SDL_GPGetGPUPipeline(SDL_GPPipeline pipeline)
+{
   SDL_assert(_pipeline_initialized == _SDL_GP_INIT_COOKIE);
 
   if (pipeline.id == SDL_GP_INVALID_ID) {
@@ -1210,433 +1311,403 @@ void main() {
 */
 
 size_t _shader_vert_spv_len = 1168;
-Uint8 _shader_vert_spv[] = {
-    0X03, 0X02, 0X23, 0X07, 0X00, 0X00, 0X01, 0X00, 0X0B, 0X00, 0X08, 0X00,
-    0X26, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X11, 0X00, 0X02, 0X00,
-    0X01, 0X00, 0X00, 0X00, 0X0B, 0X00, 0X06, 0X00, 0X01, 0X00, 0X00, 0X00,
-    0X47, 0X4C, 0X53, 0X4C, 0X2E, 0X73, 0X74, 0X64, 0X2E, 0X34, 0X35, 0X30,
-    0X00, 0X00, 0X00, 0X00, 0X0E, 0X00, 0X03, 0X00, 0X00, 0X00, 0X00, 0X00,
-    0X01, 0X00, 0X00, 0X00, 0X0F, 0X00, 0X0A, 0X00, 0X00, 0X00, 0X00, 0X00,
-    0X04, 0X00, 0X00, 0X00, 0X6D, 0X61, 0X69, 0X6E, 0X00, 0X00, 0X00, 0X00,
-    0X0D, 0X00, 0X00, 0X00, 0X11, 0X00, 0X00, 0X00, 0X20, 0X00, 0X00, 0X00,
-    0X23, 0X00, 0X00, 0X00, 0X24, 0X00, 0X00, 0X00, 0X03, 0X00, 0X03, 0X00,
-    0X02, 0X00, 0X00, 0X00, 0XC2, 0X01, 0X00, 0X00, 0X05, 0X00, 0X04, 0X00,
-    0X04, 0X00, 0X00, 0X00, 0X6D, 0X61, 0X69, 0X6E, 0X00, 0X00, 0X00, 0X00,
-    0X05, 0X00, 0X06, 0X00, 0X0B, 0X00, 0X00, 0X00, 0X67, 0X6C, 0X5F, 0X50,
-    0X65, 0X72, 0X56, 0X65, 0X72, 0X74, 0X65, 0X78, 0X00, 0X00, 0X00, 0X00,
-    0X06, 0X00, 0X06, 0X00, 0X0B, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
-    0X67, 0X6C, 0X5F, 0X50, 0X6F, 0X73, 0X69, 0X74, 0X69, 0X6F, 0X6E, 0X00,
-    0X06, 0X00, 0X07, 0X00, 0X0B, 0X00, 0X00, 0X00, 0X01, 0X00, 0X00, 0X00,
-    0X67, 0X6C, 0X5F, 0X50, 0X6F, 0X69, 0X6E, 0X74, 0X53, 0X69, 0X7A, 0X65,
-    0X00, 0X00, 0X00, 0X00, 0X06, 0X00, 0X07, 0X00, 0X0B, 0X00, 0X00, 0X00,
-    0X02, 0X00, 0X00, 0X00, 0X67, 0X6C, 0X5F, 0X43, 0X6C, 0X69, 0X70, 0X44,
-    0X69, 0X73, 0X74, 0X61, 0X6E, 0X63, 0X65, 0X00, 0X06, 0X00, 0X07, 0X00,
-    0X0B, 0X00, 0X00, 0X00, 0X03, 0X00, 0X00, 0X00, 0X67, 0X6C, 0X5F, 0X43,
-    0X75, 0X6C, 0X6C, 0X44, 0X69, 0X73, 0X74, 0X61, 0X6E, 0X63, 0X65, 0X00,
-    0X05, 0X00, 0X03, 0X00, 0X0D, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
-    0X05, 0X00, 0X04, 0X00, 0X11, 0X00, 0X00, 0X00, 0X63, 0X6F, 0X6F, 0X72,
-    0X64, 0X00, 0X00, 0X00, 0X05, 0X00, 0X04, 0X00, 0X20, 0X00, 0X00, 0X00,
-    0X74, 0X65, 0X78, 0X5F, 0X75, 0X76, 0X00, 0X00, 0X05, 0X00, 0X04, 0X00,
-    0X23, 0X00, 0X00, 0X00, 0X69, 0X5F, 0X63, 0X6F, 0X6C, 0X6F, 0X72, 0X00,
-    0X05, 0X00, 0X04, 0X00, 0X24, 0X00, 0X00, 0X00, 0X63, 0X6F, 0X6C, 0X6F,
-    0X72, 0X00, 0X00, 0X00, 0X47, 0X00, 0X03, 0X00, 0X0B, 0X00, 0X00, 0X00,
-    0X02, 0X00, 0X00, 0X00, 0X48, 0X00, 0X05, 0X00, 0X0B, 0X00, 0X00, 0X00,
-    0X00, 0X00, 0X00, 0X00, 0X0B, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
-    0X48, 0X00, 0X05, 0X00, 0X0B, 0X00, 0X00, 0X00, 0X01, 0X00, 0X00, 0X00,
-    0X0B, 0X00, 0X00, 0X00, 0X01, 0X00, 0X00, 0X00, 0X48, 0X00, 0X05, 0X00,
-    0X0B, 0X00, 0X00, 0X00, 0X02, 0X00, 0X00, 0X00, 0X0B, 0X00, 0X00, 0X00,
-    0X03, 0X00, 0X00, 0X00, 0X48, 0X00, 0X05, 0X00, 0X0B, 0X00, 0X00, 0X00,
-    0X03, 0X00, 0X00, 0X00, 0X0B, 0X00, 0X00, 0X00, 0X04, 0X00, 0X00, 0X00,
-    0X47, 0X00, 0X04, 0X00, 0X11, 0X00, 0X00, 0X00, 0X1E, 0X00, 0X00, 0X00,
-    0X00, 0X00, 0X00, 0X00, 0X47, 0X00, 0X04, 0X00, 0X20, 0X00, 0X00, 0X00,
-    0X1E, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X47, 0X00, 0X04, 0X00,
-    0X23, 0X00, 0X00, 0X00, 0X1E, 0X00, 0X00, 0X00, 0X01, 0X00, 0X00, 0X00,
-    0X47, 0X00, 0X04, 0X00, 0X24, 0X00, 0X00, 0X00, 0X1E, 0X00, 0X00, 0X00,
-    0X01, 0X00, 0X00, 0X00, 0X13, 0X00, 0X02, 0X00, 0X02, 0X00, 0X00, 0X00,
-    0X21, 0X00, 0X03, 0X00, 0X03, 0X00, 0X00, 0X00, 0X02, 0X00, 0X00, 0X00,
-    0X16, 0X00, 0X03, 0X00, 0X06, 0X00, 0X00, 0X00, 0X20, 0X00, 0X00, 0X00,
-    0X17, 0X00, 0X04, 0X00, 0X07, 0X00, 0X00, 0X00, 0X06, 0X00, 0X00, 0X00,
-    0X04, 0X00, 0X00, 0X00, 0X15, 0X00, 0X04, 0X00, 0X08, 0X00, 0X00, 0X00,
-    0X20, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X2B, 0X00, 0X04, 0X00,
-    0X08, 0X00, 0X00, 0X00, 0X09, 0X00, 0X00, 0X00, 0X01, 0X00, 0X00, 0X00,
-    0X1C, 0X00, 0X04, 0X00, 0X0A, 0X00, 0X00, 0X00, 0X06, 0X00, 0X00, 0X00,
-    0X09, 0X00, 0X00, 0X00, 0X1E, 0X00, 0X06, 0X00, 0X0B, 0X00, 0X00, 0X00,
-    0X07, 0X00, 0X00, 0X00, 0X06, 0X00, 0X00, 0X00, 0X0A, 0X00, 0X00, 0X00,
-    0X0A, 0X00, 0X00, 0X00, 0X20, 0X00, 0X04, 0X00, 0X0C, 0X00, 0X00, 0X00,
-    0X03, 0X00, 0X00, 0X00, 0X0B, 0X00, 0X00, 0X00, 0X3B, 0X00, 0X04, 0X00,
-    0X0C, 0X00, 0X00, 0X00, 0X0D, 0X00, 0X00, 0X00, 0X03, 0X00, 0X00, 0X00,
-    0X15, 0X00, 0X04, 0X00, 0X0E, 0X00, 0X00, 0X00, 0X20, 0X00, 0X00, 0X00,
-    0X01, 0X00, 0X00, 0X00, 0X2B, 0X00, 0X04, 0X00, 0X0E, 0X00, 0X00, 0X00,
-    0X0F, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X20, 0X00, 0X04, 0X00,
-    0X10, 0X00, 0X00, 0X00, 0X01, 0X00, 0X00, 0X00, 0X07, 0X00, 0X00, 0X00,
-    0X3B, 0X00, 0X04, 0X00, 0X10, 0X00, 0X00, 0X00, 0X11, 0X00, 0X00, 0X00,
-    0X01, 0X00, 0X00, 0X00, 0X17, 0X00, 0X04, 0X00, 0X12, 0X00, 0X00, 0X00,
-    0X06, 0X00, 0X00, 0X00, 0X02, 0X00, 0X00, 0X00, 0X2B, 0X00, 0X04, 0X00,
-    0X06, 0X00, 0X00, 0X00, 0X15, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
-    0X2B, 0X00, 0X04, 0X00, 0X06, 0X00, 0X00, 0X00, 0X16, 0X00, 0X00, 0X00,
-    0X00, 0X00, 0X80, 0X3F, 0X20, 0X00, 0X04, 0X00, 0X1A, 0X00, 0X00, 0X00,
-    0X03, 0X00, 0X00, 0X00, 0X07, 0X00, 0X00, 0X00, 0X2B, 0X00, 0X04, 0X00,
-    0X0E, 0X00, 0X00, 0X00, 0X1C, 0X00, 0X00, 0X00, 0X01, 0X00, 0X00, 0X00,
-    0X20, 0X00, 0X04, 0X00, 0X1D, 0X00, 0X00, 0X00, 0X03, 0X00, 0X00, 0X00,
-    0X06, 0X00, 0X00, 0X00, 0X20, 0X00, 0X04, 0X00, 0X1F, 0X00, 0X00, 0X00,
-    0X03, 0X00, 0X00, 0X00, 0X12, 0X00, 0X00, 0X00, 0X3B, 0X00, 0X04, 0X00,
-    0X1F, 0X00, 0X00, 0X00, 0X20, 0X00, 0X00, 0X00, 0X03, 0X00, 0X00, 0X00,
-    0X3B, 0X00, 0X04, 0X00, 0X1A, 0X00, 0X00, 0X00, 0X23, 0X00, 0X00, 0X00,
-    0X03, 0X00, 0X00, 0X00, 0X3B, 0X00, 0X04, 0X00, 0X10, 0X00, 0X00, 0X00,
-    0X24, 0X00, 0X00, 0X00, 0X01, 0X00, 0X00, 0X00, 0X36, 0X00, 0X05, 0X00,
-    0X02, 0X00, 0X00, 0X00, 0X04, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
-    0X03, 0X00, 0X00, 0X00, 0XF8, 0X00, 0X02, 0X00, 0X05, 0X00, 0X00, 0X00,
-    0X3D, 0X00, 0X04, 0X00, 0X07, 0X00, 0X00, 0X00, 0X13, 0X00, 0X00, 0X00,
-    0X11, 0X00, 0X00, 0X00, 0X4F, 0X00, 0X07, 0X00, 0X12, 0X00, 0X00, 0X00,
-    0X14, 0X00, 0X00, 0X00, 0X13, 0X00, 0X00, 0X00, 0X13, 0X00, 0X00, 0X00,
-    0X00, 0X00, 0X00, 0X00, 0X01, 0X00, 0X00, 0X00, 0X51, 0X00, 0X05, 0X00,
-    0X06, 0X00, 0X00, 0X00, 0X17, 0X00, 0X00, 0X00, 0X14, 0X00, 0X00, 0X00,
-    0X00, 0X00, 0X00, 0X00, 0X51, 0X00, 0X05, 0X00, 0X06, 0X00, 0X00, 0X00,
-    0X18, 0X00, 0X00, 0X00, 0X14, 0X00, 0X00, 0X00, 0X01, 0X00, 0X00, 0X00,
-    0X50, 0X00, 0X07, 0X00, 0X07, 0X00, 0X00, 0X00, 0X19, 0X00, 0X00, 0X00,
-    0X17, 0X00, 0X00, 0X00, 0X18, 0X00, 0X00, 0X00, 0X15, 0X00, 0X00, 0X00,
-    0X16, 0X00, 0X00, 0X00, 0X41, 0X00, 0X05, 0X00, 0X1A, 0X00, 0X00, 0X00,
-    0X1B, 0X00, 0X00, 0X00, 0X0D, 0X00, 0X00, 0X00, 0X0F, 0X00, 0X00, 0X00,
-    0X3E, 0X00, 0X03, 0X00, 0X1B, 0X00, 0X00, 0X00, 0X19, 0X00, 0X00, 0X00,
-    0X41, 0X00, 0X05, 0X00, 0X1D, 0X00, 0X00, 0X00, 0X1E, 0X00, 0X00, 0X00,
-    0X0D, 0X00, 0X00, 0X00, 0X1C, 0X00, 0X00, 0X00, 0X3E, 0X00, 0X03, 0X00,
-    0X1E, 0X00, 0X00, 0X00, 0X16, 0X00, 0X00, 0X00, 0X3D, 0X00, 0X04, 0X00,
-    0X07, 0X00, 0X00, 0X00, 0X21, 0X00, 0X00, 0X00, 0X11, 0X00, 0X00, 0X00,
-    0X4F, 0X00, 0X07, 0X00, 0X12, 0X00, 0X00, 0X00, 0X22, 0X00, 0X00, 0X00,
-    0X21, 0X00, 0X00, 0X00, 0X21, 0X00, 0X00, 0X00, 0X02, 0X00, 0X00, 0X00,
-    0X03, 0X00, 0X00, 0X00, 0X3E, 0X00, 0X03, 0X00, 0X20, 0X00, 0X00, 0X00,
-    0X22, 0X00, 0X00, 0X00, 0X3D, 0X00, 0X04, 0X00, 0X07, 0X00, 0X00, 0X00,
-    0X25, 0X00, 0X00, 0X00, 0X24, 0X00, 0X00, 0X00, 0X3E, 0X00, 0X03, 0X00,
-    0X23, 0X00, 0X00, 0X00, 0X25, 0X00, 0X00, 0X00, 0XFD, 0X00, 0X01, 0X00,
-    0X38, 0X00, 0X01, 0X00};
+Uint8 _shader_vert_spv[]    = {
+  0X03, 0X02, 0X23, 0X07, 0X00, 0X00, 0X01, 0X00, 0X0B, 0X00, 0X08, 0X00, 0X26,
+  0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X11, 0X00, 0X02, 0X00, 0X01, 0X00,
+  0X00, 0X00, 0X0B, 0X00, 0X06, 0X00, 0X01, 0X00, 0X00, 0X00, 0X47, 0X4C, 0X53,
+  0X4C, 0X2E, 0X73, 0X74, 0X64, 0X2E, 0X34, 0X35, 0X30, 0X00, 0X00, 0X00, 0X00,
+  0X0E, 0X00, 0X03, 0X00, 0X00, 0X00, 0X00, 0X00, 0X01, 0X00, 0X00, 0X00, 0X0F,
+  0X00, 0X0A, 0X00, 0X00, 0X00, 0X00, 0X00, 0X04, 0X00, 0X00, 0X00, 0X6D, 0X61,
+  0X69, 0X6E, 0X00, 0X00, 0X00, 0X00, 0X0D, 0X00, 0X00, 0X00, 0X11, 0X00, 0X00,
+  0X00, 0X20, 0X00, 0X00, 0X00, 0X23, 0X00, 0X00, 0X00, 0X24, 0X00, 0X00, 0X00,
+  0X03, 0X00, 0X03, 0X00, 0X02, 0X00, 0X00, 0X00, 0XC2, 0X01, 0X00, 0X00, 0X05,
+  0X00, 0X04, 0X00, 0X04, 0X00, 0X00, 0X00, 0X6D, 0X61, 0X69, 0X6E, 0X00, 0X00,
+  0X00, 0X00, 0X05, 0X00, 0X06, 0X00, 0X0B, 0X00, 0X00, 0X00, 0X67, 0X6C, 0X5F,
+  0X50, 0X65, 0X72, 0X56, 0X65, 0X72, 0X74, 0X65, 0X78, 0X00, 0X00, 0X00, 0X00,
+  0X06, 0X00, 0X06, 0X00, 0X0B, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X67,
+  0X6C, 0X5F, 0X50, 0X6F, 0X73, 0X69, 0X74, 0X69, 0X6F, 0X6E, 0X00, 0X06, 0X00,
+  0X07, 0X00, 0X0B, 0X00, 0X00, 0X00, 0X01, 0X00, 0X00, 0X00, 0X67, 0X6C, 0X5F,
+  0X50, 0X6F, 0X69, 0X6E, 0X74, 0X53, 0X69, 0X7A, 0X65, 0X00, 0X00, 0X00, 0X00,
+  0X06, 0X00, 0X07, 0X00, 0X0B, 0X00, 0X00, 0X00, 0X02, 0X00, 0X00, 0X00, 0X67,
+  0X6C, 0X5F, 0X43, 0X6C, 0X69, 0X70, 0X44, 0X69, 0X73, 0X74, 0X61, 0X6E, 0X63,
+  0X65, 0X00, 0X06, 0X00, 0X07, 0X00, 0X0B, 0X00, 0X00, 0X00, 0X03, 0X00, 0X00,
+  0X00, 0X67, 0X6C, 0X5F, 0X43, 0X75, 0X6C, 0X6C, 0X44, 0X69, 0X73, 0X74, 0X61,
+  0X6E, 0X63, 0X65, 0X00, 0X05, 0X00, 0X03, 0X00, 0X0D, 0X00, 0X00, 0X00, 0X00,
+  0X00, 0X00, 0X00, 0X05, 0X00, 0X04, 0X00, 0X11, 0X00, 0X00, 0X00, 0X63, 0X6F,
+  0X6F, 0X72, 0X64, 0X00, 0X00, 0X00, 0X05, 0X00, 0X04, 0X00, 0X20, 0X00, 0X00,
+  0X00, 0X74, 0X65, 0X78, 0X5F, 0X75, 0X76, 0X00, 0X00, 0X05, 0X00, 0X04, 0X00,
+  0X23, 0X00, 0X00, 0X00, 0X69, 0X5F, 0X63, 0X6F, 0X6C, 0X6F, 0X72, 0X00, 0X05,
+  0X00, 0X04, 0X00, 0X24, 0X00, 0X00, 0X00, 0X63, 0X6F, 0X6C, 0X6F, 0X72, 0X00,
+  0X00, 0X00, 0X47, 0X00, 0X03, 0X00, 0X0B, 0X00, 0X00, 0X00, 0X02, 0X00, 0X00,
+  0X00, 0X48, 0X00, 0X05, 0X00, 0X0B, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
+  0X0B, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X48, 0X00, 0X05, 0X00, 0X0B,
+  0X00, 0X00, 0X00, 0X01, 0X00, 0X00, 0X00, 0X0B, 0X00, 0X00, 0X00, 0X01, 0X00,
+  0X00, 0X00, 0X48, 0X00, 0X05, 0X00, 0X0B, 0X00, 0X00, 0X00, 0X02, 0X00, 0X00,
+  0X00, 0X0B, 0X00, 0X00, 0X00, 0X03, 0X00, 0X00, 0X00, 0X48, 0X00, 0X05, 0X00,
+  0X0B, 0X00, 0X00, 0X00, 0X03, 0X00, 0X00, 0X00, 0X0B, 0X00, 0X00, 0X00, 0X04,
+  0X00, 0X00, 0X00, 0X47, 0X00, 0X04, 0X00, 0X11, 0X00, 0X00, 0X00, 0X1E, 0X00,
+  0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X47, 0X00, 0X04, 0X00, 0X20, 0X00, 0X00,
+  0X00, 0X1E, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X47, 0X00, 0X04, 0X00,
+  0X23, 0X00, 0X00, 0X00, 0X1E, 0X00, 0X00, 0X00, 0X01, 0X00, 0X00, 0X00, 0X47,
+  0X00, 0X04, 0X00, 0X24, 0X00, 0X00, 0X00, 0X1E, 0X00, 0X00, 0X00, 0X01, 0X00,
+  0X00, 0X00, 0X13, 0X00, 0X02, 0X00, 0X02, 0X00, 0X00, 0X00, 0X21, 0X00, 0X03,
+  0X00, 0X03, 0X00, 0X00, 0X00, 0X02, 0X00, 0X00, 0X00, 0X16, 0X00, 0X03, 0X00,
+  0X06, 0X00, 0X00, 0X00, 0X20, 0X00, 0X00, 0X00, 0X17, 0X00, 0X04, 0X00, 0X07,
+  0X00, 0X00, 0X00, 0X06, 0X00, 0X00, 0X00, 0X04, 0X00, 0X00, 0X00, 0X15, 0X00,
+  0X04, 0X00, 0X08, 0X00, 0X00, 0X00, 0X20, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
+  0X00, 0X2B, 0X00, 0X04, 0X00, 0X08, 0X00, 0X00, 0X00, 0X09, 0X00, 0X00, 0X00,
+  0X01, 0X00, 0X00, 0X00, 0X1C, 0X00, 0X04, 0X00, 0X0A, 0X00, 0X00, 0X00, 0X06,
+  0X00, 0X00, 0X00, 0X09, 0X00, 0X00, 0X00, 0X1E, 0X00, 0X06, 0X00, 0X0B, 0X00,
+  0X00, 0X00, 0X07, 0X00, 0X00, 0X00, 0X06, 0X00, 0X00, 0X00, 0X0A, 0X00, 0X00,
+  0X00, 0X0A, 0X00, 0X00, 0X00, 0X20, 0X00, 0X04, 0X00, 0X0C, 0X00, 0X00, 0X00,
+  0X03, 0X00, 0X00, 0X00, 0X0B, 0X00, 0X00, 0X00, 0X3B, 0X00, 0X04, 0X00, 0X0C,
+  0X00, 0X00, 0X00, 0X0D, 0X00, 0X00, 0X00, 0X03, 0X00, 0X00, 0X00, 0X15, 0X00,
+  0X04, 0X00, 0X0E, 0X00, 0X00, 0X00, 0X20, 0X00, 0X00, 0X00, 0X01, 0X00, 0X00,
+  0X00, 0X2B, 0X00, 0X04, 0X00, 0X0E, 0X00, 0X00, 0X00, 0X0F, 0X00, 0X00, 0X00,
+  0X00, 0X00, 0X00, 0X00, 0X20, 0X00, 0X04, 0X00, 0X10, 0X00, 0X00, 0X00, 0X01,
+  0X00, 0X00, 0X00, 0X07, 0X00, 0X00, 0X00, 0X3B, 0X00, 0X04, 0X00, 0X10, 0X00,
+  0X00, 0X00, 0X11, 0X00, 0X00, 0X00, 0X01, 0X00, 0X00, 0X00, 0X17, 0X00, 0X04,
+  0X00, 0X12, 0X00, 0X00, 0X00, 0X06, 0X00, 0X00, 0X00, 0X02, 0X00, 0X00, 0X00,
+  0X2B, 0X00, 0X04, 0X00, 0X06, 0X00, 0X00, 0X00, 0X15, 0X00, 0X00, 0X00, 0X00,
+  0X00, 0X00, 0X00, 0X2B, 0X00, 0X04, 0X00, 0X06, 0X00, 0X00, 0X00, 0X16, 0X00,
+  0X00, 0X00, 0X00, 0X00, 0X80, 0X3F, 0X20, 0X00, 0X04, 0X00, 0X1A, 0X00, 0X00,
+  0X00, 0X03, 0X00, 0X00, 0X00, 0X07, 0X00, 0X00, 0X00, 0X2B, 0X00, 0X04, 0X00,
+  0X0E, 0X00, 0X00, 0X00, 0X1C, 0X00, 0X00, 0X00, 0X01, 0X00, 0X00, 0X00, 0X20,
+  0X00, 0X04, 0X00, 0X1D, 0X00, 0X00, 0X00, 0X03, 0X00, 0X00, 0X00, 0X06, 0X00,
+  0X00, 0X00, 0X20, 0X00, 0X04, 0X00, 0X1F, 0X00, 0X00, 0X00, 0X03, 0X00, 0X00,
+  0X00, 0X12, 0X00, 0X00, 0X00, 0X3B, 0X00, 0X04, 0X00, 0X1F, 0X00, 0X00, 0X00,
+  0X20, 0X00, 0X00, 0X00, 0X03, 0X00, 0X00, 0X00, 0X3B, 0X00, 0X04, 0X00, 0X1A,
+  0X00, 0X00, 0X00, 0X23, 0X00, 0X00, 0X00, 0X03, 0X00, 0X00, 0X00, 0X3B, 0X00,
+  0X04, 0X00, 0X10, 0X00, 0X00, 0X00, 0X24, 0X00, 0X00, 0X00, 0X01, 0X00, 0X00,
+  0X00, 0X36, 0X00, 0X05, 0X00, 0X02, 0X00, 0X00, 0X00, 0X04, 0X00, 0X00, 0X00,
+  0X00, 0X00, 0X00, 0X00, 0X03, 0X00, 0X00, 0X00, 0XF8, 0X00, 0X02, 0X00, 0X05,
+  0X00, 0X00, 0X00, 0X3D, 0X00, 0X04, 0X00, 0X07, 0X00, 0X00, 0X00, 0X13, 0X00,
+  0X00, 0X00, 0X11, 0X00, 0X00, 0X00, 0X4F, 0X00, 0X07, 0X00, 0X12, 0X00, 0X00,
+  0X00, 0X14, 0X00, 0X00, 0X00, 0X13, 0X00, 0X00, 0X00, 0X13, 0X00, 0X00, 0X00,
+  0X00, 0X00, 0X00, 0X00, 0X01, 0X00, 0X00, 0X00, 0X51, 0X00, 0X05, 0X00, 0X06,
+  0X00, 0X00, 0X00, 0X17, 0X00, 0X00, 0X00, 0X14, 0X00, 0X00, 0X00, 0X00, 0X00,
+  0X00, 0X00, 0X51, 0X00, 0X05, 0X00, 0X06, 0X00, 0X00, 0X00, 0X18, 0X00, 0X00,
+  0X00, 0X14, 0X00, 0X00, 0X00, 0X01, 0X00, 0X00, 0X00, 0X50, 0X00, 0X07, 0X00,
+  0X07, 0X00, 0X00, 0X00, 0X19, 0X00, 0X00, 0X00, 0X17, 0X00, 0X00, 0X00, 0X18,
+  0X00, 0X00, 0X00, 0X15, 0X00, 0X00, 0X00, 0X16, 0X00, 0X00, 0X00, 0X41, 0X00,
+  0X05, 0X00, 0X1A, 0X00, 0X00, 0X00, 0X1B, 0X00, 0X00, 0X00, 0X0D, 0X00, 0X00,
+  0X00, 0X0F, 0X00, 0X00, 0X00, 0X3E, 0X00, 0X03, 0X00, 0X1B, 0X00, 0X00, 0X00,
+  0X19, 0X00, 0X00, 0X00, 0X41, 0X00, 0X05, 0X00, 0X1D, 0X00, 0X00, 0X00, 0X1E,
+  0X00, 0X00, 0X00, 0X0D, 0X00, 0X00, 0X00, 0X1C, 0X00, 0X00, 0X00, 0X3E, 0X00,
+  0X03, 0X00, 0X1E, 0X00, 0X00, 0X00, 0X16, 0X00, 0X00, 0X00, 0X3D, 0X00, 0X04,
+  0X00, 0X07, 0X00, 0X00, 0X00, 0X21, 0X00, 0X00, 0X00, 0X11, 0X00, 0X00, 0X00,
+  0X4F, 0X00, 0X07, 0X00, 0X12, 0X00, 0X00, 0X00, 0X22, 0X00, 0X00, 0X00, 0X21,
+  0X00, 0X00, 0X00, 0X21, 0X00, 0X00, 0X00, 0X02, 0X00, 0X00, 0X00, 0X03, 0X00,
+  0X00, 0X00, 0X3E, 0X00, 0X03, 0X00, 0X20, 0X00, 0X00, 0X00, 0X22, 0X00, 0X00,
+  0X00, 0X3D, 0X00, 0X04, 0X00, 0X07, 0X00, 0X00, 0X00, 0X25, 0X00, 0X00, 0X00,
+  0X24, 0X00, 0X00, 0X00, 0X3E, 0X00, 0X03, 0X00, 0X23, 0X00, 0X00, 0X00, 0X25,
+  0X00, 0X00, 0X00, 0XFD, 0X00, 0X01, 0X00, 0X38, 0X00, 0X01, 0X00
+};
 
 unsigned int _shader_vert_msl_len = 567;
-unsigned char _shader_vert_msl[] = {
-    0X23, 0X69, 0X6E, 0X63, 0X6C, 0X75, 0X64, 0X65, 0X20, 0X3C, 0X6D, 0X65,
-    0X74, 0X61, 0X6C, 0X5F, 0X73, 0X74, 0X64, 0X6C, 0X69, 0X62, 0X3E, 0X0A,
-    0X23, 0X69, 0X6E, 0X63, 0X6C, 0X75, 0X64, 0X65, 0X20, 0X3C, 0X73, 0X69,
-    0X6D, 0X64, 0X2F, 0X73, 0X69, 0X6D, 0X64, 0X2E, 0X68, 0X3E, 0X0A, 0X0A,
-    0X75, 0X73, 0X69, 0X6E, 0X67, 0X20, 0X6E, 0X61, 0X6D, 0X65, 0X73, 0X70,
-    0X61, 0X63, 0X65, 0X20, 0X6D, 0X65, 0X74, 0X61, 0X6C, 0X3B, 0X0A, 0X0A,
-    0X73, 0X74, 0X72, 0X75, 0X63, 0X74, 0X20, 0X6D, 0X61, 0X69, 0X6E, 0X30,
-    0X5F, 0X6F, 0X75, 0X74, 0X0A, 0X7B, 0X0A, 0X20, 0X20, 0X20, 0X20, 0X66,
-    0X6C, 0X6F, 0X61, 0X74, 0X32, 0X20, 0X74, 0X65, 0X78, 0X5F, 0X75, 0X76,
-    0X20, 0X5B, 0X5B, 0X75, 0X73, 0X65, 0X72, 0X28, 0X6C, 0X6F, 0X63, 0X6E,
-    0X30, 0X29, 0X5D, 0X5D, 0X3B, 0X0A, 0X20, 0X20, 0X20, 0X20, 0X66, 0X6C,
-    0X6F, 0X61, 0X74, 0X34, 0X20, 0X69, 0X5F, 0X63, 0X6F, 0X6C, 0X6F, 0X72,
-    0X20, 0X5B, 0X5B, 0X75, 0X73, 0X65, 0X72, 0X28, 0X6C, 0X6F, 0X63, 0X6E,
-    0X31, 0X29, 0X5D, 0X5D, 0X3B, 0X0A, 0X20, 0X20, 0X20, 0X20, 0X66, 0X6C,
-    0X6F, 0X61, 0X74, 0X34, 0X20, 0X67, 0X6C, 0X5F, 0X50, 0X6F, 0X73, 0X69,
-    0X74, 0X69, 0X6F, 0X6E, 0X20, 0X5B, 0X5B, 0X70, 0X6F, 0X73, 0X69, 0X74,
-    0X69, 0X6F, 0X6E, 0X5D, 0X5D, 0X3B, 0X0A, 0X20, 0X20, 0X20, 0X20, 0X66,
-    0X6C, 0X6F, 0X61, 0X74, 0X20, 0X67, 0X6C, 0X5F, 0X50, 0X6F, 0X69, 0X6E,
-    0X74, 0X53, 0X69, 0X7A, 0X65, 0X20, 0X5B, 0X5B, 0X70, 0X6F, 0X69, 0X6E,
-    0X74, 0X5F, 0X73, 0X69, 0X7A, 0X65, 0X5D, 0X5D, 0X3B, 0X0A, 0X7D, 0X3B,
-    0X0A, 0X0A, 0X73, 0X74, 0X72, 0X75, 0X63, 0X74, 0X20, 0X6D, 0X61, 0X69,
-    0X6E, 0X30, 0X5F, 0X69, 0X6E, 0X0A, 0X7B, 0X0A, 0X20, 0X20, 0X20, 0X20,
-    0X66, 0X6C, 0X6F, 0X61, 0X74, 0X34, 0X20, 0X63, 0X6F, 0X6F, 0X72, 0X64,
-    0X20, 0X5B, 0X5B, 0X61, 0X74, 0X74, 0X72, 0X69, 0X62, 0X75, 0X74, 0X65,
-    0X28, 0X30, 0X29, 0X5D, 0X5D, 0X3B, 0X0A, 0X20, 0X20, 0X20, 0X20, 0X66,
-    0X6C, 0X6F, 0X61, 0X74, 0X34, 0X20, 0X63, 0X6F, 0X6C, 0X6F, 0X72, 0X20,
-    0X5B, 0X5B, 0X61, 0X74, 0X74, 0X72, 0X69, 0X62, 0X75, 0X74, 0X65, 0X28,
-    0X31, 0X29, 0X5D, 0X5D, 0X3B, 0X0A, 0X7D, 0X3B, 0X0A, 0X0A, 0X76, 0X65,
-    0X72, 0X74, 0X65, 0X78, 0X20, 0X6D, 0X61, 0X69, 0X6E, 0X30, 0X5F, 0X6F,
-    0X75, 0X74, 0X20, 0X6D, 0X61, 0X69, 0X6E, 0X30, 0X28, 0X6D, 0X61, 0X69,
-    0X6E, 0X30, 0X5F, 0X69, 0X6E, 0X20, 0X69, 0X6E, 0X20, 0X5B, 0X5B, 0X73,
-    0X74, 0X61, 0X67, 0X65, 0X5F, 0X69, 0X6E, 0X5D, 0X5D, 0X29, 0X0A, 0X7B,
-    0X0A, 0X20, 0X20, 0X20, 0X20, 0X6D, 0X61, 0X69, 0X6E, 0X30, 0X5F, 0X6F,
-    0X75, 0X74, 0X20, 0X6F, 0X75, 0X74, 0X20, 0X3D, 0X20, 0X7B, 0X7D, 0X3B,
-    0X0A, 0X20, 0X20, 0X20, 0X20, 0X6F, 0X75, 0X74, 0X2E, 0X67, 0X6C, 0X5F,
-    0X50, 0X6F, 0X73, 0X69, 0X74, 0X69, 0X6F, 0X6E, 0X20, 0X3D, 0X20, 0X66,
-    0X6C, 0X6F, 0X61, 0X74, 0X34, 0X28, 0X69, 0X6E, 0X2E, 0X63, 0X6F, 0X6F,
-    0X72, 0X64, 0X2E, 0X78, 0X79, 0X2C, 0X20, 0X30, 0X2E, 0X30, 0X2C, 0X20,
-    0X31, 0X2E, 0X30, 0X29, 0X3B, 0X0A, 0X20, 0X20, 0X20, 0X20, 0X6F, 0X75,
-    0X74, 0X2E, 0X67, 0X6C, 0X5F, 0X50, 0X6F, 0X69, 0X6E, 0X74, 0X53, 0X69,
-    0X7A, 0X65, 0X20, 0X3D, 0X20, 0X31, 0X2E, 0X30, 0X3B, 0X0A, 0X20, 0X20,
-    0X20, 0X20, 0X6F, 0X75, 0X74, 0X2E, 0X74, 0X65, 0X78, 0X5F, 0X75, 0X76,
-    0X20, 0X3D, 0X20, 0X69, 0X6E, 0X2E, 0X63, 0X6F, 0X6F, 0X72, 0X64, 0X2E,
-    0X7A, 0X77, 0X3B, 0X0A, 0X20, 0X20, 0X20, 0X20, 0X6F, 0X75, 0X74, 0X2E,
-    0X69, 0X5F, 0X63, 0X6F, 0X6C, 0X6F, 0X72, 0X20, 0X3D, 0X20, 0X69, 0X6E,
-    0X2E, 0X63, 0X6F, 0X6C, 0X6F, 0X72, 0X3B, 0X0A, 0X20, 0X20, 0X20, 0X20,
-    0X72, 0X65, 0X74, 0X75, 0X72, 0X6E, 0X20, 0X6F, 0X75, 0X74, 0X3B, 0X0A,
-    0X7D, 0X0A, 0X0A};
+unsigned char _shader_vert_msl[]  = {
+  0X23, 0X69, 0X6E, 0X63, 0X6C, 0X75, 0X64, 0X65, 0X20, 0X3C, 0X6D, 0X65, 0X74,
+  0X61, 0X6C, 0X5F, 0X73, 0X74, 0X64, 0X6C, 0X69, 0X62, 0X3E, 0X0A, 0X23, 0X69,
+  0X6E, 0X63, 0X6C, 0X75, 0X64, 0X65, 0X20, 0X3C, 0X73, 0X69, 0X6D, 0X64, 0X2F,
+  0X73, 0X69, 0X6D, 0X64, 0X2E, 0X68, 0X3E, 0X0A, 0X0A, 0X75, 0X73, 0X69, 0X6E,
+  0X67, 0X20, 0X6E, 0X61, 0X6D, 0X65, 0X73, 0X70, 0X61, 0X63, 0X65, 0X20, 0X6D,
+  0X65, 0X74, 0X61, 0X6C, 0X3B, 0X0A, 0X0A, 0X73, 0X74, 0X72, 0X75, 0X63, 0X74,
+  0X20, 0X6D, 0X61, 0X69, 0X6E, 0X30, 0X5F, 0X6F, 0X75, 0X74, 0X0A, 0X7B, 0X0A,
+  0X20, 0X20, 0X20, 0X20, 0X66, 0X6C, 0X6F, 0X61, 0X74, 0X32, 0X20, 0X74, 0X65,
+  0X78, 0X5F, 0X75, 0X76, 0X20, 0X5B, 0X5B, 0X75, 0X73, 0X65, 0X72, 0X28, 0X6C,
+  0X6F, 0X63, 0X6E, 0X30, 0X29, 0X5D, 0X5D, 0X3B, 0X0A, 0X20, 0X20, 0X20, 0X20,
+  0X66, 0X6C, 0X6F, 0X61, 0X74, 0X34, 0X20, 0X69, 0X5F, 0X63, 0X6F, 0X6C, 0X6F,
+  0X72, 0X20, 0X5B, 0X5B, 0X75, 0X73, 0X65, 0X72, 0X28, 0X6C, 0X6F, 0X63, 0X6E,
+  0X31, 0X29, 0X5D, 0X5D, 0X3B, 0X0A, 0X20, 0X20, 0X20, 0X20, 0X66, 0X6C, 0X6F,
+  0X61, 0X74, 0X34, 0X20, 0X67, 0X6C, 0X5F, 0X50, 0X6F, 0X73, 0X69, 0X74, 0X69,
+  0X6F, 0X6E, 0X20, 0X5B, 0X5B, 0X70, 0X6F, 0X73, 0X69, 0X74, 0X69, 0X6F, 0X6E,
+  0X5D, 0X5D, 0X3B, 0X0A, 0X20, 0X20, 0X20, 0X20, 0X66, 0X6C, 0X6F, 0X61, 0X74,
+  0X20, 0X67, 0X6C, 0X5F, 0X50, 0X6F, 0X69, 0X6E, 0X74, 0X53, 0X69, 0X7A, 0X65,
+  0X20, 0X5B, 0X5B, 0X70, 0X6F, 0X69, 0X6E, 0X74, 0X5F, 0X73, 0X69, 0X7A, 0X65,
+  0X5D, 0X5D, 0X3B, 0X0A, 0X7D, 0X3B, 0X0A, 0X0A, 0X73, 0X74, 0X72, 0X75, 0X63,
+  0X74, 0X20, 0X6D, 0X61, 0X69, 0X6E, 0X30, 0X5F, 0X69, 0X6E, 0X0A, 0X7B, 0X0A,
+  0X20, 0X20, 0X20, 0X20, 0X66, 0X6C, 0X6F, 0X61, 0X74, 0X34, 0X20, 0X63, 0X6F,
+  0X6F, 0X72, 0X64, 0X20, 0X5B, 0X5B, 0X61, 0X74, 0X74, 0X72, 0X69, 0X62, 0X75,
+  0X74, 0X65, 0X28, 0X30, 0X29, 0X5D, 0X5D, 0X3B, 0X0A, 0X20, 0X20, 0X20, 0X20,
+  0X66, 0X6C, 0X6F, 0X61, 0X74, 0X34, 0X20, 0X63, 0X6F, 0X6C, 0X6F, 0X72, 0X20,
+  0X5B, 0X5B, 0X61, 0X74, 0X74, 0X72, 0X69, 0X62, 0X75, 0X74, 0X65, 0X28, 0X31,
+  0X29, 0X5D, 0X5D, 0X3B, 0X0A, 0X7D, 0X3B, 0X0A, 0X0A, 0X76, 0X65, 0X72, 0X74,
+  0X65, 0X78, 0X20, 0X6D, 0X61, 0X69, 0X6E, 0X30, 0X5F, 0X6F, 0X75, 0X74, 0X20,
+  0X6D, 0X61, 0X69, 0X6E, 0X30, 0X28, 0X6D, 0X61, 0X69, 0X6E, 0X30, 0X5F, 0X69,
+  0X6E, 0X20, 0X69, 0X6E, 0X20, 0X5B, 0X5B, 0X73, 0X74, 0X61, 0X67, 0X65, 0X5F,
+  0X69, 0X6E, 0X5D, 0X5D, 0X29, 0X0A, 0X7B, 0X0A, 0X20, 0X20, 0X20, 0X20, 0X6D,
+  0X61, 0X69, 0X6E, 0X30, 0X5F, 0X6F, 0X75, 0X74, 0X20, 0X6F, 0X75, 0X74, 0X20,
+  0X3D, 0X20, 0X7B, 0X7D, 0X3B, 0X0A, 0X20, 0X20, 0X20, 0X20, 0X6F, 0X75, 0X74,
+  0X2E, 0X67, 0X6C, 0X5F, 0X50, 0X6F, 0X73, 0X69, 0X74, 0X69, 0X6F, 0X6E, 0X20,
+  0X3D, 0X20, 0X66, 0X6C, 0X6F, 0X61, 0X74, 0X34, 0X28, 0X69, 0X6E, 0X2E, 0X63,
+  0X6F, 0X6F, 0X72, 0X64, 0X2E, 0X78, 0X79, 0X2C, 0X20, 0X30, 0X2E, 0X30, 0X2C,
+  0X20, 0X31, 0X2E, 0X30, 0X29, 0X3B, 0X0A, 0X20, 0X20, 0X20, 0X20, 0X6F, 0X75,
+  0X74, 0X2E, 0X67, 0X6C, 0X5F, 0X50, 0X6F, 0X69, 0X6E, 0X74, 0X53, 0X69, 0X7A,
+  0X65, 0X20, 0X3D, 0X20, 0X31, 0X2E, 0X30, 0X3B, 0X0A, 0X20, 0X20, 0X20, 0X20,
+  0X6F, 0X75, 0X74, 0X2E, 0X74, 0X65, 0X78, 0X5F, 0X75, 0X76, 0X20, 0X3D, 0X20,
+  0X69, 0X6E, 0X2E, 0X63, 0X6F, 0X6F, 0X72, 0X64, 0X2E, 0X7A, 0X77, 0X3B, 0X0A,
+  0X20, 0X20, 0X20, 0X20, 0X6F, 0X75, 0X74, 0X2E, 0X69, 0X5F, 0X63, 0X6F, 0X6C,
+  0X6F, 0X72, 0X20, 0X3D, 0X20, 0X69, 0X6E, 0X2E, 0X63, 0X6F, 0X6C, 0X6F, 0X72,
+  0X3B, 0X0A, 0X20, 0X20, 0X20, 0X20, 0X72, 0X65, 0X74, 0X75, 0X72, 0X6E, 0X20,
+  0X6F, 0X75, 0X74, 0X3B, 0X0A, 0X7D, 0X0A, 0X0A
+};
 
 unsigned int _shader_vert_dxil_len = 3280;
-unsigned char _shader_vert_dxil[] = {
-    0X44, 0X58, 0X42, 0X43, 0X24, 0X6B, 0X07, 0X1C, 0XEF, 0X19, 0X41, 0XFB,
-    0XF1, 0X66, 0XD1, 0XEA, 0X57, 0XB4, 0X9E, 0XED, 0X01, 0X00, 0X00, 0X00,
-    0XD0, 0X0C, 0X00, 0X00, 0X07, 0X00, 0X00, 0X00, 0X3C, 0X00, 0X00, 0X00,
-    0X4C, 0X00, 0X00, 0X00, 0XA8, 0X00, 0X00, 0X00, 0X30, 0X01, 0X00, 0X00,
-    0X24, 0X02, 0X00, 0X00, 0X1C, 0X07, 0X00, 0X00, 0X38, 0X07, 0X00, 0X00,
-    0X53, 0X46, 0X49, 0X30, 0X08, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
-    0X00, 0X00, 0X00, 0X00, 0X49, 0X53, 0X47, 0X31, 0X54, 0X00, 0X00, 0X00,
-    0X02, 0X00, 0X00, 0X00, 0X08, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
-    0X48, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
-    0X03, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X0F, 0X0F, 0X00, 0X00,
-    0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X48, 0X00, 0X00, 0X00,
-    0X01, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X03, 0X00, 0X00, 0X00,
-    0X01, 0X00, 0X00, 0X00, 0X0F, 0X0F, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
-    0X54, 0X45, 0X58, 0X43, 0X4F, 0X4F, 0X52, 0X44, 0X00, 0X00, 0X00, 0X00,
-    0X4F, 0X53, 0X47, 0X31, 0X80, 0X00, 0X00, 0X00, 0X03, 0X00, 0X00, 0X00,
-    0X08, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X68, 0X00, 0X00, 0X00,
-    0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X03, 0X00, 0X00, 0X00,
-    0X00, 0X00, 0X00, 0X00, 0X03, 0X0C, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
-    0X00, 0X00, 0X00, 0X00, 0X68, 0X00, 0X00, 0X00, 0X01, 0X00, 0X00, 0X00,
-    0X00, 0X00, 0X00, 0X00, 0X03, 0X00, 0X00, 0X00, 0X01, 0X00, 0X00, 0X00,
-    0X0F, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
-    0X71, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X01, 0X00, 0X00, 0X00,
-    0X03, 0X00, 0X00, 0X00, 0X02, 0X00, 0X00, 0X00, 0X0F, 0X00, 0X00, 0X00,
-    0X00, 0X00, 0X00, 0X00, 0X54, 0X45, 0X58, 0X43, 0X4F, 0X4F, 0X52, 0X44,
-    0X00, 0X53, 0X56, 0X5F, 0X50, 0X6F, 0X73, 0X69, 0X74, 0X69, 0X6F, 0X6E,
-    0X00, 0X00, 0X00, 0X00, 0X50, 0X53, 0X56, 0X30, 0XEC, 0X00, 0X00, 0X00,
-    0X34, 0X00, 0X00, 0X00, 0X01, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
-    0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
-    0XFF, 0XFF, 0XFF, 0XFF, 0X01, 0X00, 0X00, 0X00, 0X02, 0X03, 0X00, 0X02,
-    0X03, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
-    0X00, 0X00, 0X00, 0X00, 0X25, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
-    0X2C, 0X00, 0X00, 0X00, 0X00, 0X54, 0X45, 0X58, 0X43, 0X4F, 0X4F, 0X52,
-    0X44, 0X00, 0X54, 0X45, 0X58, 0X43, 0X4F, 0X4F, 0X52, 0X44, 0X00, 0X54,
-    0X45, 0X58, 0X43, 0X4F, 0X4F, 0X52, 0X44, 0X00, 0X54, 0X45, 0X58, 0X43,
-    0X4F, 0X4F, 0X52, 0X44, 0X00, 0X6D, 0X61, 0X69, 0X6E, 0X00, 0X00, 0X00,
-    0X02, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X01, 0X00, 0X00, 0X00,
-    0X10, 0X00, 0X00, 0X00, 0X01, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
-    0X01, 0X00, 0X44, 0X00, 0X03, 0X00, 0X00, 0X00, 0X0A, 0X00, 0X00, 0X00,
-    0X01, 0X00, 0X00, 0X00, 0X01, 0X01, 0X44, 0X00, 0X03, 0X00, 0X00, 0X00,
-    0X13, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X01, 0X00, 0X42, 0X00,
-    0X03, 0X02, 0X00, 0X00, 0X1C, 0X00, 0X00, 0X00, 0X01, 0X00, 0X00, 0X00,
-    0X01, 0X01, 0X44, 0X00, 0X03, 0X02, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
-    0X00, 0X00, 0X00, 0X00, 0X01, 0X02, 0X44, 0X03, 0X03, 0X04, 0X00, 0X00,
-    0X00, 0X01, 0X00, 0X00, 0X00, 0X02, 0X00, 0X00, 0X01, 0X00, 0X00, 0X00,
-    0X02, 0X00, 0X00, 0X00, 0X10, 0X00, 0X00, 0X00, 0X20, 0X00, 0X00, 0X00,
-    0X40, 0X00, 0X00, 0X00, 0X80, 0X00, 0X00, 0X00, 0X53, 0X54, 0X41, 0X54,
-    0XF0, 0X04, 0X00, 0X00, 0X60, 0X00, 0X01, 0X00, 0X3C, 0X01, 0X00, 0X00,
-    0X44, 0X58, 0X49, 0X4C, 0X00, 0X01, 0X00, 0X00, 0X10, 0X00, 0X00, 0X00,
-    0XD8, 0X04, 0X00, 0X00, 0X42, 0X43, 0XC0, 0XDE, 0X21, 0X0C, 0X00, 0X00,
-    0X33, 0X01, 0X00, 0X00, 0X0B, 0X82, 0X20, 0X00, 0X02, 0X00, 0X00, 0X00,
-    0X13, 0X00, 0X00, 0X00, 0X07, 0X81, 0X23, 0X91, 0X41, 0XC8, 0X04, 0X49,
-    0X06, 0X10, 0X32, 0X39, 0X92, 0X01, 0X84, 0X0C, 0X25, 0X05, 0X08, 0X19,
-    0X1E, 0X04, 0X8B, 0X62, 0X80, 0X10, 0X45, 0X02, 0X42, 0X92, 0X0B, 0X42,
-    0X84, 0X10, 0X32, 0X14, 0X38, 0X08, 0X18, 0X4B, 0X0A, 0X32, 0X42, 0X88,
-    0X48, 0X90, 0X14, 0X20, 0X43, 0X46, 0X88, 0XA5, 0X00, 0X19, 0X32, 0X42,
-    0XE4, 0X48, 0X0E, 0X90, 0X11, 0X22, 0XC4, 0X50, 0X41, 0X51, 0X81, 0X8C,
-    0XE1, 0X83, 0XE5, 0X8A, 0X04, 0X21, 0X46, 0X06, 0X51, 0X18, 0X00, 0X00,
-    0X06, 0X00, 0X00, 0X00, 0X1B, 0X8C, 0XE0, 0XFF, 0XFF, 0XFF, 0XFF, 0X07,
-    0X40, 0X02, 0XA8, 0X0D, 0X84, 0XF0, 0XFF, 0XFF, 0XFF, 0XFF, 0X03, 0X20,
-    0X01, 0X00, 0X00, 0X00, 0X49, 0X18, 0X00, 0X00, 0X02, 0X00, 0X00, 0X00,
-    0X13, 0X82, 0X60, 0X42, 0X20, 0X00, 0X00, 0X00, 0X89, 0X20, 0X00, 0X00,
-    0X0F, 0X00, 0X00, 0X00, 0X32, 0X22, 0X08, 0X09, 0X20, 0X64, 0X85, 0X04,
-    0X13, 0X22, 0XA4, 0X84, 0X04, 0X13, 0X22, 0XE3, 0X84, 0XA1, 0X90, 0X14,
-    0X12, 0X4C, 0X88, 0X8C, 0X0B, 0X84, 0X84, 0X4C, 0X10, 0X30, 0X23, 0X00,
-    0X25, 0X00, 0X8A, 0X19, 0X80, 0X39, 0X02, 0X30, 0X98, 0X23, 0X40, 0X8A,
-    0X31, 0X44, 0X54, 0X44, 0X56, 0X0C, 0X20, 0XA2, 0X1A, 0XC2, 0X81, 0X80,
-    0X54, 0X20, 0X00, 0X00, 0X13, 0X14, 0X72, 0XC0, 0X87, 0X74, 0X60, 0X87,
-    0X36, 0X68, 0X87, 0X79, 0X68, 0X03, 0X72, 0XC0, 0X87, 0X0D, 0XAF, 0X50,
-    0X0E, 0X6D, 0XD0, 0X0E, 0X7A, 0X50, 0X0E, 0X6D, 0X00, 0X0F, 0X7A, 0X30,
-    0X07, 0X72, 0XA0, 0X07, 0X73, 0X20, 0X07, 0X6D, 0X90, 0X0E, 0X71, 0XA0,
-    0X07, 0X73, 0X20, 0X07, 0X6D, 0X90, 0X0E, 0X78, 0XA0, 0X07, 0X73, 0X20,
-    0X07, 0X6D, 0X90, 0X0E, 0X71, 0X60, 0X07, 0X7A, 0X30, 0X07, 0X72, 0XD0,
-    0X06, 0XE9, 0X30, 0X07, 0X72, 0XA0, 0X07, 0X73, 0X20, 0X07, 0X6D, 0X90,
-    0X0E, 0X76, 0X40, 0X07, 0X7A, 0X60, 0X07, 0X74, 0XD0, 0X06, 0XE6, 0X10,
-    0X07, 0X76, 0XA0, 0X07, 0X73, 0X20, 0X07, 0X6D, 0X60, 0X0E, 0X73, 0X20,
-    0X07, 0X7A, 0X30, 0X07, 0X72, 0XD0, 0X06, 0XE6, 0X60, 0X07, 0X74, 0XA0,
-    0X07, 0X76, 0X40, 0X07, 0X6D, 0XE0, 0X0E, 0X78, 0XA0, 0X07, 0X71, 0X60,
-    0X07, 0X7A, 0X30, 0X07, 0X72, 0XA0, 0X07, 0X76, 0X40, 0X07, 0X43, 0X9E,
-    0X00, 0X08, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X86,
-    0X3C, 0X06, 0X10, 0X00, 0X01, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
-    0X0C, 0X79, 0X10, 0X20, 0X00, 0X04, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
-    0X00, 0XC8, 0X02, 0X01, 0X0E, 0X00, 0X00, 0X00, 0X32, 0X1E, 0X98, 0X14,
-    0X19, 0X11, 0X4C, 0X90, 0X8C, 0X09, 0X26, 0X47, 0XC6, 0X04, 0X43, 0XA2,
-    0X12, 0X18, 0X01, 0X28, 0X86, 0X32, 0X28, 0X8F, 0X22, 0X28, 0X93, 0X82,
-    0X28, 0X0A, 0XAA, 0X92, 0X18, 0X01, 0X28, 0X84, 0X22, 0X28, 0X03, 0XDA,
-    0XB1, 0X14, 0X84, 0X01, 0X11, 0X10, 0X0A, 0X04, 0X08, 0X0C, 0X40, 0X01,
-    0X24, 0X00, 0X00, 0X00, 0X79, 0X18, 0X00, 0X00, 0X66, 0X00, 0X00, 0X00,
-    0X1A, 0X03, 0X4C, 0X90, 0X46, 0X02, 0X13, 0XC4, 0X31, 0X20, 0XC3, 0X1B,
-    0X43, 0X81, 0X93, 0X4B, 0XB3, 0X0B, 0XA3, 0X2B, 0X4B, 0X01, 0X89, 0X71,
-    0XC9, 0X71, 0X81, 0X71, 0XA9, 0X89, 0XC1, 0XA1, 0X01, 0X41, 0X91, 0X89,
-    0X21, 0X93, 0XC1, 0X31, 0XBB, 0X91, 0XB9, 0X49, 0XD9, 0X10, 0X04, 0X13,
-    0X04, 0X62, 0X98, 0X20, 0X10, 0XC4, 0X06, 0X61, 0X20, 0X36, 0X08, 0X04,
-    0X41, 0XC1, 0X6E, 0X6E, 0X82, 0X40, 0X14, 0X1B, 0X86, 0X03, 0X21, 0X26,
-    0X08, 0X02, 0XB0, 0X01, 0XD8, 0X30, 0X10, 0XCB, 0XB2, 0X21, 0X60, 0X36,
-    0X0C, 0X83, 0XD2, 0X4C, 0X10, 0X96, 0X68, 0X43, 0XF0, 0X90, 0X68, 0X0B,
-    0X4B, 0X73, 0X23, 0X42, 0X55, 0X84, 0X35, 0XF4, 0XF4, 0X24, 0X45, 0X34,
-    0X41, 0X28, 0X98, 0X09, 0X42, 0XD1, 0X6C, 0X08, 0X88, 0X09, 0X42, 0XE1,
-    0X4C, 0X10, 0X08, 0X63, 0X82, 0X40, 0X1C, 0X1B, 0X84, 0X0B, 0XDB, 0XB0,
-    0X10, 0XD2, 0X44, 0X55, 0XD4, 0X60, 0X11, 0X54, 0XB6, 0X21, 0X18, 0X36,
-    0X2C, 0X83, 0X34, 0X51, 0X1B, 0X35, 0X58, 0X03, 0X95, 0X6D, 0X10, 0X34,
-    0X6E, 0X82, 0X50, 0X3C, 0X1B, 0X84, 0XEB, 0XDA, 0XB0, 0X10, 0XD2, 0X44,
-    0X55, 0XDE, 0XE0, 0X11, 0XD4, 0XB7, 0X61, 0X19, 0XA4, 0X89, 0XDA, 0XBC,
-    0XC1, 0X1A, 0XA8, 0X6C, 0X82, 0X40, 0X20, 0X5C, 0XA6, 0XAC, 0XBE, 0XA0,
-    0XDE, 0XE6, 0XD2, 0XE8, 0XD2, 0XDE, 0XDC, 0X26, 0X08, 0X05, 0XB4, 0X61,
-    0X11, 0X83, 0X31, 0X98, 0XC8, 0XA0, 0XB2, 0X06, 0X4B, 0X0C, 0XA8, 0X6C,
-    0XC3, 0X00, 0X06, 0X61, 0X50, 0X06, 0X1B, 0X86, 0XCE, 0X0C, 0X80, 0X0D,
-    0X85, 0X12, 0X9D, 0X01, 0X00, 0XB0, 0X48, 0X73, 0X9B, 0XA3, 0X9B, 0X9B,
-    0X20, 0X10, 0X09, 0X8D, 0XB9, 0XB4, 0XB3, 0X2F, 0X36, 0XB2, 0X09, 0X02,
-    0XA1, 0XD0, 0X98, 0X4B, 0X3B, 0XFB, 0X9A, 0XA3, 0X9B, 0X20, 0X10, 0XCB,
-    0X06, 0X23, 0X0D, 0XD4, 0X60, 0X0D, 0XD8, 0XA0, 0X0D, 0XDC, 0XA0, 0X0A,
-    0X1B, 0X9B, 0X5D, 0X9B, 0X4B, 0X1A, 0X59, 0X99, 0X1B, 0XDD, 0X94, 0X20,
-    0XA8, 0X42, 0X86, 0XE7, 0X62, 0X57, 0X26, 0X37, 0X97, 0XF6, 0XE6, 0X36,
-    0X25, 0X20, 0X9A, 0X90, 0XE1, 0XB9, 0XD8, 0X85, 0XB1, 0XD9, 0X95, 0XC9,
-    0X4D, 0X09, 0X8A, 0X3A, 0X64, 0X78, 0X2E, 0X73, 0X68, 0X61, 0X64, 0X65,
-    0X72, 0X4D, 0X6F, 0X64, 0X65, 0X6C, 0X53, 0X02, 0XA4, 0X12, 0X19, 0X9E,
-    0X0B, 0X5D, 0X1E, 0X5C, 0X59, 0X90, 0X9B, 0XDB, 0X1B, 0X5D, 0X18, 0X5D,
-    0XDA, 0X9B, 0XDB, 0XDC, 0X94, 0XA0, 0XA9, 0X43, 0X86, 0XE7, 0X62, 0X97,
-    0X56, 0X76, 0X97, 0X44, 0X36, 0X45, 0X17, 0X46, 0X57, 0X36, 0X25, 0X78,
-    0XEA, 0X90, 0XE1, 0XB9, 0X94, 0XB9, 0XD1, 0XC9, 0XE5, 0X41, 0XBD, 0XA5,
-    0XB9, 0XD1, 0XCD, 0X4D, 0X09, 0XCE, 0XA0, 0X0B, 0X19, 0X9E, 0XCB, 0XD8,
-    0X5B, 0X9D, 0X1B, 0X5D, 0X99, 0XDC, 0XDC, 0X94, 0XC0, 0X0D, 0X00, 0X00,
-    0X79, 0X18, 0X00, 0X00, 0X4C, 0X00, 0X00, 0X00, 0X33, 0X08, 0X80, 0X1C,
-    0XC4, 0XE1, 0X1C, 0X66, 0X14, 0X01, 0X3D, 0X88, 0X43, 0X38, 0X84, 0XC3,
-    0X8C, 0X42, 0X80, 0X07, 0X79, 0X78, 0X07, 0X73, 0X98, 0X71, 0X0C, 0XE6,
-    0X00, 0X0F, 0XED, 0X10, 0X0E, 0XF4, 0X80, 0X0E, 0X33, 0X0C, 0X42, 0X1E,
-    0XC2, 0XC1, 0X1D, 0XCE, 0XA1, 0X1C, 0X66, 0X30, 0X05, 0X3D, 0X88, 0X43,
-    0X38, 0X84, 0X83, 0X1B, 0XCC, 0X03, 0X3D, 0XC8, 0X43, 0X3D, 0X8C, 0X03,
-    0X3D, 0XCC, 0X78, 0X8C, 0X74, 0X70, 0X07, 0X7B, 0X08, 0X07, 0X79, 0X48,
-    0X87, 0X70, 0X70, 0X07, 0X7A, 0X70, 0X03, 0X76, 0X78, 0X87, 0X70, 0X20,
-    0X87, 0X19, 0XCC, 0X11, 0X0E, 0XEC, 0X90, 0X0E, 0XE1, 0X30, 0X0F, 0X6E,
-    0X30, 0X0F, 0XE3, 0XF0, 0X0E, 0XF0, 0X50, 0X0E, 0X33, 0X10, 0XC4, 0X1D,
-    0XDE, 0X21, 0X1C, 0XD8, 0X21, 0X1D, 0XC2, 0X61, 0X1E, 0X66, 0X30, 0X89,
-    0X3B, 0XBC, 0X83, 0X3B, 0XD0, 0X43, 0X39, 0XB4, 0X03, 0X3C, 0XBC, 0X83,
-    0X3C, 0X84, 0X03, 0X3B, 0XCC, 0XF0, 0X14, 0X76, 0X60, 0X07, 0X7B, 0X68,
-    0X07, 0X37, 0X68, 0X87, 0X72, 0X68, 0X07, 0X37, 0X80, 0X87, 0X70, 0X90,
-    0X87, 0X70, 0X60, 0X07, 0X76, 0X28, 0X07, 0X76, 0XF8, 0X05, 0X76, 0X78,
-    0X87, 0X77, 0X80, 0X87, 0X5F, 0X08, 0X87, 0X71, 0X18, 0X87, 0X72, 0X98,
-    0X87, 0X79, 0X98, 0X81, 0X2C, 0XEE, 0XF0, 0X0E, 0XEE, 0XE0, 0X0E, 0XF5,
-    0XC0, 0X0E, 0XEC, 0X30, 0X03, 0X62, 0XC8, 0XA1, 0X1C, 0XE4, 0XA1, 0X1C,
-    0XCC, 0XA1, 0X1C, 0XE4, 0XA1, 0X1C, 0XDC, 0X61, 0X1C, 0XCA, 0X21, 0X1C,
-    0XC4, 0X81, 0X1D, 0XCA, 0X61, 0X06, 0XD6, 0X90, 0X43, 0X39, 0XC8, 0X43,
-    0X39, 0X98, 0X43, 0X39, 0XC8, 0X43, 0X39, 0XB8, 0XC3, 0X38, 0X94, 0X43,
-    0X38, 0X88, 0X03, 0X3B, 0X94, 0XC3, 0X2F, 0XBC, 0X83, 0X3C, 0XFC, 0X82,
-    0X3B, 0XD4, 0X03, 0X3B, 0XB0, 0XC3, 0X8C, 0XC8, 0X21, 0X07, 0X7C, 0X70,
-    0X03, 0X72, 0X10, 0X87, 0X73, 0X70, 0X03, 0X7B, 0X08, 0X07, 0X79, 0X60,
-    0X87, 0X70, 0XC8, 0X87, 0X77, 0XA8, 0X07, 0X7A, 0X98, 0X81, 0X3C, 0XE4,
-    0X80, 0X0F, 0X6E, 0X40, 0X0F, 0XE5, 0XD0, 0X0E, 0XF0, 0X00, 0X00, 0X00,
-    0X71, 0X20, 0X00, 0X00, 0X0B, 0X00, 0X00, 0X00, 0X16, 0X30, 0X0D, 0X97,
-    0XEF, 0X3C, 0XFE, 0XE2, 0X00, 0X83, 0XD8, 0X3C, 0XD4, 0XE4, 0X17, 0XB7,
-    0X6D, 0X02, 0XD5, 0X70, 0XF9, 0XCE, 0XE3, 0X4B, 0X93, 0X13, 0X11, 0X28,
-    0X35, 0X3D, 0XD4, 0XE4, 0X17, 0XB7, 0X6D, 0X00, 0X04, 0X03, 0X20, 0X0D,
-    0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X48, 0X41, 0X53, 0X48,
-    0X14, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X49, 0X76, 0XB8, 0XA7,
-    0XCF, 0XA3, 0XA4, 0X03, 0XA2, 0XEC, 0X09, 0X1A, 0XCD, 0XE2, 0XB4, 0XEA,
-    0X44, 0X58, 0X49, 0X4C, 0X90, 0X05, 0X00, 0X00, 0X60, 0X00, 0X01, 0X00,
-    0X64, 0X01, 0X00, 0X00, 0X44, 0X58, 0X49, 0X4C, 0X00, 0X01, 0X00, 0X00,
-    0X10, 0X00, 0X00, 0X00, 0X78, 0X05, 0X00, 0X00, 0X42, 0X43, 0XC0, 0XDE,
-    0X21, 0X0C, 0X00, 0X00, 0X5B, 0X01, 0X00, 0X00, 0X0B, 0X82, 0X20, 0X00,
-    0X02, 0X00, 0X00, 0X00, 0X13, 0X00, 0X00, 0X00, 0X07, 0X81, 0X23, 0X91,
-    0X41, 0XC8, 0X04, 0X49, 0X06, 0X10, 0X32, 0X39, 0X92, 0X01, 0X84, 0X0C,
-    0X25, 0X05, 0X08, 0X19, 0X1E, 0X04, 0X8B, 0X62, 0X80, 0X10, 0X45, 0X02,
-    0X42, 0X92, 0X0B, 0X42, 0X84, 0X10, 0X32, 0X14, 0X38, 0X08, 0X18, 0X4B,
-    0X0A, 0X32, 0X42, 0X88, 0X48, 0X90, 0X14, 0X20, 0X43, 0X46, 0X88, 0XA5,
-    0X00, 0X19, 0X32, 0X42, 0XE4, 0X48, 0X0E, 0X90, 0X11, 0X22, 0XC4, 0X50,
-    0X41, 0X51, 0X81, 0X8C, 0XE1, 0X83, 0XE5, 0X8A, 0X04, 0X21, 0X46, 0X06,
-    0X51, 0X18, 0X00, 0X00, 0X06, 0X00, 0X00, 0X00, 0X1B, 0X8C, 0XE0, 0XFF,
-    0XFF, 0XFF, 0XFF, 0X07, 0X40, 0X02, 0XA8, 0X0D, 0X84, 0XF0, 0XFF, 0XFF,
-    0XFF, 0XFF, 0X03, 0X20, 0X01, 0X00, 0X00, 0X00, 0X49, 0X18, 0X00, 0X00,
-    0X02, 0X00, 0X00, 0X00, 0X13, 0X82, 0X60, 0X42, 0X20, 0X00, 0X00, 0X00,
-    0X89, 0X20, 0X00, 0X00, 0X0F, 0X00, 0X00, 0X00, 0X32, 0X22, 0X08, 0X09,
-    0X20, 0X64, 0X85, 0X04, 0X13, 0X22, 0XA4, 0X84, 0X04, 0X13, 0X22, 0XE3,
-    0X84, 0XA1, 0X90, 0X14, 0X12, 0X4C, 0X88, 0X8C, 0X0B, 0X84, 0X84, 0X4C,
-    0X10, 0X30, 0X23, 0X00, 0X25, 0X00, 0X8A, 0X19, 0X80, 0X39, 0X02, 0X30,
-    0X98, 0X23, 0X40, 0X8A, 0X31, 0X44, 0X54, 0X44, 0X56, 0X0C, 0X20, 0XA2,
-    0X1A, 0XC2, 0X81, 0X80, 0X54, 0X20, 0X00, 0X00, 0X13, 0X14, 0X72, 0XC0,
-    0X87, 0X74, 0X60, 0X87, 0X36, 0X68, 0X87, 0X79, 0X68, 0X03, 0X72, 0XC0,
-    0X87, 0X0D, 0XAF, 0X50, 0X0E, 0X6D, 0XD0, 0X0E, 0X7A, 0X50, 0X0E, 0X6D,
-    0X00, 0X0F, 0X7A, 0X30, 0X07, 0X72, 0XA0, 0X07, 0X73, 0X20, 0X07, 0X6D,
-    0X90, 0X0E, 0X71, 0XA0, 0X07, 0X73, 0X20, 0X07, 0X6D, 0X90, 0X0E, 0X78,
-    0XA0, 0X07, 0X73, 0X20, 0X07, 0X6D, 0X90, 0X0E, 0X71, 0X60, 0X07, 0X7A,
-    0X30, 0X07, 0X72, 0XD0, 0X06, 0XE9, 0X30, 0X07, 0X72, 0XA0, 0X07, 0X73,
-    0X20, 0X07, 0X6D, 0X90, 0X0E, 0X76, 0X40, 0X07, 0X7A, 0X60, 0X07, 0X74,
-    0XD0, 0X06, 0XE6, 0X10, 0X07, 0X76, 0XA0, 0X07, 0X73, 0X20, 0X07, 0X6D,
-    0X60, 0X0E, 0X73, 0X20, 0X07, 0X7A, 0X30, 0X07, 0X72, 0XD0, 0X06, 0XE6,
-    0X60, 0X07, 0X74, 0XA0, 0X07, 0X76, 0X40, 0X07, 0X6D, 0XE0, 0X0E, 0X78,
-    0XA0, 0X07, 0X71, 0X60, 0X07, 0X7A, 0X30, 0X07, 0X72, 0XA0, 0X07, 0X76,
-    0X40, 0X07, 0X43, 0X9E, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
-    0X00, 0X00, 0X00, 0X86, 0X3C, 0X06, 0X10, 0X00, 0X01, 0X00, 0X00, 0X00,
-    0X00, 0X00, 0X00, 0X00, 0X0C, 0X79, 0X10, 0X20, 0X00, 0X04, 0X00, 0X00,
-    0X00, 0X00, 0X00, 0X00, 0X00, 0XC8, 0X02, 0X01, 0X0D, 0X00, 0X00, 0X00,
-    0X32, 0X1E, 0X98, 0X14, 0X19, 0X11, 0X4C, 0X90, 0X8C, 0X09, 0X26, 0X47,
-    0XC6, 0X04, 0X43, 0XA2, 0X12, 0X18, 0X01, 0X28, 0X89, 0X62, 0X28, 0X83,
-    0XF2, 0X28, 0X02, 0XAA, 0X92, 0X18, 0X01, 0X28, 0X84, 0X22, 0X28, 0X03,
-    0XDA, 0XB1, 0X14, 0X84, 0X01, 0X11, 0X10, 0X0A, 0X04, 0X08, 0X0C, 0X40,
-    0X01, 0X24, 0X00, 0X00, 0X79, 0X18, 0X00, 0X00, 0X4F, 0X00, 0X00, 0X00,
-    0X1A, 0X03, 0X4C, 0X90, 0X46, 0X02, 0X13, 0XC4, 0X31, 0X20, 0XC3, 0X1B,
-    0X43, 0X81, 0X93, 0X4B, 0XB3, 0X0B, 0XA3, 0X2B, 0X4B, 0X01, 0X89, 0X71,
-    0XC9, 0X71, 0X81, 0X71, 0XA9, 0X89, 0XC1, 0XA1, 0X01, 0X41, 0X91, 0X89,
-    0X21, 0X93, 0XC1, 0X31, 0XBB, 0X91, 0XB9, 0X49, 0XD9, 0X10, 0X04, 0X13,
-    0X04, 0X62, 0X98, 0X20, 0X10, 0XC4, 0X06, 0X61, 0X20, 0X26, 0X08, 0X44,
-    0XB1, 0X41, 0X18, 0X0C, 0X0A, 0X76, 0X73, 0X13, 0X04, 0XC2, 0XD8, 0X30,
-    0X20, 0X09, 0X31, 0X41, 0X58, 0X9E, 0X0D, 0XC1, 0X32, 0X41, 0X10, 0X00,
-    0X12, 0X6D, 0X61, 0X69, 0X6E, 0X44, 0XA8, 0X8A, 0XB0, 0X86, 0X9E, 0X9E,
-    0XA4, 0X88, 0X26, 0X08, 0X85, 0X32, 0X41, 0X28, 0X96, 0X0D, 0X01, 0X31,
-    0X41, 0X28, 0X98, 0X09, 0X02, 0X71, 0X4C, 0X10, 0X08, 0X64, 0X83, 0X40,
-    0X55, 0X1B, 0X16, 0XE2, 0X81, 0X22, 0X29, 0X1A, 0X26, 0X22, 0XB2, 0X36,
-    0X04, 0XC3, 0X86, 0X65, 0X78, 0XA0, 0X08, 0X8B, 0X86, 0X69, 0X88, 0XAC,
-    0X0D, 0XC2, 0X95, 0X4D, 0X10, 0X8A, 0X66, 0X83, 0X40, 0X51, 0X1B, 0X16,
-    0XE2, 0X81, 0X22, 0X69, 0X1B, 0X36, 0X22, 0XE2, 0X36, 0X2C, 0XC3, 0X03,
-    0X45, 0XD8, 0X36, 0X4C, 0X43, 0X64, 0X4D, 0X10, 0X88, 0X84, 0XCB, 0X94,
-    0XD5, 0X17, 0XD4, 0XDB, 0X5C, 0X1A, 0X5D, 0XDA, 0X9B, 0XDB, 0X04, 0XA1,
-    0X70, 0X36, 0X2C, 0X1F, 0X18, 0X40, 0X61, 0X20, 0X4D, 0XC3, 0XF4, 0X45,
-    0XD6, 0X86, 0XA1, 0XF3, 0XC4, 0X60, 0XC3, 0XA0, 0X8D, 0X01, 0XB0, 0XA1,
-    0X68, 0X1C, 0X32, 0X00, 0X80, 0X2A, 0X6C, 0X6C, 0X76, 0X6D, 0X2E, 0X69,
-    0X64, 0X65, 0X6E, 0X74, 0X53, 0X82, 0XA0, 0X0A, 0X19, 0X9E, 0X8B, 0X5D,
-    0X99, 0XDC, 0X5C, 0XDA, 0X9B, 0XDB, 0X94, 0X80, 0X68, 0X42, 0X86, 0XE7,
-    0X62, 0X17, 0XC6, 0X66, 0X57, 0X26, 0X37, 0X25, 0X30, 0XEA, 0X90, 0XE1,
-    0XB9, 0XCC, 0XA1, 0X85, 0X91, 0X95, 0XC9, 0X35, 0XBD, 0X91, 0X95, 0XB1,
-    0X4D, 0X09, 0X92, 0X3A, 0X64, 0X78, 0X2E, 0X76, 0X69, 0X65, 0X77, 0X49,
-    0X64, 0X53, 0X74, 0X61, 0X74, 0X65, 0X53, 0X82, 0XA5, 0X0E, 0X19, 0X9E,
-    0X4B, 0X99, 0X1B, 0X9D, 0X5C, 0X1E, 0XD4, 0X5B, 0X9A, 0X1B, 0XDD, 0XDC,
-    0X94, 0X80, 0X0C, 0X00, 0X79, 0X18, 0X00, 0X00, 0X4C, 0X00, 0X00, 0X00,
-    0X33, 0X08, 0X80, 0X1C, 0XC4, 0XE1, 0X1C, 0X66, 0X14, 0X01, 0X3D, 0X88,
-    0X43, 0X38, 0X84, 0XC3, 0X8C, 0X42, 0X80, 0X07, 0X79, 0X78, 0X07, 0X73,
-    0X98, 0X71, 0X0C, 0XE6, 0X00, 0X0F, 0XED, 0X10, 0X0E, 0XF4, 0X80, 0X0E,
-    0X33, 0X0C, 0X42, 0X1E, 0XC2, 0XC1, 0X1D, 0XCE, 0XA1, 0X1C, 0X66, 0X30,
-    0X05, 0X3D, 0X88, 0X43, 0X38, 0X84, 0X83, 0X1B, 0XCC, 0X03, 0X3D, 0XC8,
-    0X43, 0X3D, 0X8C, 0X03, 0X3D, 0XCC, 0X78, 0X8C, 0X74, 0X70, 0X07, 0X7B,
-    0X08, 0X07, 0X79, 0X48, 0X87, 0X70, 0X70, 0X07, 0X7A, 0X70, 0X03, 0X76,
-    0X78, 0X87, 0X70, 0X20, 0X87, 0X19, 0XCC, 0X11, 0X0E, 0XEC, 0X90, 0X0E,
-    0XE1, 0X30, 0X0F, 0X6E, 0X30, 0X0F, 0XE3, 0XF0, 0X0E, 0XF0, 0X50, 0X0E,
-    0X33, 0X10, 0XC4, 0X1D, 0XDE, 0X21, 0X1C, 0XD8, 0X21, 0X1D, 0XC2, 0X61,
-    0X1E, 0X66, 0X30, 0X89, 0X3B, 0XBC, 0X83, 0X3B, 0XD0, 0X43, 0X39, 0XB4,
-    0X03, 0X3C, 0XBC, 0X83, 0X3C, 0X84, 0X03, 0X3B, 0XCC, 0XF0, 0X14, 0X76,
-    0X60, 0X07, 0X7B, 0X68, 0X07, 0X37, 0X68, 0X87, 0X72, 0X68, 0X07, 0X37,
-    0X80, 0X87, 0X70, 0X90, 0X87, 0X70, 0X60, 0X07, 0X76, 0X28, 0X07, 0X76,
-    0XF8, 0X05, 0X76, 0X78, 0X87, 0X77, 0X80, 0X87, 0X5F, 0X08, 0X87, 0X71,
-    0X18, 0X87, 0X72, 0X98, 0X87, 0X79, 0X98, 0X81, 0X2C, 0XEE, 0XF0, 0X0E,
-    0XEE, 0XE0, 0X0E, 0XF5, 0XC0, 0X0E, 0XEC, 0X30, 0X03, 0X62, 0XC8, 0XA1,
-    0X1C, 0XE4, 0XA1, 0X1C, 0XCC, 0XA1, 0X1C, 0XE4, 0XA1, 0X1C, 0XDC, 0X61,
-    0X1C, 0XCA, 0X21, 0X1C, 0XC4, 0X81, 0X1D, 0XCA, 0X61, 0X06, 0XD6, 0X90,
-    0X43, 0X39, 0XC8, 0X43, 0X39, 0X98, 0X43, 0X39, 0XC8, 0X43, 0X39, 0XB8,
-    0XC3, 0X38, 0X94, 0X43, 0X38, 0X88, 0X03, 0X3B, 0X94, 0XC3, 0X2F, 0XBC,
-    0X83, 0X3C, 0XFC, 0X82, 0X3B, 0XD4, 0X03, 0X3B, 0XB0, 0XC3, 0X8C, 0XC8,
-    0X21, 0X07, 0X7C, 0X70, 0X03, 0X72, 0X10, 0X87, 0X73, 0X70, 0X03, 0X7B,
-    0X08, 0X07, 0X79, 0X60, 0X87, 0X70, 0XC8, 0X87, 0X77, 0XA8, 0X07, 0X7A,
-    0X98, 0X81, 0X3C, 0XE4, 0X80, 0X0F, 0X6E, 0X40, 0X0F, 0XE5, 0XD0, 0X0E,
-    0XF0, 0X00, 0X00, 0X00, 0X71, 0X20, 0X00, 0X00, 0X0B, 0X00, 0X00, 0X00,
-    0X16, 0X30, 0X0D, 0X97, 0XEF, 0X3C, 0XFE, 0XE2, 0X00, 0X83, 0XD8, 0X3C,
-    0XD4, 0XE4, 0X17, 0XB7, 0X6D, 0X02, 0XD5, 0X70, 0XF9, 0XCE, 0XE3, 0X4B,
-    0X93, 0X13, 0X11, 0X28, 0X35, 0X3D, 0XD4, 0XE4, 0X17, 0XB7, 0X6D, 0X00,
-    0X04, 0X03, 0X20, 0X0D, 0X00, 0X00, 0X00, 0X00, 0X61, 0X20, 0X00, 0X00,
-    0X3E, 0X00, 0X00, 0X00, 0X13, 0X04, 0X41, 0X2C, 0X10, 0X00, 0X00, 0X00,
-    0X05, 0X00, 0X00, 0X00, 0X54, 0X25, 0X40, 0X34, 0X03, 0X50, 0X0A, 0X85,
-    0X40, 0X33, 0X46, 0X00, 0X82, 0X20, 0X88, 0X7F, 0X23, 0X00, 0X00, 0X00,
-    0X23, 0X06, 0X09, 0X00, 0X82, 0X60, 0X60, 0X54, 0XC3, 0X24, 0X2D, 0XC5,
-    0X88, 0X41, 0X02, 0X80, 0X20, 0X18, 0X18, 0X16, 0X41, 0X4D, 0X87, 0X31,
-    0X62, 0X90, 0X00, 0X20, 0X08, 0X06, 0XC6, 0X55, 0X54, 0XD4, 0X72, 0X8C,
-    0X18, 0X24, 0X00, 0X08, 0X82, 0X81, 0X81, 0X19, 0X56, 0XB5, 0X20, 0X23,
-    0X06, 0X09, 0X00, 0X82, 0X60, 0X60, 0X64, 0X87, 0X65, 0X3D, 0XC9, 0X88,
-    0X41, 0X02, 0X80, 0X20, 0X18, 0X18, 0X1A, 0X72, 0X5D, 0X8B, 0X32, 0X62,
-    0X90, 0X00, 0X20, 0X08, 0X06, 0XC6, 0X96, 0X60, 0XD8, 0XB3, 0X8C, 0X18,
-    0X24, 0X00, 0X08, 0X82, 0X81, 0XC1, 0X29, 0X59, 0XF6, 0X30, 0X23, 0X06,
-    0X09, 0X00, 0X82, 0X60, 0X80, 0X70, 0X8C, 0XA6, 0X4D, 0XC2, 0X88, 0X41,
-    0X02, 0X80, 0X20, 0X18, 0X20, 0X1C, 0XA3, 0X69, 0X4E, 0X30, 0X62, 0X90,
-    0X00, 0X20, 0X08, 0X06, 0X08, 0XC7, 0X6C, 0XDA, 0X84, 0X8C, 0X18, 0X24,
-    0X00, 0X08, 0X82, 0X01, 0XC2, 0X31, 0X9B, 0XE6, 0X1C, 0X23, 0X06, 0X09,
-    0X00, 0X82, 0X60, 0X80, 0X70, 0XCC, 0XA6, 0X45, 0XC6, 0X88, 0X41, 0X02,
-    0X80, 0X20, 0X18, 0X20, 0X1C, 0XB3, 0X69, 0X50, 0X31, 0X62, 0X90, 0X00,
-    0X20, 0X08, 0X06, 0X08, 0XC7, 0X54, 0XDA, 0X44, 0X8C, 0X18, 0X24, 0X00,
-    0X08, 0X82, 0X01, 0XC2, 0X31, 0X95, 0XE6, 0X0C, 0X23, 0X06, 0X09, 0X00,
-    0X82, 0X60, 0X80, 0X70, 0X4C, 0XA5, 0X45, 0XC9, 0X88, 0X41, 0X02, 0X80,
-    0X20, 0X18, 0X20, 0X1C, 0X53, 0X69, 0X90, 0X82, 0X00, 0X00, 0X00, 0X00,
-    0X00, 0X00, 0X00, 0X00};
+unsigned char _shader_vert_dxil[]  = {
+  0X44, 0X58, 0X42, 0X43, 0X24, 0X6B, 0X07, 0X1C, 0XEF, 0X19, 0X41, 0XFB, 0XF1,
+  0X66, 0XD1, 0XEA, 0X57, 0XB4, 0X9E, 0XED, 0X01, 0X00, 0X00, 0X00, 0XD0, 0X0C,
+  0X00, 0X00, 0X07, 0X00, 0X00, 0X00, 0X3C, 0X00, 0X00, 0X00, 0X4C, 0X00, 0X00,
+  0X00, 0XA8, 0X00, 0X00, 0X00, 0X30, 0X01, 0X00, 0X00, 0X24, 0X02, 0X00, 0X00,
+  0X1C, 0X07, 0X00, 0X00, 0X38, 0X07, 0X00, 0X00, 0X53, 0X46, 0X49, 0X30, 0X08,
+  0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X49, 0X53,
+  0X47, 0X31, 0X54, 0X00, 0X00, 0X00, 0X02, 0X00, 0X00, 0X00, 0X08, 0X00, 0X00,
+  0X00, 0X00, 0X00, 0X00, 0X00, 0X48, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
+  0X00, 0X00, 0X00, 0X00, 0X03, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X0F,
+  0X0F, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X48, 0X00,
+  0X00, 0X00, 0X01, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X03, 0X00, 0X00,
+  0X00, 0X01, 0X00, 0X00, 0X00, 0X0F, 0X0F, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
+  0X54, 0X45, 0X58, 0X43, 0X4F, 0X4F, 0X52, 0X44, 0X00, 0X00, 0X00, 0X00, 0X4F,
+  0X53, 0X47, 0X31, 0X80, 0X00, 0X00, 0X00, 0X03, 0X00, 0X00, 0X00, 0X08, 0X00,
+  0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X68, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
+  0X00, 0X00, 0X00, 0X00, 0X00, 0X03, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
+  0X03, 0X0C, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X68,
+  0X00, 0X00, 0X00, 0X01, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X03, 0X00,
+  0X00, 0X00, 0X01, 0X00, 0X00, 0X00, 0X0F, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
+  0X00, 0X00, 0X00, 0X00, 0X00, 0X71, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
+  0X01, 0X00, 0X00, 0X00, 0X03, 0X00, 0X00, 0X00, 0X02, 0X00, 0X00, 0X00, 0X0F,
+  0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X54, 0X45, 0X58, 0X43, 0X4F, 0X4F,
+  0X52, 0X44, 0X00, 0X53, 0X56, 0X5F, 0X50, 0X6F, 0X73, 0X69, 0X74, 0X69, 0X6F,
+  0X6E, 0X00, 0X00, 0X00, 0X00, 0X50, 0X53, 0X56, 0X30, 0XEC, 0X00, 0X00, 0X00,
+  0X34, 0X00, 0X00, 0X00, 0X01, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
+  0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0XFF, 0XFF,
+  0XFF, 0XFF, 0X01, 0X00, 0X00, 0X00, 0X02, 0X03, 0X00, 0X02, 0X03, 0X00, 0X00,
+  0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
+  0X25, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X2C, 0X00, 0X00, 0X00, 0X00,
+  0X54, 0X45, 0X58, 0X43, 0X4F, 0X4F, 0X52, 0X44, 0X00, 0X54, 0X45, 0X58, 0X43,
+  0X4F, 0X4F, 0X52, 0X44, 0X00, 0X54, 0X45, 0X58, 0X43, 0X4F, 0X4F, 0X52, 0X44,
+  0X00, 0X54, 0X45, 0X58, 0X43, 0X4F, 0X4F, 0X52, 0X44, 0X00, 0X6D, 0X61, 0X69,
+  0X6E, 0X00, 0X00, 0X00, 0X02, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X01,
+  0X00, 0X00, 0X00, 0X10, 0X00, 0X00, 0X00, 0X01, 0X00, 0X00, 0X00, 0X00, 0X00,
+  0X00, 0X00, 0X01, 0X00, 0X44, 0X00, 0X03, 0X00, 0X00, 0X00, 0X0A, 0X00, 0X00,
+  0X00, 0X01, 0X00, 0X00, 0X00, 0X01, 0X01, 0X44, 0X00, 0X03, 0X00, 0X00, 0X00,
+  0X13, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X01, 0X00, 0X42, 0X00, 0X03,
+  0X02, 0X00, 0X00, 0X1C, 0X00, 0X00, 0X00, 0X01, 0X00, 0X00, 0X00, 0X01, 0X01,
+  0X44, 0X00, 0X03, 0X02, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
+  0X00, 0X01, 0X02, 0X44, 0X03, 0X03, 0X04, 0X00, 0X00, 0X00, 0X01, 0X00, 0X00,
+  0X00, 0X02, 0X00, 0X00, 0X01, 0X00, 0X00, 0X00, 0X02, 0X00, 0X00, 0X00, 0X10,
+  0X00, 0X00, 0X00, 0X20, 0X00, 0X00, 0X00, 0X40, 0X00, 0X00, 0X00, 0X80, 0X00,
+  0X00, 0X00, 0X53, 0X54, 0X41, 0X54, 0XF0, 0X04, 0X00, 0X00, 0X60, 0X00, 0X01,
+  0X00, 0X3C, 0X01, 0X00, 0X00, 0X44, 0X58, 0X49, 0X4C, 0X00, 0X01, 0X00, 0X00,
+  0X10, 0X00, 0X00, 0X00, 0XD8, 0X04, 0X00, 0X00, 0X42, 0X43, 0XC0, 0XDE, 0X21,
+  0X0C, 0X00, 0X00, 0X33, 0X01, 0X00, 0X00, 0X0B, 0X82, 0X20, 0X00, 0X02, 0X00,
+  0X00, 0X00, 0X13, 0X00, 0X00, 0X00, 0X07, 0X81, 0X23, 0X91, 0X41, 0XC8, 0X04,
+  0X49, 0X06, 0X10, 0X32, 0X39, 0X92, 0X01, 0X84, 0X0C, 0X25, 0X05, 0X08, 0X19,
+  0X1E, 0X04, 0X8B, 0X62, 0X80, 0X10, 0X45, 0X02, 0X42, 0X92, 0X0B, 0X42, 0X84,
+  0X10, 0X32, 0X14, 0X38, 0X08, 0X18, 0X4B, 0X0A, 0X32, 0X42, 0X88, 0X48, 0X90,
+  0X14, 0X20, 0X43, 0X46, 0X88, 0XA5, 0X00, 0X19, 0X32, 0X42, 0XE4, 0X48, 0X0E,
+  0X90, 0X11, 0X22, 0XC4, 0X50, 0X41, 0X51, 0X81, 0X8C, 0XE1, 0X83, 0XE5, 0X8A,
+  0X04, 0X21, 0X46, 0X06, 0X51, 0X18, 0X00, 0X00, 0X06, 0X00, 0X00, 0X00, 0X1B,
+  0X8C, 0XE0, 0XFF, 0XFF, 0XFF, 0XFF, 0X07, 0X40, 0X02, 0XA8, 0X0D, 0X84, 0XF0,
+  0XFF, 0XFF, 0XFF, 0XFF, 0X03, 0X20, 0X01, 0X00, 0X00, 0X00, 0X49, 0X18, 0X00,
+  0X00, 0X02, 0X00, 0X00, 0X00, 0X13, 0X82, 0X60, 0X42, 0X20, 0X00, 0X00, 0X00,
+  0X89, 0X20, 0X00, 0X00, 0X0F, 0X00, 0X00, 0X00, 0X32, 0X22, 0X08, 0X09, 0X20,
+  0X64, 0X85, 0X04, 0X13, 0X22, 0XA4, 0X84, 0X04, 0X13, 0X22, 0XE3, 0X84, 0XA1,
+  0X90, 0X14, 0X12, 0X4C, 0X88, 0X8C, 0X0B, 0X84, 0X84, 0X4C, 0X10, 0X30, 0X23,
+  0X00, 0X25, 0X00, 0X8A, 0X19, 0X80, 0X39, 0X02, 0X30, 0X98, 0X23, 0X40, 0X8A,
+  0X31, 0X44, 0X54, 0X44, 0X56, 0X0C, 0X20, 0XA2, 0X1A, 0XC2, 0X81, 0X80, 0X54,
+  0X20, 0X00, 0X00, 0X13, 0X14, 0X72, 0XC0, 0X87, 0X74, 0X60, 0X87, 0X36, 0X68,
+  0X87, 0X79, 0X68, 0X03, 0X72, 0XC0, 0X87, 0X0D, 0XAF, 0X50, 0X0E, 0X6D, 0XD0,
+  0X0E, 0X7A, 0X50, 0X0E, 0X6D, 0X00, 0X0F, 0X7A, 0X30, 0X07, 0X72, 0XA0, 0X07,
+  0X73, 0X20, 0X07, 0X6D, 0X90, 0X0E, 0X71, 0XA0, 0X07, 0X73, 0X20, 0X07, 0X6D,
+  0X90, 0X0E, 0X78, 0XA0, 0X07, 0X73, 0X20, 0X07, 0X6D, 0X90, 0X0E, 0X71, 0X60,
+  0X07, 0X7A, 0X30, 0X07, 0X72, 0XD0, 0X06, 0XE9, 0X30, 0X07, 0X72, 0XA0, 0X07,
+  0X73, 0X20, 0X07, 0X6D, 0X90, 0X0E, 0X76, 0X40, 0X07, 0X7A, 0X60, 0X07, 0X74,
+  0XD0, 0X06, 0XE6, 0X10, 0X07, 0X76, 0XA0, 0X07, 0X73, 0X20, 0X07, 0X6D, 0X60,
+  0X0E, 0X73, 0X20, 0X07, 0X7A, 0X30, 0X07, 0X72, 0XD0, 0X06, 0XE6, 0X60, 0X07,
+  0X74, 0XA0, 0X07, 0X76, 0X40, 0X07, 0X6D, 0XE0, 0X0E, 0X78, 0XA0, 0X07, 0X71,
+  0X60, 0X07, 0X7A, 0X30, 0X07, 0X72, 0XA0, 0X07, 0X76, 0X40, 0X07, 0X43, 0X9E,
+  0X00, 0X08, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X86, 0X3C,
+  0X06, 0X10, 0X00, 0X01, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X0C, 0X79,
+  0X10, 0X20, 0X00, 0X04, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0XC8, 0X02,
+  0X01, 0X0E, 0X00, 0X00, 0X00, 0X32, 0X1E, 0X98, 0X14, 0X19, 0X11, 0X4C, 0X90,
+  0X8C, 0X09, 0X26, 0X47, 0XC6, 0X04, 0X43, 0XA2, 0X12, 0X18, 0X01, 0X28, 0X86,
+  0X32, 0X28, 0X8F, 0X22, 0X28, 0X93, 0X82, 0X28, 0X0A, 0XAA, 0X92, 0X18, 0X01,
+  0X28, 0X84, 0X22, 0X28, 0X03, 0XDA, 0XB1, 0X14, 0X84, 0X01, 0X11, 0X10, 0X0A,
+  0X04, 0X08, 0X0C, 0X40, 0X01, 0X24, 0X00, 0X00, 0X00, 0X79, 0X18, 0X00, 0X00,
+  0X66, 0X00, 0X00, 0X00, 0X1A, 0X03, 0X4C, 0X90, 0X46, 0X02, 0X13, 0XC4, 0X31,
+  0X20, 0XC3, 0X1B, 0X43, 0X81, 0X93, 0X4B, 0XB3, 0X0B, 0XA3, 0X2B, 0X4B, 0X01,
+  0X89, 0X71, 0XC9, 0X71, 0X81, 0X71, 0XA9, 0X89, 0XC1, 0XA1, 0X01, 0X41, 0X91,
+  0X89, 0X21, 0X93, 0XC1, 0X31, 0XBB, 0X91, 0XB9, 0X49, 0XD9, 0X10, 0X04, 0X13,
+  0X04, 0X62, 0X98, 0X20, 0X10, 0XC4, 0X06, 0X61, 0X20, 0X36, 0X08, 0X04, 0X41,
+  0XC1, 0X6E, 0X6E, 0X82, 0X40, 0X14, 0X1B, 0X86, 0X03, 0X21, 0X26, 0X08, 0X02,
+  0XB0, 0X01, 0XD8, 0X30, 0X10, 0XCB, 0XB2, 0X21, 0X60, 0X36, 0X0C, 0X83, 0XD2,
+  0X4C, 0X10, 0X96, 0X68, 0X43, 0XF0, 0X90, 0X68, 0X0B, 0X4B, 0X73, 0X23, 0X42,
+  0X55, 0X84, 0X35, 0XF4, 0XF4, 0X24, 0X45, 0X34, 0X41, 0X28, 0X98, 0X09, 0X42,
+  0XD1, 0X6C, 0X08, 0X88, 0X09, 0X42, 0XE1, 0X4C, 0X10, 0X08, 0X63, 0X82, 0X40,
+  0X1C, 0X1B, 0X84, 0X0B, 0XDB, 0XB0, 0X10, 0XD2, 0X44, 0X55, 0XD4, 0X60, 0X11,
+  0X54, 0XB6, 0X21, 0X18, 0X36, 0X2C, 0X83, 0X34, 0X51, 0X1B, 0X35, 0X58, 0X03,
+  0X95, 0X6D, 0X10, 0X34, 0X6E, 0X82, 0X50, 0X3C, 0X1B, 0X84, 0XEB, 0XDA, 0XB0,
+  0X10, 0XD2, 0X44, 0X55, 0XDE, 0XE0, 0X11, 0XD4, 0XB7, 0X61, 0X19, 0XA4, 0X89,
+  0XDA, 0XBC, 0XC1, 0X1A, 0XA8, 0X6C, 0X82, 0X40, 0X20, 0X5C, 0XA6, 0XAC, 0XBE,
+  0XA0, 0XDE, 0XE6, 0XD2, 0XE8, 0XD2, 0XDE, 0XDC, 0X26, 0X08, 0X05, 0XB4, 0X61,
+  0X11, 0X83, 0X31, 0X98, 0XC8, 0XA0, 0XB2, 0X06, 0X4B, 0X0C, 0XA8, 0X6C, 0XC3,
+  0X00, 0X06, 0X61, 0X50, 0X06, 0X1B, 0X86, 0XCE, 0X0C, 0X80, 0X0D, 0X85, 0X12,
+  0X9D, 0X01, 0X00, 0XB0, 0X48, 0X73, 0X9B, 0XA3, 0X9B, 0X9B, 0X20, 0X10, 0X09,
+  0X8D, 0XB9, 0XB4, 0XB3, 0X2F, 0X36, 0XB2, 0X09, 0X02, 0XA1, 0XD0, 0X98, 0X4B,
+  0X3B, 0XFB, 0X9A, 0XA3, 0X9B, 0X20, 0X10, 0XCB, 0X06, 0X23, 0X0D, 0XD4, 0X60,
+  0X0D, 0XD8, 0XA0, 0X0D, 0XDC, 0XA0, 0X0A, 0X1B, 0X9B, 0X5D, 0X9B, 0X4B, 0X1A,
+  0X59, 0X99, 0X1B, 0XDD, 0X94, 0X20, 0XA8, 0X42, 0X86, 0XE7, 0X62, 0X57, 0X26,
+  0X37, 0X97, 0XF6, 0XE6, 0X36, 0X25, 0X20, 0X9A, 0X90, 0XE1, 0XB9, 0XD8, 0X85,
+  0XB1, 0XD9, 0X95, 0XC9, 0X4D, 0X09, 0X8A, 0X3A, 0X64, 0X78, 0X2E, 0X73, 0X68,
+  0X61, 0X64, 0X65, 0X72, 0X4D, 0X6F, 0X64, 0X65, 0X6C, 0X53, 0X02, 0XA4, 0X12,
+  0X19, 0X9E, 0X0B, 0X5D, 0X1E, 0X5C, 0X59, 0X90, 0X9B, 0XDB, 0X1B, 0X5D, 0X18,
+  0X5D, 0XDA, 0X9B, 0XDB, 0XDC, 0X94, 0XA0, 0XA9, 0X43, 0X86, 0XE7, 0X62, 0X97,
+  0X56, 0X76, 0X97, 0X44, 0X36, 0X45, 0X17, 0X46, 0X57, 0X36, 0X25, 0X78, 0XEA,
+  0X90, 0XE1, 0XB9, 0X94, 0XB9, 0XD1, 0XC9, 0XE5, 0X41, 0XBD, 0XA5, 0XB9, 0XD1,
+  0XCD, 0X4D, 0X09, 0XCE, 0XA0, 0X0B, 0X19, 0X9E, 0XCB, 0XD8, 0X5B, 0X9D, 0X1B,
+  0X5D, 0X99, 0XDC, 0XDC, 0X94, 0XC0, 0X0D, 0X00, 0X00, 0X79, 0X18, 0X00, 0X00,
+  0X4C, 0X00, 0X00, 0X00, 0X33, 0X08, 0X80, 0X1C, 0XC4, 0XE1, 0X1C, 0X66, 0X14,
+  0X01, 0X3D, 0X88, 0X43, 0X38, 0X84, 0XC3, 0X8C, 0X42, 0X80, 0X07, 0X79, 0X78,
+  0X07, 0X73, 0X98, 0X71, 0X0C, 0XE6, 0X00, 0X0F, 0XED, 0X10, 0X0E, 0XF4, 0X80,
+  0X0E, 0X33, 0X0C, 0X42, 0X1E, 0XC2, 0XC1, 0X1D, 0XCE, 0XA1, 0X1C, 0X66, 0X30,
+  0X05, 0X3D, 0X88, 0X43, 0X38, 0X84, 0X83, 0X1B, 0XCC, 0X03, 0X3D, 0XC8, 0X43,
+  0X3D, 0X8C, 0X03, 0X3D, 0XCC, 0X78, 0X8C, 0X74, 0X70, 0X07, 0X7B, 0X08, 0X07,
+  0X79, 0X48, 0X87, 0X70, 0X70, 0X07, 0X7A, 0X70, 0X03, 0X76, 0X78, 0X87, 0X70,
+  0X20, 0X87, 0X19, 0XCC, 0X11, 0X0E, 0XEC, 0X90, 0X0E, 0XE1, 0X30, 0X0F, 0X6E,
+  0X30, 0X0F, 0XE3, 0XF0, 0X0E, 0XF0, 0X50, 0X0E, 0X33, 0X10, 0XC4, 0X1D, 0XDE,
+  0X21, 0X1C, 0XD8, 0X21, 0X1D, 0XC2, 0X61, 0X1E, 0X66, 0X30, 0X89, 0X3B, 0XBC,
+  0X83, 0X3B, 0XD0, 0X43, 0X39, 0XB4, 0X03, 0X3C, 0XBC, 0X83, 0X3C, 0X84, 0X03,
+  0X3B, 0XCC, 0XF0, 0X14, 0X76, 0X60, 0X07, 0X7B, 0X68, 0X07, 0X37, 0X68, 0X87,
+  0X72, 0X68, 0X07, 0X37, 0X80, 0X87, 0X70, 0X90, 0X87, 0X70, 0X60, 0X07, 0X76,
+  0X28, 0X07, 0X76, 0XF8, 0X05, 0X76, 0X78, 0X87, 0X77, 0X80, 0X87, 0X5F, 0X08,
+  0X87, 0X71, 0X18, 0X87, 0X72, 0X98, 0X87, 0X79, 0X98, 0X81, 0X2C, 0XEE, 0XF0,
+  0X0E, 0XEE, 0XE0, 0X0E, 0XF5, 0XC0, 0X0E, 0XEC, 0X30, 0X03, 0X62, 0XC8, 0XA1,
+  0X1C, 0XE4, 0XA1, 0X1C, 0XCC, 0XA1, 0X1C, 0XE4, 0XA1, 0X1C, 0XDC, 0X61, 0X1C,
+  0XCA, 0X21, 0X1C, 0XC4, 0X81, 0X1D, 0XCA, 0X61, 0X06, 0XD6, 0X90, 0X43, 0X39,
+  0XC8, 0X43, 0X39, 0X98, 0X43, 0X39, 0XC8, 0X43, 0X39, 0XB8, 0XC3, 0X38, 0X94,
+  0X43, 0X38, 0X88, 0X03, 0X3B, 0X94, 0XC3, 0X2F, 0XBC, 0X83, 0X3C, 0XFC, 0X82,
+  0X3B, 0XD4, 0X03, 0X3B, 0XB0, 0XC3, 0X8C, 0XC8, 0X21, 0X07, 0X7C, 0X70, 0X03,
+  0X72, 0X10, 0X87, 0X73, 0X70, 0X03, 0X7B, 0X08, 0X07, 0X79, 0X60, 0X87, 0X70,
+  0XC8, 0X87, 0X77, 0XA8, 0X07, 0X7A, 0X98, 0X81, 0X3C, 0XE4, 0X80, 0X0F, 0X6E,
+  0X40, 0X0F, 0XE5, 0XD0, 0X0E, 0XF0, 0X00, 0X00, 0X00, 0X71, 0X20, 0X00, 0X00,
+  0X0B, 0X00, 0X00, 0X00, 0X16, 0X30, 0X0D, 0X97, 0XEF, 0X3C, 0XFE, 0XE2, 0X00,
+  0X83, 0XD8, 0X3C, 0XD4, 0XE4, 0X17, 0XB7, 0X6D, 0X02, 0XD5, 0X70, 0XF9, 0XCE,
+  0XE3, 0X4B, 0X93, 0X13, 0X11, 0X28, 0X35, 0X3D, 0XD4, 0XE4, 0X17, 0XB7, 0X6D,
+  0X00, 0X04, 0X03, 0X20, 0X0D, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
+  0X48, 0X41, 0X53, 0X48, 0X14, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X49,
+  0X76, 0XB8, 0XA7, 0XCF, 0XA3, 0XA4, 0X03, 0XA2, 0XEC, 0X09, 0X1A, 0XCD, 0XE2,
+  0XB4, 0XEA, 0X44, 0X58, 0X49, 0X4C, 0X90, 0X05, 0X00, 0X00, 0X60, 0X00, 0X01,
+  0X00, 0X64, 0X01, 0X00, 0X00, 0X44, 0X58, 0X49, 0X4C, 0X00, 0X01, 0X00, 0X00,
+  0X10, 0X00, 0X00, 0X00, 0X78, 0X05, 0X00, 0X00, 0X42, 0X43, 0XC0, 0XDE, 0X21,
+  0X0C, 0X00, 0X00, 0X5B, 0X01, 0X00, 0X00, 0X0B, 0X82, 0X20, 0X00, 0X02, 0X00,
+  0X00, 0X00, 0X13, 0X00, 0X00, 0X00, 0X07, 0X81, 0X23, 0X91, 0X41, 0XC8, 0X04,
+  0X49, 0X06, 0X10, 0X32, 0X39, 0X92, 0X01, 0X84, 0X0C, 0X25, 0X05, 0X08, 0X19,
+  0X1E, 0X04, 0X8B, 0X62, 0X80, 0X10, 0X45, 0X02, 0X42, 0X92, 0X0B, 0X42, 0X84,
+  0X10, 0X32, 0X14, 0X38, 0X08, 0X18, 0X4B, 0X0A, 0X32, 0X42, 0X88, 0X48, 0X90,
+  0X14, 0X20, 0X43, 0X46, 0X88, 0XA5, 0X00, 0X19, 0X32, 0X42, 0XE4, 0X48, 0X0E,
+  0X90, 0X11, 0X22, 0XC4, 0X50, 0X41, 0X51, 0X81, 0X8C, 0XE1, 0X83, 0XE5, 0X8A,
+  0X04, 0X21, 0X46, 0X06, 0X51, 0X18, 0X00, 0X00, 0X06, 0X00, 0X00, 0X00, 0X1B,
+  0X8C, 0XE0, 0XFF, 0XFF, 0XFF, 0XFF, 0X07, 0X40, 0X02, 0XA8, 0X0D, 0X84, 0XF0,
+  0XFF, 0XFF, 0XFF, 0XFF, 0X03, 0X20, 0X01, 0X00, 0X00, 0X00, 0X49, 0X18, 0X00,
+  0X00, 0X02, 0X00, 0X00, 0X00, 0X13, 0X82, 0X60, 0X42, 0X20, 0X00, 0X00, 0X00,
+  0X89, 0X20, 0X00, 0X00, 0X0F, 0X00, 0X00, 0X00, 0X32, 0X22, 0X08, 0X09, 0X20,
+  0X64, 0X85, 0X04, 0X13, 0X22, 0XA4, 0X84, 0X04, 0X13, 0X22, 0XE3, 0X84, 0XA1,
+  0X90, 0X14, 0X12, 0X4C, 0X88, 0X8C, 0X0B, 0X84, 0X84, 0X4C, 0X10, 0X30, 0X23,
+  0X00, 0X25, 0X00, 0X8A, 0X19, 0X80, 0X39, 0X02, 0X30, 0X98, 0X23, 0X40, 0X8A,
+  0X31, 0X44, 0X54, 0X44, 0X56, 0X0C, 0X20, 0XA2, 0X1A, 0XC2, 0X81, 0X80, 0X54,
+  0X20, 0X00, 0X00, 0X13, 0X14, 0X72, 0XC0, 0X87, 0X74, 0X60, 0X87, 0X36, 0X68,
+  0X87, 0X79, 0X68, 0X03, 0X72, 0XC0, 0X87, 0X0D, 0XAF, 0X50, 0X0E, 0X6D, 0XD0,
+  0X0E, 0X7A, 0X50, 0X0E, 0X6D, 0X00, 0X0F, 0X7A, 0X30, 0X07, 0X72, 0XA0, 0X07,
+  0X73, 0X20, 0X07, 0X6D, 0X90, 0X0E, 0X71, 0XA0, 0X07, 0X73, 0X20, 0X07, 0X6D,
+  0X90, 0X0E, 0X78, 0XA0, 0X07, 0X73, 0X20, 0X07, 0X6D, 0X90, 0X0E, 0X71, 0X60,
+  0X07, 0X7A, 0X30, 0X07, 0X72, 0XD0, 0X06, 0XE9, 0X30, 0X07, 0X72, 0XA0, 0X07,
+  0X73, 0X20, 0X07, 0X6D, 0X90, 0X0E, 0X76, 0X40, 0X07, 0X7A, 0X60, 0X07, 0X74,
+  0XD0, 0X06, 0XE6, 0X10, 0X07, 0X76, 0XA0, 0X07, 0X73, 0X20, 0X07, 0X6D, 0X60,
+  0X0E, 0X73, 0X20, 0X07, 0X7A, 0X30, 0X07, 0X72, 0XD0, 0X06, 0XE6, 0X60, 0X07,
+  0X74, 0XA0, 0X07, 0X76, 0X40, 0X07, 0X6D, 0XE0, 0X0E, 0X78, 0XA0, 0X07, 0X71,
+  0X60, 0X07, 0X7A, 0X30, 0X07, 0X72, 0XA0, 0X07, 0X76, 0X40, 0X07, 0X43, 0X9E,
+  0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X86, 0X3C,
+  0X06, 0X10, 0X00, 0X01, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X0C, 0X79,
+  0X10, 0X20, 0X00, 0X04, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0XC8, 0X02,
+  0X01, 0X0D, 0X00, 0X00, 0X00, 0X32, 0X1E, 0X98, 0X14, 0X19, 0X11, 0X4C, 0X90,
+  0X8C, 0X09, 0X26, 0X47, 0XC6, 0X04, 0X43, 0XA2, 0X12, 0X18, 0X01, 0X28, 0X89,
+  0X62, 0X28, 0X83, 0XF2, 0X28, 0X02, 0XAA, 0X92, 0X18, 0X01, 0X28, 0X84, 0X22,
+  0X28, 0X03, 0XDA, 0XB1, 0X14, 0X84, 0X01, 0X11, 0X10, 0X0A, 0X04, 0X08, 0X0C,
+  0X40, 0X01, 0X24, 0X00, 0X00, 0X79, 0X18, 0X00, 0X00, 0X4F, 0X00, 0X00, 0X00,
+  0X1A, 0X03, 0X4C, 0X90, 0X46, 0X02, 0X13, 0XC4, 0X31, 0X20, 0XC3, 0X1B, 0X43,
+  0X81, 0X93, 0X4B, 0XB3, 0X0B, 0XA3, 0X2B, 0X4B, 0X01, 0X89, 0X71, 0XC9, 0X71,
+  0X81, 0X71, 0XA9, 0X89, 0XC1, 0XA1, 0X01, 0X41, 0X91, 0X89, 0X21, 0X93, 0XC1,
+  0X31, 0XBB, 0X91, 0XB9, 0X49, 0XD9, 0X10, 0X04, 0X13, 0X04, 0X62, 0X98, 0X20,
+  0X10, 0XC4, 0X06, 0X61, 0X20, 0X26, 0X08, 0X44, 0XB1, 0X41, 0X18, 0X0C, 0X0A,
+  0X76, 0X73, 0X13, 0X04, 0XC2, 0XD8, 0X30, 0X20, 0X09, 0X31, 0X41, 0X58, 0X9E,
+  0X0D, 0XC1, 0X32, 0X41, 0X10, 0X00, 0X12, 0X6D, 0X61, 0X69, 0X6E, 0X44, 0XA8,
+  0X8A, 0XB0, 0X86, 0X9E, 0X9E, 0XA4, 0X88, 0X26, 0X08, 0X85, 0X32, 0X41, 0X28,
+  0X96, 0X0D, 0X01, 0X31, 0X41, 0X28, 0X98, 0X09, 0X02, 0X71, 0X4C, 0X10, 0X08,
+  0X64, 0X83, 0X40, 0X55, 0X1B, 0X16, 0XE2, 0X81, 0X22, 0X29, 0X1A, 0X26, 0X22,
+  0XB2, 0X36, 0X04, 0XC3, 0X86, 0X65, 0X78, 0XA0, 0X08, 0X8B, 0X86, 0X69, 0X88,
+  0XAC, 0X0D, 0XC2, 0X95, 0X4D, 0X10, 0X8A, 0X66, 0X83, 0X40, 0X51, 0X1B, 0X16,
+  0XE2, 0X81, 0X22, 0X69, 0X1B, 0X36, 0X22, 0XE2, 0X36, 0X2C, 0XC3, 0X03, 0X45,
+  0XD8, 0X36, 0X4C, 0X43, 0X64, 0X4D, 0X10, 0X88, 0X84, 0XCB, 0X94, 0XD5, 0X17,
+  0XD4, 0XDB, 0X5C, 0X1A, 0X5D, 0XDA, 0X9B, 0XDB, 0X04, 0XA1, 0X70, 0X36, 0X2C,
+  0X1F, 0X18, 0X40, 0X61, 0X20, 0X4D, 0XC3, 0XF4, 0X45, 0XD6, 0X86, 0XA1, 0XF3,
+  0XC4, 0X60, 0XC3, 0XA0, 0X8D, 0X01, 0XB0, 0XA1, 0X68, 0X1C, 0X32, 0X00, 0X80,
+  0X2A, 0X6C, 0X6C, 0X76, 0X6D, 0X2E, 0X69, 0X64, 0X65, 0X6E, 0X74, 0X53, 0X82,
+  0XA0, 0X0A, 0X19, 0X9E, 0X8B, 0X5D, 0X99, 0XDC, 0X5C, 0XDA, 0X9B, 0XDB, 0X94,
+  0X80, 0X68, 0X42, 0X86, 0XE7, 0X62, 0X17, 0XC6, 0X66, 0X57, 0X26, 0X37, 0X25,
+  0X30, 0XEA, 0X90, 0XE1, 0XB9, 0XCC, 0XA1, 0X85, 0X91, 0X95, 0XC9, 0X35, 0XBD,
+  0X91, 0X95, 0XB1, 0X4D, 0X09, 0X92, 0X3A, 0X64, 0X78, 0X2E, 0X76, 0X69, 0X65,
+  0X77, 0X49, 0X64, 0X53, 0X74, 0X61, 0X74, 0X65, 0X53, 0X82, 0XA5, 0X0E, 0X19,
+  0X9E, 0X4B, 0X99, 0X1B, 0X9D, 0X5C, 0X1E, 0XD4, 0X5B, 0X9A, 0X1B, 0XDD, 0XDC,
+  0X94, 0X80, 0X0C, 0X00, 0X79, 0X18, 0X00, 0X00, 0X4C, 0X00, 0X00, 0X00, 0X33,
+  0X08, 0X80, 0X1C, 0XC4, 0XE1, 0X1C, 0X66, 0X14, 0X01, 0X3D, 0X88, 0X43, 0X38,
+  0X84, 0XC3, 0X8C, 0X42, 0X80, 0X07, 0X79, 0X78, 0X07, 0X73, 0X98, 0X71, 0X0C,
+  0XE6, 0X00, 0X0F, 0XED, 0X10, 0X0E, 0XF4, 0X80, 0X0E, 0X33, 0X0C, 0X42, 0X1E,
+  0XC2, 0XC1, 0X1D, 0XCE, 0XA1, 0X1C, 0X66, 0X30, 0X05, 0X3D, 0X88, 0X43, 0X38,
+  0X84, 0X83, 0X1B, 0XCC, 0X03, 0X3D, 0XC8, 0X43, 0X3D, 0X8C, 0X03, 0X3D, 0XCC,
+  0X78, 0X8C, 0X74, 0X70, 0X07, 0X7B, 0X08, 0X07, 0X79, 0X48, 0X87, 0X70, 0X70,
+  0X07, 0X7A, 0X70, 0X03, 0X76, 0X78, 0X87, 0X70, 0X20, 0X87, 0X19, 0XCC, 0X11,
+  0X0E, 0XEC, 0X90, 0X0E, 0XE1, 0X30, 0X0F, 0X6E, 0X30, 0X0F, 0XE3, 0XF0, 0X0E,
+  0XF0, 0X50, 0X0E, 0X33, 0X10, 0XC4, 0X1D, 0XDE, 0X21, 0X1C, 0XD8, 0X21, 0X1D,
+  0XC2, 0X61, 0X1E, 0X66, 0X30, 0X89, 0X3B, 0XBC, 0X83, 0X3B, 0XD0, 0X43, 0X39,
+  0XB4, 0X03, 0X3C, 0XBC, 0X83, 0X3C, 0X84, 0X03, 0X3B, 0XCC, 0XF0, 0X14, 0X76,
+  0X60, 0X07, 0X7B, 0X68, 0X07, 0X37, 0X68, 0X87, 0X72, 0X68, 0X07, 0X37, 0X80,
+  0X87, 0X70, 0X90, 0X87, 0X70, 0X60, 0X07, 0X76, 0X28, 0X07, 0X76, 0XF8, 0X05,
+  0X76, 0X78, 0X87, 0X77, 0X80, 0X87, 0X5F, 0X08, 0X87, 0X71, 0X18, 0X87, 0X72,
+  0X98, 0X87, 0X79, 0X98, 0X81, 0X2C, 0XEE, 0XF0, 0X0E, 0XEE, 0XE0, 0X0E, 0XF5,
+  0XC0, 0X0E, 0XEC, 0X30, 0X03, 0X62, 0XC8, 0XA1, 0X1C, 0XE4, 0XA1, 0X1C, 0XCC,
+  0XA1, 0X1C, 0XE4, 0XA1, 0X1C, 0XDC, 0X61, 0X1C, 0XCA, 0X21, 0X1C, 0XC4, 0X81,
+  0X1D, 0XCA, 0X61, 0X06, 0XD6, 0X90, 0X43, 0X39, 0XC8, 0X43, 0X39, 0X98, 0X43,
+  0X39, 0XC8, 0X43, 0X39, 0XB8, 0XC3, 0X38, 0X94, 0X43, 0X38, 0X88, 0X03, 0X3B,
+  0X94, 0XC3, 0X2F, 0XBC, 0X83, 0X3C, 0XFC, 0X82, 0X3B, 0XD4, 0X03, 0X3B, 0XB0,
+  0XC3, 0X8C, 0XC8, 0X21, 0X07, 0X7C, 0X70, 0X03, 0X72, 0X10, 0X87, 0X73, 0X70,
+  0X03, 0X7B, 0X08, 0X07, 0X79, 0X60, 0X87, 0X70, 0XC8, 0X87, 0X77, 0XA8, 0X07,
+  0X7A, 0X98, 0X81, 0X3C, 0XE4, 0X80, 0X0F, 0X6E, 0X40, 0X0F, 0XE5, 0XD0, 0X0E,
+  0XF0, 0X00, 0X00, 0X00, 0X71, 0X20, 0X00, 0X00, 0X0B, 0X00, 0X00, 0X00, 0X16,
+  0X30, 0X0D, 0X97, 0XEF, 0X3C, 0XFE, 0XE2, 0X00, 0X83, 0XD8, 0X3C, 0XD4, 0XE4,
+  0X17, 0XB7, 0X6D, 0X02, 0XD5, 0X70, 0XF9, 0XCE, 0XE3, 0X4B, 0X93, 0X13, 0X11,
+  0X28, 0X35, 0X3D, 0XD4, 0XE4, 0X17, 0XB7, 0X6D, 0X00, 0X04, 0X03, 0X20, 0X0D,
+  0X00, 0X00, 0X00, 0X00, 0X61, 0X20, 0X00, 0X00, 0X3E, 0X00, 0X00, 0X00, 0X13,
+  0X04, 0X41, 0X2C, 0X10, 0X00, 0X00, 0X00, 0X05, 0X00, 0X00, 0X00, 0X54, 0X25,
+  0X40, 0X34, 0X03, 0X50, 0X0A, 0X85, 0X40, 0X33, 0X46, 0X00, 0X82, 0X20, 0X88,
+  0X7F, 0X23, 0X00, 0X00, 0X00, 0X23, 0X06, 0X09, 0X00, 0X82, 0X60, 0X60, 0X54,
+  0XC3, 0X24, 0X2D, 0XC5, 0X88, 0X41, 0X02, 0X80, 0X20, 0X18, 0X18, 0X16, 0X41,
+  0X4D, 0X87, 0X31, 0X62, 0X90, 0X00, 0X20, 0X08, 0X06, 0XC6, 0X55, 0X54, 0XD4,
+  0X72, 0X8C, 0X18, 0X24, 0X00, 0X08, 0X82, 0X81, 0X81, 0X19, 0X56, 0XB5, 0X20,
+  0X23, 0X06, 0X09, 0X00, 0X82, 0X60, 0X60, 0X64, 0X87, 0X65, 0X3D, 0XC9, 0X88,
+  0X41, 0X02, 0X80, 0X20, 0X18, 0X18, 0X1A, 0X72, 0X5D, 0X8B, 0X32, 0X62, 0X90,
+  0X00, 0X20, 0X08, 0X06, 0XC6, 0X96, 0X60, 0XD8, 0XB3, 0X8C, 0X18, 0X24, 0X00,
+  0X08, 0X82, 0X81, 0XC1, 0X29, 0X59, 0XF6, 0X30, 0X23, 0X06, 0X09, 0X00, 0X82,
+  0X60, 0X80, 0X70, 0X8C, 0XA6, 0X4D, 0XC2, 0X88, 0X41, 0X02, 0X80, 0X20, 0X18,
+  0X20, 0X1C, 0XA3, 0X69, 0X4E, 0X30, 0X62, 0X90, 0X00, 0X20, 0X08, 0X06, 0X08,
+  0XC7, 0X6C, 0XDA, 0X84, 0X8C, 0X18, 0X24, 0X00, 0X08, 0X82, 0X01, 0XC2, 0X31,
+  0X9B, 0XE6, 0X1C, 0X23, 0X06, 0X09, 0X00, 0X82, 0X60, 0X80, 0X70, 0XCC, 0XA6,
+  0X45, 0XC6, 0X88, 0X41, 0X02, 0X80, 0X20, 0X18, 0X20, 0X1C, 0XB3, 0X69, 0X50,
+  0X31, 0X62, 0X90, 0X00, 0X20, 0X08, 0X06, 0X08, 0XC7, 0X54, 0XDA, 0X44, 0X8C,
+  0X18, 0X24, 0X00, 0X08, 0X82, 0X01, 0XC2, 0X31, 0X95, 0XE6, 0X0C, 0X23, 0X06,
+  0X09, 0X00, 0X82, 0X60, 0X80, 0X70, 0X4C, 0XA5, 0X45, 0XC9, 0X88, 0X41, 0X02,
+  0X80, 0X20, 0X18, 0X20, 0X1C, 0X53, 0X69, 0X90, 0X82, 0X00, 0X00, 0X00, 0X00,
+  0X00, 0X00, 0X00, 0X00
+};
 
 /*
  * #version 450 core
@@ -1654,450 +1725,423 @@ unsigned char _shader_vert_dxil[] = {
  */
 
 size_t _shader_farg_spv_len = 668;
-Uint8 _shader_frag_spv[] = {
-    0X03, 0X02, 0X23, 0X07, 0X00, 0X00, 0X01, 0X00, 0X0B, 0X00, 0X08, 0X00,
-    0X18, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X11, 0X00, 0X02, 0X00,
-    0X01, 0X00, 0X00, 0X00, 0X0B, 0X00, 0X06, 0X00, 0X01, 0X00, 0X00, 0X00,
-    0X47, 0X4C, 0X53, 0X4C, 0X2E, 0X73, 0X74, 0X64, 0X2E, 0X34, 0X35, 0X30,
-    0X00, 0X00, 0X00, 0X00, 0X0E, 0X00, 0X03, 0X00, 0X00, 0X00, 0X00, 0X00,
-    0X01, 0X00, 0X00, 0X00, 0X0F, 0X00, 0X08, 0X00, 0X04, 0X00, 0X00, 0X00,
-    0X04, 0X00, 0X00, 0X00, 0X6D, 0X61, 0X69, 0X6E, 0X00, 0X00, 0X00, 0X00,
-    0X09, 0X00, 0X00, 0X00, 0X11, 0X00, 0X00, 0X00, 0X15, 0X00, 0X00, 0X00,
-    0X10, 0X00, 0X03, 0X00, 0X04, 0X00, 0X00, 0X00, 0X07, 0X00, 0X00, 0X00,
-    0X03, 0X00, 0X03, 0X00, 0X02, 0X00, 0X00, 0X00, 0XC2, 0X01, 0X00, 0X00,
-    0X05, 0X00, 0X04, 0X00, 0X04, 0X00, 0X00, 0X00, 0X6D, 0X61, 0X69, 0X6E,
-    0X00, 0X00, 0X00, 0X00, 0X05, 0X00, 0X05, 0X00, 0X09, 0X00, 0X00, 0X00,
-    0X66, 0X72, 0X61, 0X67, 0X5F, 0X63, 0X6F, 0X6C, 0X6F, 0X72, 0X00, 0X00,
-    0X05, 0X00, 0X06, 0X00, 0X0D, 0X00, 0X00, 0X00, 0X75, 0X6E, 0X69, 0X5F,
-    0X74, 0X65, 0X78, 0X5F, 0X73, 0X61, 0X6D, 0X70, 0X6C, 0X65, 0X72, 0X00,
-    0X05, 0X00, 0X04, 0X00, 0X11, 0X00, 0X00, 0X00, 0X74, 0X65, 0X78, 0X5F,
-    0X75, 0X76, 0X00, 0X00, 0X05, 0X00, 0X04, 0X00, 0X15, 0X00, 0X00, 0X00,
-    0X69, 0X5F, 0X63, 0X6F, 0X6C, 0X6F, 0X72, 0X00, 0X47, 0X00, 0X04, 0X00,
-    0X09, 0X00, 0X00, 0X00, 0X1E, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
-    0X47, 0X00, 0X04, 0X00, 0X0D, 0X00, 0X00, 0X00, 0X21, 0X00, 0X00, 0X00,
-    0X00, 0X00, 0X00, 0X00, 0X47, 0X00, 0X04, 0X00, 0X0D, 0X00, 0X00, 0X00,
-    0X22, 0X00, 0X00, 0X00, 0X02, 0X00, 0X00, 0X00, 0X47, 0X00, 0X04, 0X00,
-    0X11, 0X00, 0X00, 0X00, 0X1E, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
-    0X47, 0X00, 0X04, 0X00, 0X15, 0X00, 0X00, 0X00, 0X1E, 0X00, 0X00, 0X00,
-    0X01, 0X00, 0X00, 0X00, 0X13, 0X00, 0X02, 0X00, 0X02, 0X00, 0X00, 0X00,
-    0X21, 0X00, 0X03, 0X00, 0X03, 0X00, 0X00, 0X00, 0X02, 0X00, 0X00, 0X00,
-    0X16, 0X00, 0X03, 0X00, 0X06, 0X00, 0X00, 0X00, 0X20, 0X00, 0X00, 0X00,
-    0X17, 0X00, 0X04, 0X00, 0X07, 0X00, 0X00, 0X00, 0X06, 0X00, 0X00, 0X00,
-    0X04, 0X00, 0X00, 0X00, 0X20, 0X00, 0X04, 0X00, 0X08, 0X00, 0X00, 0X00,
-    0X03, 0X00, 0X00, 0X00, 0X07, 0X00, 0X00, 0X00, 0X3B, 0X00, 0X04, 0X00,
-    0X08, 0X00, 0X00, 0X00, 0X09, 0X00, 0X00, 0X00, 0X03, 0X00, 0X00, 0X00,
-    0X19, 0X00, 0X09, 0X00, 0X0A, 0X00, 0X00, 0X00, 0X06, 0X00, 0X00, 0X00,
-    0X01, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
-    0X00, 0X00, 0X00, 0X00, 0X01, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
-    0X1B, 0X00, 0X03, 0X00, 0X0B, 0X00, 0X00, 0X00, 0X0A, 0X00, 0X00, 0X00,
-    0X20, 0X00, 0X04, 0X00, 0X0C, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
-    0X0B, 0X00, 0X00, 0X00, 0X3B, 0X00, 0X04, 0X00, 0X0C, 0X00, 0X00, 0X00,
-    0X0D, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X17, 0X00, 0X04, 0X00,
-    0X0F, 0X00, 0X00, 0X00, 0X06, 0X00, 0X00, 0X00, 0X02, 0X00, 0X00, 0X00,
-    0X20, 0X00, 0X04, 0X00, 0X10, 0X00, 0X00, 0X00, 0X01, 0X00, 0X00, 0X00,
-    0X0F, 0X00, 0X00, 0X00, 0X3B, 0X00, 0X04, 0X00, 0X10, 0X00, 0X00, 0X00,
-    0X11, 0X00, 0X00, 0X00, 0X01, 0X00, 0X00, 0X00, 0X20, 0X00, 0X04, 0X00,
-    0X14, 0X00, 0X00, 0X00, 0X01, 0X00, 0X00, 0X00, 0X07, 0X00, 0X00, 0X00,
-    0X3B, 0X00, 0X04, 0X00, 0X14, 0X00, 0X00, 0X00, 0X15, 0X00, 0X00, 0X00,
-    0X01, 0X00, 0X00, 0X00, 0X36, 0X00, 0X05, 0X00, 0X02, 0X00, 0X00, 0X00,
-    0X04, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X03, 0X00, 0X00, 0X00,
-    0XF8, 0X00, 0X02, 0X00, 0X05, 0X00, 0X00, 0X00, 0X3D, 0X00, 0X04, 0X00,
-    0X0B, 0X00, 0X00, 0X00, 0X0E, 0X00, 0X00, 0X00, 0X0D, 0X00, 0X00, 0X00,
-    0X3D, 0X00, 0X04, 0X00, 0X0F, 0X00, 0X00, 0X00, 0X12, 0X00, 0X00, 0X00,
-    0X11, 0X00, 0X00, 0X00, 0X57, 0X00, 0X05, 0X00, 0X07, 0X00, 0X00, 0X00,
-    0X13, 0X00, 0X00, 0X00, 0X0E, 0X00, 0X00, 0X00, 0X12, 0X00, 0X00, 0X00,
-    0X3D, 0X00, 0X04, 0X00, 0X07, 0X00, 0X00, 0X00, 0X16, 0X00, 0X00, 0X00,
-    0X15, 0X00, 0X00, 0X00, 0X85, 0X00, 0X05, 0X00, 0X07, 0X00, 0X00, 0X00,
-    0X17, 0X00, 0X00, 0X00, 0X13, 0X00, 0X00, 0X00, 0X16, 0X00, 0X00, 0X00,
-    0X3E, 0X00, 0X03, 0X00, 0X09, 0X00, 0X00, 0X00, 0X17, 0X00, 0X00, 0X00,
-    0XFD, 0X00, 0X01, 0X00, 0X38, 0X00, 0X01, 0X00};
+Uint8 _shader_frag_spv[]    = {
+  0X03, 0X02, 0X23, 0X07, 0X00, 0X00, 0X01, 0X00, 0X0B, 0X00, 0X08, 0X00, 0X18,
+  0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X11, 0X00, 0X02, 0X00, 0X01, 0X00,
+  0X00, 0X00, 0X0B, 0X00, 0X06, 0X00, 0X01, 0X00, 0X00, 0X00, 0X47, 0X4C, 0X53,
+  0X4C, 0X2E, 0X73, 0X74, 0X64, 0X2E, 0X34, 0X35, 0X30, 0X00, 0X00, 0X00, 0X00,
+  0X0E, 0X00, 0X03, 0X00, 0X00, 0X00, 0X00, 0X00, 0X01, 0X00, 0X00, 0X00, 0X0F,
+  0X00, 0X08, 0X00, 0X04, 0X00, 0X00, 0X00, 0X04, 0X00, 0X00, 0X00, 0X6D, 0X61,
+  0X69, 0X6E, 0X00, 0X00, 0X00, 0X00, 0X09, 0X00, 0X00, 0X00, 0X11, 0X00, 0X00,
+  0X00, 0X15, 0X00, 0X00, 0X00, 0X10, 0X00, 0X03, 0X00, 0X04, 0X00, 0X00, 0X00,
+  0X07, 0X00, 0X00, 0X00, 0X03, 0X00, 0X03, 0X00, 0X02, 0X00, 0X00, 0X00, 0XC2,
+  0X01, 0X00, 0X00, 0X05, 0X00, 0X04, 0X00, 0X04, 0X00, 0X00, 0X00, 0X6D, 0X61,
+  0X69, 0X6E, 0X00, 0X00, 0X00, 0X00, 0X05, 0X00, 0X05, 0X00, 0X09, 0X00, 0X00,
+  0X00, 0X66, 0X72, 0X61, 0X67, 0X5F, 0X63, 0X6F, 0X6C, 0X6F, 0X72, 0X00, 0X00,
+  0X05, 0X00, 0X06, 0X00, 0X0D, 0X00, 0X00, 0X00, 0X75, 0X6E, 0X69, 0X5F, 0X74,
+  0X65, 0X78, 0X5F, 0X73, 0X61, 0X6D, 0X70, 0X6C, 0X65, 0X72, 0X00, 0X05, 0X00,
+  0X04, 0X00, 0X11, 0X00, 0X00, 0X00, 0X74, 0X65, 0X78, 0X5F, 0X75, 0X76, 0X00,
+  0X00, 0X05, 0X00, 0X04, 0X00, 0X15, 0X00, 0X00, 0X00, 0X69, 0X5F, 0X63, 0X6F,
+  0X6C, 0X6F, 0X72, 0X00, 0X47, 0X00, 0X04, 0X00, 0X09, 0X00, 0X00, 0X00, 0X1E,
+  0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X47, 0X00, 0X04, 0X00, 0X0D, 0X00,
+  0X00, 0X00, 0X21, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X47, 0X00, 0X04,
+  0X00, 0X0D, 0X00, 0X00, 0X00, 0X22, 0X00, 0X00, 0X00, 0X02, 0X00, 0X00, 0X00,
+  0X47, 0X00, 0X04, 0X00, 0X11, 0X00, 0X00, 0X00, 0X1E, 0X00, 0X00, 0X00, 0X00,
+  0X00, 0X00, 0X00, 0X47, 0X00, 0X04, 0X00, 0X15, 0X00, 0X00, 0X00, 0X1E, 0X00,
+  0X00, 0X00, 0X01, 0X00, 0X00, 0X00, 0X13, 0X00, 0X02, 0X00, 0X02, 0X00, 0X00,
+  0X00, 0X21, 0X00, 0X03, 0X00, 0X03, 0X00, 0X00, 0X00, 0X02, 0X00, 0X00, 0X00,
+  0X16, 0X00, 0X03, 0X00, 0X06, 0X00, 0X00, 0X00, 0X20, 0X00, 0X00, 0X00, 0X17,
+  0X00, 0X04, 0X00, 0X07, 0X00, 0X00, 0X00, 0X06, 0X00, 0X00, 0X00, 0X04, 0X00,
+  0X00, 0X00, 0X20, 0X00, 0X04, 0X00, 0X08, 0X00, 0X00, 0X00, 0X03, 0X00, 0X00,
+  0X00, 0X07, 0X00, 0X00, 0X00, 0X3B, 0X00, 0X04, 0X00, 0X08, 0X00, 0X00, 0X00,
+  0X09, 0X00, 0X00, 0X00, 0X03, 0X00, 0X00, 0X00, 0X19, 0X00, 0X09, 0X00, 0X0A,
+  0X00, 0X00, 0X00, 0X06, 0X00, 0X00, 0X00, 0X01, 0X00, 0X00, 0X00, 0X00, 0X00,
+  0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X01, 0X00, 0X00,
+  0X00, 0X00, 0X00, 0X00, 0X00, 0X1B, 0X00, 0X03, 0X00, 0X0B, 0X00, 0X00, 0X00,
+  0X0A, 0X00, 0X00, 0X00, 0X20, 0X00, 0X04, 0X00, 0X0C, 0X00, 0X00, 0X00, 0X00,
+  0X00, 0X00, 0X00, 0X0B, 0X00, 0X00, 0X00, 0X3B, 0X00, 0X04, 0X00, 0X0C, 0X00,
+  0X00, 0X00, 0X0D, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X17, 0X00, 0X04,
+  0X00, 0X0F, 0X00, 0X00, 0X00, 0X06, 0X00, 0X00, 0X00, 0X02, 0X00, 0X00, 0X00,
+  0X20, 0X00, 0X04, 0X00, 0X10, 0X00, 0X00, 0X00, 0X01, 0X00, 0X00, 0X00, 0X0F,
+  0X00, 0X00, 0X00, 0X3B, 0X00, 0X04, 0X00, 0X10, 0X00, 0X00, 0X00, 0X11, 0X00,
+  0X00, 0X00, 0X01, 0X00, 0X00, 0X00, 0X20, 0X00, 0X04, 0X00, 0X14, 0X00, 0X00,
+  0X00, 0X01, 0X00, 0X00, 0X00, 0X07, 0X00, 0X00, 0X00, 0X3B, 0X00, 0X04, 0X00,
+  0X14, 0X00, 0X00, 0X00, 0X15, 0X00, 0X00, 0X00, 0X01, 0X00, 0X00, 0X00, 0X36,
+  0X00, 0X05, 0X00, 0X02, 0X00, 0X00, 0X00, 0X04, 0X00, 0X00, 0X00, 0X00, 0X00,
+  0X00, 0X00, 0X03, 0X00, 0X00, 0X00, 0XF8, 0X00, 0X02, 0X00, 0X05, 0X00, 0X00,
+  0X00, 0X3D, 0X00, 0X04, 0X00, 0X0B, 0X00, 0X00, 0X00, 0X0E, 0X00, 0X00, 0X00,
+  0X0D, 0X00, 0X00, 0X00, 0X3D, 0X00, 0X04, 0X00, 0X0F, 0X00, 0X00, 0X00, 0X12,
+  0X00, 0X00, 0X00, 0X11, 0X00, 0X00, 0X00, 0X57, 0X00, 0X05, 0X00, 0X07, 0X00,
+  0X00, 0X00, 0X13, 0X00, 0X00, 0X00, 0X0E, 0X00, 0X00, 0X00, 0X12, 0X00, 0X00,
+  0X00, 0X3D, 0X00, 0X04, 0X00, 0X07, 0X00, 0X00, 0X00, 0X16, 0X00, 0X00, 0X00,
+  0X15, 0X00, 0X00, 0X00, 0X85, 0X00, 0X05, 0X00, 0X07, 0X00, 0X00, 0X00, 0X17,
+  0X00, 0X00, 0X00, 0X13, 0X00, 0X00, 0X00, 0X16, 0X00, 0X00, 0X00, 0X3E, 0X00,
+  0X03, 0X00, 0X09, 0X00, 0X00, 0X00, 0X17, 0X00, 0X00, 0X00, 0XFD, 0X00, 0X01,
+  0X00, 0X38, 0X00, 0X01, 0X00
+};
 
 unsigned int _shader_frag_msl_len = 505;
-unsigned char _shader_frag_msl[] = {
-    0X23, 0X69, 0X6E, 0X63, 0X6C, 0X75, 0X64, 0X65, 0X20, 0X3C, 0X6D, 0X65,
-    0X74, 0X61, 0X6C, 0X5F, 0X73, 0X74, 0X64, 0X6C, 0X69, 0X62, 0X3E, 0X0A,
-    0X23, 0X69, 0X6E, 0X63, 0X6C, 0X75, 0X64, 0X65, 0X20, 0X3C, 0X73, 0X69,
-    0X6D, 0X64, 0X2F, 0X73, 0X69, 0X6D, 0X64, 0X2E, 0X68, 0X3E, 0X0A, 0X0A,
-    0X75, 0X73, 0X69, 0X6E, 0X67, 0X20, 0X6E, 0X61, 0X6D, 0X65, 0X73, 0X70,
-    0X61, 0X63, 0X65, 0X20, 0X6D, 0X65, 0X74, 0X61, 0X6C, 0X3B, 0X0A, 0X0A,
-    0X73, 0X74, 0X72, 0X75, 0X63, 0X74, 0X20, 0X6D, 0X61, 0X69, 0X6E, 0X30,
-    0X5F, 0X6F, 0X75, 0X74, 0X0A, 0X7B, 0X0A, 0X20, 0X20, 0X20, 0X20, 0X66,
-    0X6C, 0X6F, 0X61, 0X74, 0X34, 0X20, 0X66, 0X72, 0X61, 0X67, 0X5F, 0X63,
-    0X6F, 0X6C, 0X6F, 0X72, 0X20, 0X5B, 0X5B, 0X63, 0X6F, 0X6C, 0X6F, 0X72,
-    0X28, 0X30, 0X29, 0X5D, 0X5D, 0X3B, 0X0A, 0X7D, 0X3B, 0X0A, 0X0A, 0X73,
-    0X74, 0X72, 0X75, 0X63, 0X74, 0X20, 0X6D, 0X61, 0X69, 0X6E, 0X30, 0X5F,
-    0X69, 0X6E, 0X0A, 0X7B, 0X0A, 0X20, 0X20, 0X20, 0X20, 0X66, 0X6C, 0X6F,
-    0X61, 0X74, 0X32, 0X20, 0X74, 0X65, 0X78, 0X5F, 0X75, 0X76, 0X20, 0X5B,
-    0X5B, 0X75, 0X73, 0X65, 0X72, 0X28, 0X6C, 0X6F, 0X63, 0X6E, 0X30, 0X29,
-    0X5D, 0X5D, 0X3B, 0X0A, 0X20, 0X20, 0X20, 0X20, 0X66, 0X6C, 0X6F, 0X61,
-    0X74, 0X34, 0X20, 0X69, 0X5F, 0X63, 0X6F, 0X6C, 0X6F, 0X72, 0X20, 0X5B,
-    0X5B, 0X75, 0X73, 0X65, 0X72, 0X28, 0X6C, 0X6F, 0X63, 0X6E, 0X31, 0X29,
-    0X5D, 0X5D, 0X3B, 0X0A, 0X7D, 0X3B, 0X0A, 0X0A, 0X66, 0X72, 0X61, 0X67,
-    0X6D, 0X65, 0X6E, 0X74, 0X20, 0X6D, 0X61, 0X69, 0X6E, 0X30, 0X5F, 0X6F,
-    0X75, 0X74, 0X20, 0X6D, 0X61, 0X69, 0X6E, 0X30, 0X28, 0X6D, 0X61, 0X69,
-    0X6E, 0X30, 0X5F, 0X69, 0X6E, 0X20, 0X69, 0X6E, 0X20, 0X5B, 0X5B, 0X73,
-    0X74, 0X61, 0X67, 0X65, 0X5F, 0X69, 0X6E, 0X5D, 0X5D, 0X2C, 0X20, 0X74,
-    0X65, 0X78, 0X74, 0X75, 0X72, 0X65, 0X32, 0X64, 0X3C, 0X66, 0X6C, 0X6F,
-    0X61, 0X74, 0X3E, 0X20, 0X75, 0X6E, 0X69, 0X5F, 0X74, 0X65, 0X78, 0X5F,
-    0X73, 0X61, 0X6D, 0X70, 0X6C, 0X65, 0X72, 0X20, 0X5B, 0X5B, 0X74, 0X65,
-    0X78, 0X74, 0X75, 0X72, 0X65, 0X28, 0X30, 0X29, 0X5D, 0X5D, 0X2C, 0X20,
-    0X73, 0X61, 0X6D, 0X70, 0X6C, 0X65, 0X72, 0X20, 0X75, 0X6E, 0X69, 0X5F,
-    0X74, 0X65, 0X78, 0X5F, 0X73, 0X61, 0X6D, 0X70, 0X6C, 0X65, 0X72, 0X53,
-    0X6D, 0X70, 0X6C, 0X72, 0X20, 0X5B, 0X5B, 0X73, 0X61, 0X6D, 0X70, 0X6C,
-    0X65, 0X72, 0X28, 0X30, 0X29, 0X5D, 0X5D, 0X29, 0X0A, 0X7B, 0X0A, 0X20,
-    0X20, 0X20, 0X20, 0X6D, 0X61, 0X69, 0X6E, 0X30, 0X5F, 0X6F, 0X75, 0X74,
-    0X20, 0X6F, 0X75, 0X74, 0X20, 0X3D, 0X20, 0X7B, 0X7D, 0X3B, 0X0A, 0X20,
-    0X20, 0X20, 0X20, 0X6F, 0X75, 0X74, 0X2E, 0X66, 0X72, 0X61, 0X67, 0X5F,
-    0X63, 0X6F, 0X6C, 0X6F, 0X72, 0X20, 0X3D, 0X20, 0X75, 0X6E, 0X69, 0X5F,
-    0X74, 0X65, 0X78, 0X5F, 0X73, 0X61, 0X6D, 0X70, 0X6C, 0X65, 0X72, 0X2E,
-    0X73, 0X61, 0X6D, 0X70, 0X6C, 0X65, 0X28, 0X75, 0X6E, 0X69, 0X5F, 0X74,
-    0X65, 0X78, 0X5F, 0X73, 0X61, 0X6D, 0X70, 0X6C, 0X65, 0X72, 0X53, 0X6D,
-    0X70, 0X6C, 0X72, 0X2C, 0X20, 0X69, 0X6E, 0X2E, 0X74, 0X65, 0X78, 0X5F,
-    0X75, 0X76, 0X29, 0X20, 0X2A, 0X20, 0X69, 0X6E, 0X2E, 0X69, 0X5F, 0X63,
-    0X6F, 0X6C, 0X6F, 0X72, 0X3B, 0X0A, 0X20, 0X20, 0X20, 0X20, 0X72, 0X65,
-    0X74, 0X75, 0X72, 0X6E, 0X20, 0X6F, 0X75, 0X74, 0X3B, 0X0A, 0X7D, 0X0A,
-    0X0A};
+unsigned char _shader_frag_msl[]  = {
+  0X23, 0X69, 0X6E, 0X63, 0X6C, 0X75, 0X64, 0X65, 0X20, 0X3C, 0X6D, 0X65, 0X74,
+  0X61, 0X6C, 0X5F, 0X73, 0X74, 0X64, 0X6C, 0X69, 0X62, 0X3E, 0X0A, 0X23, 0X69,
+  0X6E, 0X63, 0X6C, 0X75, 0X64, 0X65, 0X20, 0X3C, 0X73, 0X69, 0X6D, 0X64, 0X2F,
+  0X73, 0X69, 0X6D, 0X64, 0X2E, 0X68, 0X3E, 0X0A, 0X0A, 0X75, 0X73, 0X69, 0X6E,
+  0X67, 0X20, 0X6E, 0X61, 0X6D, 0X65, 0X73, 0X70, 0X61, 0X63, 0X65, 0X20, 0X6D,
+  0X65, 0X74, 0X61, 0X6C, 0X3B, 0X0A, 0X0A, 0X73, 0X74, 0X72, 0X75, 0X63, 0X74,
+  0X20, 0X6D, 0X61, 0X69, 0X6E, 0X30, 0X5F, 0X6F, 0X75, 0X74, 0X0A, 0X7B, 0X0A,
+  0X20, 0X20, 0X20, 0X20, 0X66, 0X6C, 0X6F, 0X61, 0X74, 0X34, 0X20, 0X66, 0X72,
+  0X61, 0X67, 0X5F, 0X63, 0X6F, 0X6C, 0X6F, 0X72, 0X20, 0X5B, 0X5B, 0X63, 0X6F,
+  0X6C, 0X6F, 0X72, 0X28, 0X30, 0X29, 0X5D, 0X5D, 0X3B, 0X0A, 0X7D, 0X3B, 0X0A,
+  0X0A, 0X73, 0X74, 0X72, 0X75, 0X63, 0X74, 0X20, 0X6D, 0X61, 0X69, 0X6E, 0X30,
+  0X5F, 0X69, 0X6E, 0X0A, 0X7B, 0X0A, 0X20, 0X20, 0X20, 0X20, 0X66, 0X6C, 0X6F,
+  0X61, 0X74, 0X32, 0X20, 0X74, 0X65, 0X78, 0X5F, 0X75, 0X76, 0X20, 0X5B, 0X5B,
+  0X75, 0X73, 0X65, 0X72, 0X28, 0X6C, 0X6F, 0X63, 0X6E, 0X30, 0X29, 0X5D, 0X5D,
+  0X3B, 0X0A, 0X20, 0X20, 0X20, 0X20, 0X66, 0X6C, 0X6F, 0X61, 0X74, 0X34, 0X20,
+  0X69, 0X5F, 0X63, 0X6F, 0X6C, 0X6F, 0X72, 0X20, 0X5B, 0X5B, 0X75, 0X73, 0X65,
+  0X72, 0X28, 0X6C, 0X6F, 0X63, 0X6E, 0X31, 0X29, 0X5D, 0X5D, 0X3B, 0X0A, 0X7D,
+  0X3B, 0X0A, 0X0A, 0X66, 0X72, 0X61, 0X67, 0X6D, 0X65, 0X6E, 0X74, 0X20, 0X6D,
+  0X61, 0X69, 0X6E, 0X30, 0X5F, 0X6F, 0X75, 0X74, 0X20, 0X6D, 0X61, 0X69, 0X6E,
+  0X30, 0X28, 0X6D, 0X61, 0X69, 0X6E, 0X30, 0X5F, 0X69, 0X6E, 0X20, 0X69, 0X6E,
+  0X20, 0X5B, 0X5B, 0X73, 0X74, 0X61, 0X67, 0X65, 0X5F, 0X69, 0X6E, 0X5D, 0X5D,
+  0X2C, 0X20, 0X74, 0X65, 0X78, 0X74, 0X75, 0X72, 0X65, 0X32, 0X64, 0X3C, 0X66,
+  0X6C, 0X6F, 0X61, 0X74, 0X3E, 0X20, 0X75, 0X6E, 0X69, 0X5F, 0X74, 0X65, 0X78,
+  0X5F, 0X73, 0X61, 0X6D, 0X70, 0X6C, 0X65, 0X72, 0X20, 0X5B, 0X5B, 0X74, 0X65,
+  0X78, 0X74, 0X75, 0X72, 0X65, 0X28, 0X30, 0X29, 0X5D, 0X5D, 0X2C, 0X20, 0X73,
+  0X61, 0X6D, 0X70, 0X6C, 0X65, 0X72, 0X20, 0X75, 0X6E, 0X69, 0X5F, 0X74, 0X65,
+  0X78, 0X5F, 0X73, 0X61, 0X6D, 0X70, 0X6C, 0X65, 0X72, 0X53, 0X6D, 0X70, 0X6C,
+  0X72, 0X20, 0X5B, 0X5B, 0X73, 0X61, 0X6D, 0X70, 0X6C, 0X65, 0X72, 0X28, 0X30,
+  0X29, 0X5D, 0X5D, 0X29, 0X0A, 0X7B, 0X0A, 0X20, 0X20, 0X20, 0X20, 0X6D, 0X61,
+  0X69, 0X6E, 0X30, 0X5F, 0X6F, 0X75, 0X74, 0X20, 0X6F, 0X75, 0X74, 0X20, 0X3D,
+  0X20, 0X7B, 0X7D, 0X3B, 0X0A, 0X20, 0X20, 0X20, 0X20, 0X6F, 0X75, 0X74, 0X2E,
+  0X66, 0X72, 0X61, 0X67, 0X5F, 0X63, 0X6F, 0X6C, 0X6F, 0X72, 0X20, 0X3D, 0X20,
+  0X75, 0X6E, 0X69, 0X5F, 0X74, 0X65, 0X78, 0X5F, 0X73, 0X61, 0X6D, 0X70, 0X6C,
+  0X65, 0X72, 0X2E, 0X73, 0X61, 0X6D, 0X70, 0X6C, 0X65, 0X28, 0X75, 0X6E, 0X69,
+  0X5F, 0X74, 0X65, 0X78, 0X5F, 0X73, 0X61, 0X6D, 0X70, 0X6C, 0X65, 0X72, 0X53,
+  0X6D, 0X70, 0X6C, 0X72, 0X2C, 0X20, 0X69, 0X6E, 0X2E, 0X74, 0X65, 0X78, 0X5F,
+  0X75, 0X76, 0X29, 0X20, 0X2A, 0X20, 0X69, 0X6E, 0X2E, 0X69, 0X5F, 0X63, 0X6F,
+  0X6C, 0X6F, 0X72, 0X3B, 0X0A, 0X20, 0X20, 0X20, 0X20, 0X72, 0X65, 0X74, 0X75,
+  0X72, 0X6E, 0X20, 0X6F, 0X75, 0X74, 0X3B, 0X0A, 0X7D, 0X0A, 0X0A
+};
 
 unsigned int _shader_frag_dxil_len = 3896;
-unsigned char _shader_frag_dxil[] = {
-    0X44, 0X58, 0X42, 0X43, 0X3D, 0XE0, 0X10, 0X51, 0XB5, 0XE1, 0X54, 0X94,
-    0XA7, 0XBB, 0XA5, 0X02, 0X68, 0XFC, 0X36, 0X09, 0X01, 0X00, 0X00, 0X00,
-    0X38, 0X0F, 0X00, 0X00, 0X07, 0X00, 0X00, 0X00, 0X3C, 0X00, 0X00, 0X00,
-    0X4C, 0X00, 0X00, 0X00, 0XA8, 0X00, 0X00, 0X00, 0XE4, 0X00, 0X00, 0X00,
-    0XD8, 0X01, 0X00, 0X00, 0X54, 0X08, 0X00, 0X00, 0X70, 0X08, 0X00, 0X00,
-    0X53, 0X46, 0X49, 0X30, 0X08, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
-    0X00, 0X00, 0X00, 0X00, 0X49, 0X53, 0X47, 0X31, 0X54, 0X00, 0X00, 0X00,
-    0X02, 0X00, 0X00, 0X00, 0X08, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
-    0X48, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
-    0X03, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X03, 0X03, 0X00, 0X00,
-    0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X48, 0X00, 0X00, 0X00,
-    0X01, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X03, 0X00, 0X00, 0X00,
-    0X01, 0X00, 0X00, 0X00, 0X0F, 0X0F, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
-    0X54, 0X45, 0X58, 0X43, 0X4F, 0X4F, 0X52, 0X44, 0X00, 0X00, 0X00, 0X00,
-    0X4F, 0X53, 0X47, 0X31, 0X34, 0X00, 0X00, 0X00, 0X01, 0X00, 0X00, 0X00,
-    0X08, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X28, 0X00, 0X00, 0X00,
-    0X00, 0X00, 0X00, 0X00, 0X40, 0X00, 0X00, 0X00, 0X03, 0X00, 0X00, 0X00,
-    0X00, 0X00, 0X00, 0X00, 0X0F, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
-    0X53, 0X56, 0X5F, 0X54, 0X61, 0X72, 0X67, 0X65, 0X74, 0X00, 0X00, 0X00,
-    0X50, 0X53, 0X56, 0X30, 0XEC, 0X00, 0X00, 0X00, 0X34, 0X00, 0X00, 0X00,
-    0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
-    0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0XFF, 0XFF, 0XFF, 0XFF,
-    0X00, 0X00, 0X00, 0X00, 0X02, 0X01, 0X00, 0X02, 0X01, 0X00, 0X00, 0X00,
-    0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
-    0X13, 0X00, 0X00, 0X00, 0X02, 0X00, 0X00, 0X00, 0X18, 0X00, 0X00, 0X00,
-    0X01, 0X00, 0X00, 0X00, 0X02, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
-    0X00, 0X00, 0X00, 0X00, 0X0E, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
-    0X03, 0X00, 0X00, 0X00, 0X02, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
-    0X00, 0X00, 0X00, 0X00, 0X02, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
-    0X18, 0X00, 0X00, 0X00, 0X00, 0X54, 0X45, 0X58, 0X43, 0X4F, 0X4F, 0X52,
-    0X44, 0X00, 0X54, 0X45, 0X58, 0X43, 0X4F, 0X4F, 0X52, 0X44, 0X00, 0X6D,
-    0X61, 0X69, 0X6E, 0X00, 0X02, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
-    0X01, 0X00, 0X00, 0X00, 0X10, 0X00, 0X00, 0X00, 0X01, 0X00, 0X00, 0X00,
-    0X00, 0X00, 0X00, 0X00, 0X01, 0X00, 0X42, 0X00, 0X03, 0X02, 0X00, 0X00,
-    0X0A, 0X00, 0X00, 0X00, 0X01, 0X00, 0X00, 0X00, 0X01, 0X01, 0X44, 0X00,
-    0X03, 0X02, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
-    0X01, 0X00, 0X44, 0X10, 0X03, 0X00, 0X00, 0X00, 0X0F, 0X00, 0X00, 0X00,
-    0X0F, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
-    0X01, 0X00, 0X00, 0X00, 0X02, 0X00, 0X00, 0X00, 0X04, 0X00, 0X00, 0X00,
-    0X08, 0X00, 0X00, 0X00, 0X53, 0X54, 0X41, 0X54, 0X74, 0X06, 0X00, 0X00,
-    0X60, 0X00, 0X00, 0X00, 0X9D, 0X01, 0X00, 0X00, 0X44, 0X58, 0X49, 0X4C,
-    0X00, 0X01, 0X00, 0X00, 0X10, 0X00, 0X00, 0X00, 0X5C, 0X06, 0X00, 0X00,
-    0X42, 0X43, 0XC0, 0XDE, 0X21, 0X0C, 0X00, 0X00, 0X94, 0X01, 0X00, 0X00,
-    0X0B, 0X82, 0X20, 0X00, 0X02, 0X00, 0X00, 0X00, 0X13, 0X00, 0X00, 0X00,
-    0X07, 0X81, 0X23, 0X91, 0X41, 0XC8, 0X04, 0X49, 0X06, 0X10, 0X32, 0X39,
-    0X92, 0X01, 0X84, 0X0C, 0X25, 0X05, 0X08, 0X19, 0X1E, 0X04, 0X8B, 0X62,
-    0X80, 0X14, 0X45, 0X02, 0X42, 0X92, 0X0B, 0X42, 0XA4, 0X10, 0X32, 0X14,
-    0X38, 0X08, 0X18, 0X4B, 0X0A, 0X32, 0X52, 0X88, 0X48, 0X90, 0X14, 0X20,
-    0X43, 0X46, 0X88, 0XA5, 0X00, 0X19, 0X32, 0X42, 0XE4, 0X48, 0X0E, 0X90,
-    0X91, 0X22, 0XC4, 0X50, 0X41, 0X51, 0X81, 0X8C, 0XE1, 0X83, 0XE5, 0X8A,
-    0X04, 0X29, 0X46, 0X06, 0X51, 0X18, 0X00, 0X00, 0X08, 0X00, 0X00, 0X00,
-    0X1B, 0X8C, 0XE0, 0XFF, 0XFF, 0XFF, 0XFF, 0X07, 0X40, 0X02, 0XA8, 0X0D,
-    0X84, 0XF0, 0XFF, 0XFF, 0XFF, 0XFF, 0X03, 0X20, 0X6D, 0X30, 0X86, 0XFF,
-    0XFF, 0XFF, 0XFF, 0X1F, 0X00, 0X09, 0XA8, 0X00, 0X49, 0X18, 0X00, 0X00,
-    0X03, 0X00, 0X00, 0X00, 0X13, 0X82, 0X60, 0X42, 0X20, 0X4C, 0X08, 0X06,
-    0X00, 0X00, 0X00, 0X00, 0X89, 0X20, 0X00, 0X00, 0X43, 0X00, 0X00, 0X00,
-    0X32, 0X22, 0X48, 0X09, 0X20, 0X64, 0X85, 0X04, 0X93, 0X22, 0XA4, 0X84,
-    0X04, 0X93, 0X22, 0XE3, 0X84, 0XA1, 0X90, 0X14, 0X12, 0X4C, 0X8A, 0X8C,
-    0X0B, 0X84, 0XA4, 0X4C, 0X10, 0X68, 0X23, 0X00, 0X25, 0X00, 0X14, 0X66,
-    0X00, 0XE6, 0X08, 0XC0, 0X60, 0X8E, 0X00, 0X29, 0XC6, 0X20, 0X84, 0X14,
-    0X42, 0XA6, 0X18, 0X80, 0X10, 0X52, 0X06, 0XA1, 0X9B, 0X86, 0XCB, 0X9F,
-    0XB0, 0X87, 0X90, 0XFC, 0X95, 0X90, 0X56, 0X62, 0XF2, 0X8B, 0XDB, 0X46,
-    0XC5, 0X18, 0X63, 0X10, 0X2A, 0XF7, 0X0C, 0X97, 0X3F, 0X61, 0X0F, 0X21,
-    0XF9, 0X21, 0XD0, 0X0C, 0X0B, 0X81, 0X82, 0X55, 0X18, 0X45, 0X18, 0X1B,
-    0X63, 0X0C, 0X42, 0XC8, 0XA0, 0X36, 0X47, 0X10, 0X14, 0X83, 0X91, 0X42,
-    0XC8, 0X23, 0X38, 0X10, 0X30, 0X8C, 0X40, 0X0C, 0X33, 0XB5, 0XC1, 0X38,
-    0XB0, 0X43, 0X38, 0XCC, 0XC3, 0X3C, 0XB8, 0X01, 0X2D, 0X94, 0X03, 0X3E,
-    0XD0, 0X43, 0X3D, 0XC8, 0X43, 0X39, 0XC8, 0X01, 0X29, 0XF0, 0X81, 0X3D,
-    0X94, 0XC3, 0X38, 0XD0, 0XC3, 0X3B, 0XC8, 0X03, 0X1F, 0X98, 0X03, 0X3B,
-    0XBC, 0X43, 0X38, 0XD0, 0X03, 0X1B, 0X80, 0X01, 0X1D, 0XF8, 0X01, 0X18,
-    0XF8, 0X81, 0X1E, 0XE8, 0X41, 0X3B, 0XA4, 0X03, 0X3C, 0XCC, 0XC3, 0X2F,
-    0XD0, 0X43, 0X3E, 0XC0, 0X43, 0X39, 0XA0, 0X80, 0XCC, 0X24, 0X06, 0XE3,
-    0XC0, 0X0E, 0XE1, 0X30, 0X0F, 0XF3, 0XE0, 0X06, 0XB4, 0X50, 0X0E, 0XF8,
-    0X40, 0X0F, 0XF5, 0X20, 0X0F, 0XE5, 0X20, 0X07, 0XA4, 0XC0, 0X07, 0XF6,
-    0X50, 0X0E, 0XE3, 0X40, 0X0F, 0XEF, 0X20, 0X0F, 0X7C, 0X60, 0X0E, 0XEC,
-    0XF0, 0X0E, 0XE1, 0X40, 0X0F, 0X6C, 0X00, 0X06, 0X74, 0XE0, 0X07, 0X60,
-    0XE0, 0X07, 0X48, 0X98, 0X94, 0XEA, 0X4D, 0XD2, 0X14, 0X51, 0XC2, 0XE4,
-    0XB3, 0X00, 0XF3, 0X2C, 0X44, 0XC4, 0X4E, 0XC0, 0X44, 0XA0, 0X80, 0XD0,
-    0X4D, 0X05, 0X02, 0X00, 0X13, 0X14, 0X72, 0XC0, 0X87, 0X74, 0X60, 0X87,
-    0X36, 0X68, 0X87, 0X79, 0X68, 0X03, 0X72, 0XC0, 0X87, 0X0D, 0XAF, 0X50,
-    0X0E, 0X6D, 0XD0, 0X0E, 0X7A, 0X50, 0X0E, 0X6D, 0X00, 0X0F, 0X7A, 0X30,
-    0X07, 0X72, 0XA0, 0X07, 0X73, 0X20, 0X07, 0X6D, 0X90, 0X0E, 0X71, 0XA0,
-    0X07, 0X73, 0X20, 0X07, 0X6D, 0X90, 0X0E, 0X78, 0XA0, 0X07, 0X73, 0X20,
-    0X07, 0X6D, 0X90, 0X0E, 0X71, 0X60, 0X07, 0X7A, 0X30, 0X07, 0X72, 0XD0,
-    0X06, 0XE9, 0X30, 0X07, 0X72, 0XA0, 0X07, 0X73, 0X20, 0X07, 0X6D, 0X90,
-    0X0E, 0X76, 0X40, 0X07, 0X7A, 0X60, 0X07, 0X74, 0XD0, 0X06, 0XE6, 0X10,
-    0X07, 0X76, 0XA0, 0X07, 0X73, 0X20, 0X07, 0X6D, 0X60, 0X0E, 0X73, 0X20,
-    0X07, 0X7A, 0X30, 0X07, 0X72, 0XD0, 0X06, 0XE6, 0X60, 0X07, 0X74, 0XA0,
-    0X07, 0X76, 0X40, 0X07, 0X6D, 0XE0, 0X0E, 0X78, 0XA0, 0X07, 0X71, 0X60,
-    0X07, 0X7A, 0X30, 0X07, 0X72, 0XA0, 0X07, 0X76, 0X40, 0X07, 0X43, 0X9E,
-    0X00, 0X08, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X86,
-    0X3C, 0X06, 0X10, 0X00, 0X01, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
-    0X0C, 0X79, 0X10, 0X20, 0X00, 0X04, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
-    0X00, 0X18, 0XF2, 0X34, 0X40, 0X00, 0X0C, 0X00, 0X00, 0X00, 0X00, 0X00,
-    0X00, 0X00, 0X30, 0XE4, 0X81, 0X80, 0X00, 0X18, 0X00, 0X00, 0X00, 0X00,
-    0X00, 0X00, 0X00, 0X20, 0X0B, 0X04, 0X00, 0X00, 0X0F, 0X00, 0X00, 0X00,
-    0X32, 0X1E, 0X98, 0X14, 0X19, 0X11, 0X4C, 0X90, 0X8C, 0X09, 0X26, 0X47,
-    0XC6, 0X04, 0X43, 0X22, 0X25, 0X30, 0X02, 0X50, 0X0C, 0X45, 0X50, 0X12,
-    0X65, 0X50, 0X1E, 0X85, 0X50, 0X2C, 0X54, 0X4A, 0X62, 0X04, 0XA0, 0X08,
-    0X0A, 0XA1, 0X40, 0XC8, 0XCE, 0X00, 0X10, 0X9E, 0X01, 0XA0, 0X3C, 0X96,
-    0X82, 0X10, 0XCF, 0X03, 0X00, 0X81, 0X40, 0X20, 0X00, 0X00, 0X00, 0X00,
-    0X79, 0X18, 0X00, 0X00, 0X81, 0X00, 0X00, 0X00, 0X1A, 0X03, 0X4C, 0X90,
-    0X46, 0X02, 0X13, 0XC4, 0X31, 0X20, 0XC3, 0X1B, 0X43, 0X81, 0X93, 0X4B,
-    0XB3, 0X0B, 0XA3, 0X2B, 0X4B, 0X01, 0X89, 0X71, 0XC9, 0X71, 0X81, 0X71,
-    0XA9, 0X89, 0XC1, 0XA1, 0X01, 0X41, 0X91, 0X89, 0X21, 0X93, 0XC1, 0X31,
-    0XBB, 0X91, 0XB9, 0X49, 0XD9, 0X10, 0X04, 0X13, 0X04, 0XA2, 0X98, 0X20,
-    0X10, 0XC6, 0X06, 0X61, 0X20, 0X36, 0X08, 0X04, 0X41, 0X01, 0X6E, 0X6E,
-    0X82, 0X40, 0X1C, 0X1B, 0X86, 0X03, 0X21, 0X26, 0X08, 0XD6, 0XC4, 0XA7,
-    0XCE, 0X2D, 0XED, 0X8B, 0XAE, 0X0C, 0XEF, 0X6B, 0X2E, 0XAC, 0X0D, 0X8E,
-    0XAD, 0X4C, 0X6E, 0X82, 0X40, 0X20, 0X13, 0X04, 0X22, 0XD9, 0X20, 0X10,
-    0XCD, 0X86, 0X84, 0X50, 0X16, 0X86, 0X18, 0X18, 0XC2, 0XD9, 0X10, 0X3C,
-    0X13, 0X04, 0X8C, 0X22, 0XF6, 0X55, 0XE7, 0X96, 0XF6, 0X45, 0X57, 0X86,
-    0XF7, 0X35, 0X17, 0XD6, 0X06, 0XC7, 0X56, 0X26, 0XF7, 0X35, 0X17, 0XD6,
-    0X06, 0XC7, 0X56, 0X26, 0XB7, 0X01, 0X21, 0X22, 0X89, 0X21, 0X06, 0X02,
-    0XD8, 0X10, 0X4C, 0X1B, 0X08, 0X08, 0X00, 0XA8, 0X09, 0X82, 0X00, 0X6C,
-    0X00, 0X36, 0X0C, 0XC4, 0X75, 0X6D, 0X08, 0XB0, 0X0D, 0XC3, 0X60, 0X65,
-    0X13, 0X84, 0XAC, 0XDA, 0X10, 0X6C, 0X24, 0XDA, 0XC2, 0XD2, 0XDC, 0X88,
-    0X50, 0X15, 0X61, 0X0D, 0X3D, 0X3D, 0X49, 0X11, 0X4D, 0X10, 0X0A, 0X67,
-    0X82, 0X50, 0X3C, 0X1B, 0X02, 0X62, 0X82, 0X50, 0X40, 0X13, 0X04, 0X42,
-    0XD9, 0X20, 0X8C, 0XC1, 0X18, 0X6C, 0X58, 0X08, 0XEF, 0X03, 0X83, 0X30,
-    0X10, 0X83, 0X41, 0X0C, 0X08, 0X30, 0X20, 0X83, 0X0D, 0XC1, 0X30, 0X41,
-    0X28, 0XA2, 0X09, 0X02, 0XB1, 0X6C, 0X10, 0XC6, 0X00, 0X0D, 0X36, 0X2C,
-    0X83, 0XF7, 0X81, 0X81, 0X19, 0X88, 0XC1, 0X70, 0X06, 0X03, 0X18, 0XA4,
-    0XC1, 0X06, 0XA1, 0X0C, 0XD4, 0X80, 0XC9, 0X94, 0XD5, 0X17, 0X55, 0X98,
-    0XDC, 0X59, 0X19, 0XDD, 0X04, 0XA1, 0X90, 0X36, 0X2C, 0X04, 0X1B, 0X7C,
-    0X6D, 0X10, 0X06, 0X60, 0X30, 0X9C, 0X01, 0X01, 0X06, 0X69, 0XB0, 0X21,
-    0X70, 0X83, 0X0D, 0XC3, 0X1A, 0XBC, 0X01, 0XB0, 0XA1, 0XB0, 0X3A, 0X38,
-    0XA8, 0X00, 0X1A, 0X66, 0X6C, 0X6F, 0X61, 0X74, 0X73, 0X13, 0X04, 0X82,
-    0X61, 0X91, 0XE6, 0X36, 0X47, 0X37, 0X37, 0X41, 0X20, 0X1A, 0X1A, 0X73,
-    0X69, 0X67, 0X5F, 0X6C, 0X64, 0X34, 0XE6, 0XD2, 0XCE, 0XBE, 0XE6, 0XE8,
-    0X88, 0XD0, 0X95, 0XE1, 0X7D, 0XB9, 0XBD, 0XC9, 0XB5, 0X6D, 0X50, 0XE4,
-    0X60, 0X0E, 0XE8, 0XA0, 0X0E, 0XEC, 0X00, 0XB9, 0X83, 0X39, 0XC0, 0X83,
-    0XA1, 0X0A, 0X1B, 0X9B, 0X5D, 0X9B, 0X4B, 0X1A, 0X59, 0X99, 0X1B, 0XDD,
-    0X94, 0X20, 0XA8, 0X42, 0X86, 0XE7, 0X62, 0X57, 0X26, 0X37, 0X97, 0XF6,
-    0XE6, 0X36, 0X25, 0X20, 0X9A, 0X90, 0XE1, 0XB9, 0XD8, 0X85, 0XB1, 0XD9,
-    0X95, 0XC9, 0X4D, 0X09, 0X8A, 0X3A, 0X64, 0X78, 0X2E, 0X73, 0X68, 0X61,
-    0X64, 0X65, 0X72, 0X4D, 0X6F, 0X64, 0X65, 0X6C, 0X53, 0X02, 0XA4, 0X0C,
-    0X19, 0X9E, 0X8B, 0X5C, 0XD9, 0XDC, 0X5B, 0X9D, 0XDC, 0X58, 0XD9, 0XDC,
-    0X94, 0X80, 0XAA, 0X44, 0X86, 0XE7, 0X42, 0X97, 0X07, 0X57, 0X16, 0XE4,
-    0XE6, 0XF6, 0X46, 0X17, 0X46, 0X97, 0XF6, 0XE6, 0X36, 0X37, 0X25, 0XC8,
-    0XEA, 0X90, 0XE1, 0XB9, 0XD8, 0XA5, 0X95, 0XDD, 0X25, 0X91, 0X4D, 0XD1,
-    0X85, 0XD1, 0X95, 0X4D, 0X09, 0XB6, 0X3A, 0X64, 0X78, 0X2E, 0X65, 0X6E,
-    0X74, 0X72, 0X79, 0X50, 0X6F, 0X69, 0X6E, 0X74, 0X73, 0X53, 0X02, 0X38,
-    0XE8, 0X42, 0X86, 0XE7, 0X32, 0XF6, 0X56, 0XE7, 0X46, 0X57, 0X26, 0X37,
-    0X37, 0X25, 0XC0, 0X03, 0X00, 0X00, 0X00, 0X00, 0X79, 0X18, 0X00, 0X00,
-    0X4C, 0X00, 0X00, 0X00, 0X33, 0X08, 0X80, 0X1C, 0XC4, 0XE1, 0X1C, 0X66,
-    0X14, 0X01, 0X3D, 0X88, 0X43, 0X38, 0X84, 0XC3, 0X8C, 0X42, 0X80, 0X07,
-    0X79, 0X78, 0X07, 0X73, 0X98, 0X71, 0X0C, 0XE6, 0X00, 0X0F, 0XED, 0X10,
-    0X0E, 0XF4, 0X80, 0X0E, 0X33, 0X0C, 0X42, 0X1E, 0XC2, 0XC1, 0X1D, 0XCE,
-    0XA1, 0X1C, 0X66, 0X30, 0X05, 0X3D, 0X88, 0X43, 0X38, 0X84, 0X83, 0X1B,
-    0XCC, 0X03, 0X3D, 0XC8, 0X43, 0X3D, 0X8C, 0X03, 0X3D, 0XCC, 0X78, 0X8C,
-    0X74, 0X70, 0X07, 0X7B, 0X08, 0X07, 0X79, 0X48, 0X87, 0X70, 0X70, 0X07,
-    0X7A, 0X70, 0X03, 0X76, 0X78, 0X87, 0X70, 0X20, 0X87, 0X19, 0XCC, 0X11,
-    0X0E, 0XEC, 0X90, 0X0E, 0XE1, 0X30, 0X0F, 0X6E, 0X30, 0X0F, 0XE3, 0XF0,
-    0X0E, 0XF0, 0X50, 0X0E, 0X33, 0X10, 0XC4, 0X1D, 0XDE, 0X21, 0X1C, 0XD8,
-    0X21, 0X1D, 0XC2, 0X61, 0X1E, 0X66, 0X30, 0X89, 0X3B, 0XBC, 0X83, 0X3B,
-    0XD0, 0X43, 0X39, 0XB4, 0X03, 0X3C, 0XBC, 0X83, 0X3C, 0X84, 0X03, 0X3B,
-    0XCC, 0XF0, 0X14, 0X76, 0X60, 0X07, 0X7B, 0X68, 0X07, 0X37, 0X68, 0X87,
-    0X72, 0X68, 0X07, 0X37, 0X80, 0X87, 0X70, 0X90, 0X87, 0X70, 0X60, 0X07,
-    0X76, 0X28, 0X07, 0X76, 0XF8, 0X05, 0X76, 0X78, 0X87, 0X77, 0X80, 0X87,
-    0X5F, 0X08, 0X87, 0X71, 0X18, 0X87, 0X72, 0X98, 0X87, 0X79, 0X98, 0X81,
-    0X2C, 0XEE, 0XF0, 0X0E, 0XEE, 0XE0, 0X0E, 0XF5, 0XC0, 0X0E, 0XEC, 0X30,
-    0X03, 0X62, 0XC8, 0XA1, 0X1C, 0XE4, 0XA1, 0X1C, 0XCC, 0XA1, 0X1C, 0XE4,
-    0XA1, 0X1C, 0XDC, 0X61, 0X1C, 0XCA, 0X21, 0X1C, 0XC4, 0X81, 0X1D, 0XCA,
-    0X61, 0X06, 0XD6, 0X90, 0X43, 0X39, 0XC8, 0X43, 0X39, 0X98, 0X43, 0X39,
-    0XC8, 0X43, 0X39, 0XB8, 0XC3, 0X38, 0X94, 0X43, 0X38, 0X88, 0X03, 0X3B,
-    0X94, 0XC3, 0X2F, 0XBC, 0X83, 0X3C, 0XFC, 0X82, 0X3B, 0XD4, 0X03, 0X3B,
-    0XB0, 0XC3, 0X8C, 0XC8, 0X21, 0X07, 0X7C, 0X70, 0X03, 0X72, 0X10, 0X87,
-    0X73, 0X70, 0X03, 0X7B, 0X08, 0X07, 0X79, 0X60, 0X87, 0X70, 0XC8, 0X87,
-    0X77, 0XA8, 0X07, 0X7A, 0X98, 0X81, 0X3C, 0XE4, 0X80, 0X0F, 0X6E, 0X40,
-    0X0F, 0XE5, 0XD0, 0X0E, 0XF0, 0X00, 0X00, 0X00, 0X71, 0X20, 0X00, 0X00,
-    0X12, 0X00, 0X00, 0X00, 0X46, 0X20, 0X0D, 0X97, 0XEF, 0X3C, 0XBE, 0X10,
-    0X11, 0XC0, 0X44, 0X84, 0X40, 0X33, 0X2C, 0X84, 0X05, 0X4C, 0XC3, 0XE5,
-    0X3B, 0X8F, 0XBF, 0X38, 0XC0, 0X20, 0X36, 0X0F, 0X35, 0XF9, 0XC5, 0X6D,
-    0XDB, 0X00, 0X34, 0X5C, 0XBE, 0XF3, 0XF8, 0X12, 0XC0, 0X3C, 0X0B, 0XE1,
-    0X17, 0XB7, 0X6D, 0X02, 0XD5, 0X70, 0XF9, 0XCE, 0XE3, 0X4B, 0X93, 0X13,
-    0X11, 0X28, 0X35, 0X3D, 0XD4, 0XE4, 0X17, 0XB7, 0X6D, 0X00, 0X04, 0X03,
-    0X20, 0X0D, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X48, 0X41, 0X53, 0X48,
-    0X14, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0XDF, 0XCB, 0XF8, 0X1F,
-    0XBB, 0X62, 0X8D, 0X9E, 0X24, 0XD2, 0X98, 0X2E, 0XB8, 0XB8, 0X38, 0XF1,
-    0X44, 0X58, 0X49, 0X4C, 0XC0, 0X06, 0X00, 0X00, 0X60, 0X00, 0X00, 0X00,
-    0XB0, 0X01, 0X00, 0X00, 0X44, 0X58, 0X49, 0X4C, 0X00, 0X01, 0X00, 0X00,
-    0X10, 0X00, 0X00, 0X00, 0XA8, 0X06, 0X00, 0X00, 0X42, 0X43, 0XC0, 0XDE,
-    0X21, 0X0C, 0X00, 0X00, 0XA7, 0X01, 0X00, 0X00, 0X0B, 0X82, 0X20, 0X00,
-    0X02, 0X00, 0X00, 0X00, 0X13, 0X00, 0X00, 0X00, 0X07, 0X81, 0X23, 0X91,
-    0X41, 0XC8, 0X04, 0X49, 0X06, 0X10, 0X32, 0X39, 0X92, 0X01, 0X84, 0X0C,
-    0X25, 0X05, 0X08, 0X19, 0X1E, 0X04, 0X8B, 0X62, 0X80, 0X14, 0X45, 0X02,
-    0X42, 0X92, 0X0B, 0X42, 0XA4, 0X10, 0X32, 0X14, 0X38, 0X08, 0X18, 0X4B,
-    0X0A, 0X32, 0X52, 0X88, 0X48, 0X90, 0X14, 0X20, 0X43, 0X46, 0X88, 0XA5,
-    0X00, 0X19, 0X32, 0X42, 0XE4, 0X48, 0X0E, 0X90, 0X91, 0X22, 0XC4, 0X50,
-    0X41, 0X51, 0X81, 0X8C, 0XE1, 0X83, 0XE5, 0X8A, 0X04, 0X29, 0X46, 0X06,
-    0X51, 0X18, 0X00, 0X00, 0X08, 0X00, 0X00, 0X00, 0X1B, 0X8C, 0XE0, 0XFF,
-    0XFF, 0XFF, 0XFF, 0X07, 0X40, 0X02, 0XA8, 0X0D, 0X84, 0XF0, 0XFF, 0XFF,
-    0XFF, 0XFF, 0X03, 0X20, 0X6D, 0X30, 0X86, 0XFF, 0XFF, 0XFF, 0XFF, 0X1F,
-    0X00, 0X09, 0XA8, 0X00, 0X49, 0X18, 0X00, 0X00, 0X03, 0X00, 0X00, 0X00,
-    0X13, 0X82, 0X60, 0X42, 0X20, 0X4C, 0X08, 0X06, 0X00, 0X00, 0X00, 0X00,
-    0X89, 0X20, 0X00, 0X00, 0X43, 0X00, 0X00, 0X00, 0X32, 0X22, 0X48, 0X09,
-    0X20, 0X64, 0X85, 0X04, 0X93, 0X22, 0XA4, 0X84, 0X04, 0X93, 0X22, 0XE3,
-    0X84, 0XA1, 0X90, 0X14, 0X12, 0X4C, 0X8A, 0X8C, 0X0B, 0X84, 0XA4, 0X4C,
-    0X10, 0X68, 0X23, 0X00, 0X25, 0X00, 0X14, 0X66, 0X00, 0XE6, 0X08, 0XC0,
-    0X60, 0X8E, 0X00, 0X29, 0XC6, 0X20, 0X84, 0X14, 0X42, 0XA6, 0X18, 0X80,
-    0X10, 0X52, 0X06, 0XA1, 0X9B, 0X86, 0XCB, 0X9F, 0XB0, 0X87, 0X90, 0XFC,
-    0X95, 0X90, 0X56, 0X62, 0XF2, 0X8B, 0XDB, 0X46, 0XC5, 0X18, 0X63, 0X10,
-    0X2A, 0XF7, 0X0C, 0X97, 0X3F, 0X61, 0X0F, 0X21, 0XF9, 0X21, 0XD0, 0X0C,
-    0X0B, 0X81, 0X82, 0X55, 0X18, 0X45, 0X18, 0X1B, 0X63, 0X0C, 0X42, 0XC8,
-    0XA0, 0X36, 0X47, 0X10, 0X14, 0X83, 0X91, 0X42, 0XC8, 0X23, 0X38, 0X10,
-    0X30, 0X8C, 0X40, 0X0C, 0X33, 0XB5, 0XC1, 0X38, 0XB0, 0X43, 0X38, 0XCC,
-    0XC3, 0X3C, 0XB8, 0X01, 0X2D, 0X94, 0X03, 0X3E, 0XD0, 0X43, 0X3D, 0XC8,
-    0X43, 0X39, 0XC8, 0X01, 0X29, 0XF0, 0X81, 0X3D, 0X94, 0XC3, 0X38, 0XD0,
-    0XC3, 0X3B, 0XC8, 0X03, 0X1F, 0X98, 0X03, 0X3B, 0XBC, 0X43, 0X38, 0XD0,
-    0X03, 0X1B, 0X80, 0X01, 0X1D, 0XF8, 0X01, 0X18, 0XF8, 0X81, 0X1E, 0XE8,
-    0X41, 0X3B, 0XA4, 0X03, 0X3C, 0XCC, 0XC3, 0X2F, 0XD0, 0X43, 0X3E, 0XC0,
-    0X43, 0X39, 0XA0, 0X80, 0XCC, 0X24, 0X06, 0XE3, 0XC0, 0X0E, 0XE1, 0X30,
-    0X0F, 0XF3, 0XE0, 0X06, 0XB4, 0X50, 0X0E, 0XF8, 0X40, 0X0F, 0XF5, 0X20,
-    0X0F, 0XE5, 0X20, 0X07, 0XA4, 0XC0, 0X07, 0XF6, 0X50, 0X0E, 0XE3, 0X40,
-    0X0F, 0XEF, 0X20, 0X0F, 0X7C, 0X60, 0X0E, 0XEC, 0XF0, 0X0E, 0XE1, 0X40,
-    0X0F, 0X6C, 0X00, 0X06, 0X74, 0XE0, 0X07, 0X60, 0XE0, 0X07, 0X48, 0X98,
-    0X94, 0XEA, 0X4D, 0XD2, 0X14, 0X51, 0XC2, 0XE4, 0XB3, 0X00, 0XF3, 0X2C,
-    0X44, 0XC4, 0X4E, 0XC0, 0X44, 0XA0, 0X80, 0XD0, 0X4D, 0X05, 0X02, 0X00,
-    0X13, 0X14, 0X72, 0XC0, 0X87, 0X74, 0X60, 0X87, 0X36, 0X68, 0X87, 0X79,
-    0X68, 0X03, 0X72, 0XC0, 0X87, 0X0D, 0XAF, 0X50, 0X0E, 0X6D, 0XD0, 0X0E,
-    0X7A, 0X50, 0X0E, 0X6D, 0X00, 0X0F, 0X7A, 0X30, 0X07, 0X72, 0XA0, 0X07,
-    0X73, 0X20, 0X07, 0X6D, 0X90, 0X0E, 0X71, 0XA0, 0X07, 0X73, 0X20, 0X07,
-    0X6D, 0X90, 0X0E, 0X78, 0XA0, 0X07, 0X73, 0X20, 0X07, 0X6D, 0X90, 0X0E,
-    0X71, 0X60, 0X07, 0X7A, 0X30, 0X07, 0X72, 0XD0, 0X06, 0XE9, 0X30, 0X07,
-    0X72, 0XA0, 0X07, 0X73, 0X20, 0X07, 0X6D, 0X90, 0X0E, 0X76, 0X40, 0X07,
-    0X7A, 0X60, 0X07, 0X74, 0XD0, 0X06, 0XE6, 0X10, 0X07, 0X76, 0XA0, 0X07,
-    0X73, 0X20, 0X07, 0X6D, 0X60, 0X0E, 0X73, 0X20, 0X07, 0X7A, 0X30, 0X07,
-    0X72, 0XD0, 0X06, 0XE6, 0X60, 0X07, 0X74, 0XA0, 0X07, 0X76, 0X40, 0X07,
-    0X6D, 0XE0, 0X0E, 0X78, 0XA0, 0X07, 0X71, 0X60, 0X07, 0X7A, 0X30, 0X07,
-    0X72, 0XA0, 0X07, 0X76, 0X40, 0X07, 0X43, 0X9E, 0X00, 0X00, 0X00, 0X00,
-    0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X86, 0X3C, 0X06, 0X10, 0X00,
-    0X01, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X0C, 0X79, 0X10, 0X20,
-    0X00, 0X04, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X18, 0XF2, 0X34,
-    0X40, 0X00, 0X0C, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X30, 0XE4,
-    0X81, 0X80, 0X00, 0X18, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X20,
-    0X0B, 0X04, 0X00, 0X00, 0X0E, 0X00, 0X00, 0X00, 0X32, 0X1E, 0X98, 0X14,
-    0X19, 0X11, 0X4C, 0X90, 0X8C, 0X09, 0X26, 0X47, 0XC6, 0X04, 0X43, 0X22,
-    0X25, 0X30, 0X02, 0X50, 0X12, 0XC5, 0X50, 0X04, 0X65, 0X50, 0X1E, 0X54,
-    0X4A, 0X62, 0X04, 0XA0, 0X08, 0X0A, 0XA1, 0X40, 0XC8, 0XCE, 0X00, 0X10,
-    0X9E, 0X01, 0XA0, 0X3C, 0X96, 0X82, 0X10, 0XCF, 0X03, 0X00, 0X81, 0X40,
-    0X20, 0X00, 0X00, 0X00, 0X79, 0X18, 0X00, 0X00, 0X59, 0X00, 0X00, 0X00,
-    0X1A, 0X03, 0X4C, 0X90, 0X46, 0X02, 0X13, 0XC4, 0X31, 0X20, 0XC3, 0X1B,
-    0X43, 0X81, 0X93, 0X4B, 0XB3, 0X0B, 0XA3, 0X2B, 0X4B, 0X01, 0X89, 0X71,
-    0XC9, 0X71, 0X81, 0X71, 0XA9, 0X89, 0XC1, 0XA1, 0X01, 0X41, 0X91, 0X89,
-    0X21, 0X93, 0XC1, 0X31, 0XBB, 0X91, 0XB9, 0X49, 0XD9, 0X10, 0X04, 0X13,
-    0X04, 0XA2, 0X98, 0X20, 0X10, 0XC6, 0X06, 0X61, 0X20, 0X26, 0X08, 0XC4,
-    0XB1, 0X41, 0X18, 0X0C, 0X0A, 0X70, 0X73, 0X13, 0X04, 0X02, 0XD9, 0X30,
-    0X20, 0X09, 0X31, 0X41, 0XB0, 0X22, 0X02, 0X13, 0X04, 0X22, 0XD9, 0X20,
-    0X10, 0XC6, 0X86, 0X84, 0X58, 0X98, 0X86, 0X18, 0X1A, 0XC2, 0XD9, 0X10,
-    0X3C, 0X13, 0X04, 0X4C, 0XDA, 0X80, 0X10, 0X11, 0XD3, 0X10, 0X03, 0X01,
-    0X6C, 0X08, 0XA4, 0X0D, 0X04, 0X04, 0X00, 0XD3, 0X04, 0X21, 0X9B, 0X36,
-    0X04, 0XD5, 0X04, 0X41, 0X00, 0X48, 0XB4, 0X85, 0XA5, 0XB9, 0X11, 0XA1,
-    0X2A, 0XC2, 0X1A, 0X7A, 0X7A, 0X92, 0X22, 0X9A, 0X20, 0X14, 0XCC, 0X04,
-    0XA1, 0X68, 0X36, 0X04, 0XC4, 0X04, 0XA1, 0X70, 0X26, 0X08, 0X84, 0XB2,
-    0X41, 0XF0, 0XBC, 0X0D, 0X0B, 0X91, 0X69, 0X1B, 0XD7, 0X0D, 0X1D, 0XB1,
-    0X7D, 0X1B, 0X82, 0X61, 0X82, 0X50, 0X3C, 0X13, 0X04, 0X62, 0XD9, 0X20,
-    0X78, 0X63, 0XB0, 0X61, 0X19, 0X32, 0X6D, 0X0B, 0X83, 0X6E, 0X10, 0X83,
-    0X61, 0X23, 0X83, 0X0D, 0X02, 0X18, 0X94, 0X01, 0X93, 0X29, 0XAB, 0X2F,
-    0XAA, 0X30, 0XB9, 0XB3, 0X32, 0XBA, 0X09, 0X42, 0X01, 0X6D, 0X58, 0X88,
-    0X33, 0XD0, 0XD0, 0X80, 0XDB, 0X06, 0X31, 0X20, 0X36, 0X32, 0XD8, 0X10,
-    0XA4, 0XC1, 0X86, 0XC1, 0X0C, 0XD4, 0X00, 0XD8, 0X50, 0X5C, 0XD8, 0X1A,
-    0X50, 0X40, 0X15, 0X36, 0X36, 0XBB, 0X36, 0X97, 0X34, 0XB2, 0X32, 0X37,
-    0XBA, 0X29, 0X41, 0X50, 0X85, 0X0C, 0XCF, 0XC5, 0XAE, 0X4C, 0X6E, 0X2E,
-    0XED, 0XCD, 0X6D, 0X4A, 0X40, 0X34, 0X21, 0XC3, 0X73, 0XB1, 0X0B, 0X63,
-    0XB3, 0X2B, 0X93, 0X9B, 0X12, 0X18, 0X75, 0XC8, 0XF0, 0X5C, 0XE6, 0XD0,
-    0XC2, 0XC8, 0XCA, 0XE4, 0X9A, 0XDE, 0XC8, 0XCA, 0XD8, 0XA6, 0X04, 0X49,
-    0X19, 0X32, 0X3C, 0X17, 0XB9, 0XB2, 0XB9, 0XB7, 0X3A, 0XB9, 0XB1, 0XB2,
-    0XB9, 0X29, 0XC1, 0X54, 0X87, 0X0C, 0XCF, 0XC5, 0X2E, 0XAD, 0XEC, 0X2E,
-    0X89, 0X6C, 0X8A, 0X2E, 0X8C, 0XAE, 0X6C, 0X4A, 0X50, 0XD5, 0X21, 0XC3,
-    0X73, 0X29, 0X73, 0XA3, 0X93, 0XCB, 0X83, 0X7A, 0X4B, 0X73, 0XA3, 0X9B,
-    0X9B, 0X12, 0XAC, 0X01, 0X00, 0X00, 0X00, 0X00, 0X79, 0X18, 0X00, 0X00,
-    0X4C, 0X00, 0X00, 0X00, 0X33, 0X08, 0X80, 0X1C, 0XC4, 0XE1, 0X1C, 0X66,
-    0X14, 0X01, 0X3D, 0X88, 0X43, 0X38, 0X84, 0XC3, 0X8C, 0X42, 0X80, 0X07,
-    0X79, 0X78, 0X07, 0X73, 0X98, 0X71, 0X0C, 0XE6, 0X00, 0X0F, 0XED, 0X10,
-    0X0E, 0XF4, 0X80, 0X0E, 0X33, 0X0C, 0X42, 0X1E, 0XC2, 0XC1, 0X1D, 0XCE,
-    0XA1, 0X1C, 0X66, 0X30, 0X05, 0X3D, 0X88, 0X43, 0X38, 0X84, 0X83, 0X1B,
-    0XCC, 0X03, 0X3D, 0XC8, 0X43, 0X3D, 0X8C, 0X03, 0X3D, 0XCC, 0X78, 0X8C,
-    0X74, 0X70, 0X07, 0X7B, 0X08, 0X07, 0X79, 0X48, 0X87, 0X70, 0X70, 0X07,
-    0X7A, 0X70, 0X03, 0X76, 0X78, 0X87, 0X70, 0X20, 0X87, 0X19, 0XCC, 0X11,
-    0X0E, 0XEC, 0X90, 0X0E, 0XE1, 0X30, 0X0F, 0X6E, 0X30, 0X0F, 0XE3, 0XF0,
-    0X0E, 0XF0, 0X50, 0X0E, 0X33, 0X10, 0XC4, 0X1D, 0XDE, 0X21, 0X1C, 0XD8,
-    0X21, 0X1D, 0XC2, 0X61, 0X1E, 0X66, 0X30, 0X89, 0X3B, 0XBC, 0X83, 0X3B,
-    0XD0, 0X43, 0X39, 0XB4, 0X03, 0X3C, 0XBC, 0X83, 0X3C, 0X84, 0X03, 0X3B,
-    0XCC, 0XF0, 0X14, 0X76, 0X60, 0X07, 0X7B, 0X68, 0X07, 0X37, 0X68, 0X87,
-    0X72, 0X68, 0X07, 0X37, 0X80, 0X87, 0X70, 0X90, 0X87, 0X70, 0X60, 0X07,
-    0X76, 0X28, 0X07, 0X76, 0XF8, 0X05, 0X76, 0X78, 0X87, 0X77, 0X80, 0X87,
-    0X5F, 0X08, 0X87, 0X71, 0X18, 0X87, 0X72, 0X98, 0X87, 0X79, 0X98, 0X81,
-    0X2C, 0XEE, 0XF0, 0X0E, 0XEE, 0XE0, 0X0E, 0XF5, 0XC0, 0X0E, 0XEC, 0X30,
-    0X03, 0X62, 0XC8, 0XA1, 0X1C, 0XE4, 0XA1, 0X1C, 0XCC, 0XA1, 0X1C, 0XE4,
-    0XA1, 0X1C, 0XDC, 0X61, 0X1C, 0XCA, 0X21, 0X1C, 0XC4, 0X81, 0X1D, 0XCA,
-    0X61, 0X06, 0XD6, 0X90, 0X43, 0X39, 0XC8, 0X43, 0X39, 0X98, 0X43, 0X39,
-    0XC8, 0X43, 0X39, 0XB8, 0XC3, 0X38, 0X94, 0X43, 0X38, 0X88, 0X03, 0X3B,
-    0X94, 0XC3, 0X2F, 0XBC, 0X83, 0X3C, 0XFC, 0X82, 0X3B, 0XD4, 0X03, 0X3B,
-    0XB0, 0XC3, 0X8C, 0XC8, 0X21, 0X07, 0X7C, 0X70, 0X03, 0X72, 0X10, 0X87,
-    0X73, 0X70, 0X03, 0X7B, 0X08, 0X07, 0X79, 0X60, 0X87, 0X70, 0XC8, 0X87,
-    0X77, 0XA8, 0X07, 0X7A, 0X98, 0X81, 0X3C, 0XE4, 0X80, 0X0F, 0X6E, 0X40,
-    0X0F, 0XE5, 0XD0, 0X0E, 0XF0, 0X00, 0X00, 0X00, 0X71, 0X20, 0X00, 0X00,
-    0X12, 0X00, 0X00, 0X00, 0X46, 0X20, 0X0D, 0X97, 0XEF, 0X3C, 0XBE, 0X10,
-    0X11, 0XC0, 0X44, 0X84, 0X40, 0X33, 0X2C, 0X84, 0X05, 0X4C, 0XC3, 0XE5,
-    0X3B, 0X8F, 0XBF, 0X38, 0XC0, 0X20, 0X36, 0X0F, 0X35, 0XF9, 0XC5, 0X6D,
-    0XDB, 0X00, 0X34, 0X5C, 0XBE, 0XF3, 0XF8, 0X12, 0XC0, 0X3C, 0X0B, 0XE1,
-    0X17, 0XB7, 0X6D, 0X02, 0XD5, 0X70, 0XF9, 0XCE, 0XE3, 0X4B, 0X93, 0X13,
-    0X11, 0X28, 0X35, 0X3D, 0XD4, 0XE4, 0X17, 0XB7, 0X6D, 0X00, 0X04, 0X03,
-    0X20, 0X0D, 0X00, 0X00, 0X61, 0X20, 0X00, 0X00, 0X3A, 0X00, 0X00, 0X00,
-    0X13, 0X04, 0X41, 0X2C, 0X10, 0X00, 0X00, 0X00, 0X05, 0X00, 0X00, 0X00,
-    0XF4, 0X46, 0X00, 0X88, 0XCC, 0X00, 0X14, 0X42, 0X29, 0X94, 0X5C, 0XE1,
-    0X51, 0X29, 0X83, 0X12, 0XA0, 0X31, 0X03, 0X00, 0X23, 0X06, 0X09, 0X00,
-    0X82, 0X60, 0X00, 0X65, 0X05, 0X74, 0X5D, 0XC9, 0X88, 0X41, 0X02, 0X80,
-    0X20, 0X18, 0X40, 0X9A, 0X41, 0X60, 0X98, 0X32, 0X62, 0X90, 0X00, 0X20,
-    0X08, 0X06, 0X86, 0X97, 0X68, 0X99, 0XA4, 0X8C, 0X18, 0X24, 0X00, 0X08,
-    0X82, 0X81, 0XF1, 0X29, 0X9B, 0X56, 0X2C, 0X23, 0X06, 0X09, 0X00, 0X82,
-    0X60, 0X60, 0X80, 0XC1, 0XC2, 0X6D, 0X13, 0X33, 0X62, 0X90, 0X00, 0X20,
-    0X08, 0X06, 0X46, 0X18, 0X30, 0X1D, 0X87, 0X34, 0X23, 0X06, 0X09, 0X00,
-    0X82, 0X60, 0X60, 0X88, 0X41, 0XD3, 0X75, 0X96, 0X33, 0X62, 0X90, 0X00,
-    0X20, 0X08, 0X06, 0XC6, 0X18, 0X38, 0X9E, 0X97, 0X3C, 0X23, 0X06, 0X0F,
-    0X00, 0X82, 0X60, 0XD0, 0X88, 0X01, 0X83, 0X1C, 0X42, 0X90, 0X24, 0XDF,
-    0X07, 0X25, 0XA3, 0X09, 0X01, 0X30, 0X9A, 0X20, 0X04, 0XA3, 0X09, 0X83,
-    0X30, 0X9A, 0X40, 0X0C, 0X46, 0X2C, 0XF2, 0X31, 0X62, 0X91, 0X8F, 0X11,
-    0X8B, 0X7C, 0X8C, 0X58, 0XE4, 0X33, 0X62, 0X90, 0X00, 0X20, 0X08, 0X06,
-    0X08, 0X1B, 0X5C, 0X68, 0X80, 0X06, 0X61, 0X40, 0X8C, 0X18, 0X24, 0X00,
-    0X08, 0X82, 0X01, 0XC2, 0X06, 0X17, 0X1A, 0XA0, 0XC1, 0X34, 0X8C, 0X18,
-    0X24, 0X00, 0X08, 0X82, 0X01, 0XC2, 0X06, 0X17, 0X1A, 0XA0, 0X01, 0X18,
-    0X08, 0X23, 0X06, 0X09, 0X00, 0X82, 0X60, 0X80, 0XB0, 0XC1, 0X85, 0X06,
-    0X68, 0X40, 0X05, 0X08, 0X00, 0X00, 0X00, 0X00};
+unsigned char _shader_frag_dxil[]  = {
+  0X44, 0X58, 0X42, 0X43, 0X3D, 0XE0, 0X10, 0X51, 0XB5, 0XE1, 0X54, 0X94, 0XA7,
+  0XBB, 0XA5, 0X02, 0X68, 0XFC, 0X36, 0X09, 0X01, 0X00, 0X00, 0X00, 0X38, 0X0F,
+  0X00, 0X00, 0X07, 0X00, 0X00, 0X00, 0X3C, 0X00, 0X00, 0X00, 0X4C, 0X00, 0X00,
+  0X00, 0XA8, 0X00, 0X00, 0X00, 0XE4, 0X00, 0X00, 0X00, 0XD8, 0X01, 0X00, 0X00,
+  0X54, 0X08, 0X00, 0X00, 0X70, 0X08, 0X00, 0X00, 0X53, 0X46, 0X49, 0X30, 0X08,
+  0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X49, 0X53,
+  0X47, 0X31, 0X54, 0X00, 0X00, 0X00, 0X02, 0X00, 0X00, 0X00, 0X08, 0X00, 0X00,
+  0X00, 0X00, 0X00, 0X00, 0X00, 0X48, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
+  0X00, 0X00, 0X00, 0X00, 0X03, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X03,
+  0X03, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X48, 0X00,
+  0X00, 0X00, 0X01, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X03, 0X00, 0X00,
+  0X00, 0X01, 0X00, 0X00, 0X00, 0X0F, 0X0F, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
+  0X54, 0X45, 0X58, 0X43, 0X4F, 0X4F, 0X52, 0X44, 0X00, 0X00, 0X00, 0X00, 0X4F,
+  0X53, 0X47, 0X31, 0X34, 0X00, 0X00, 0X00, 0X01, 0X00, 0X00, 0X00, 0X08, 0X00,
+  0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X28, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
+  0X00, 0X40, 0X00, 0X00, 0X00, 0X03, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
+  0X0F, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X53, 0X56, 0X5F, 0X54, 0X61,
+  0X72, 0X67, 0X65, 0X74, 0X00, 0X00, 0X00, 0X50, 0X53, 0X56, 0X30, 0XEC, 0X00,
+  0X00, 0X00, 0X34, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
+  0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
+  0XFF, 0XFF, 0XFF, 0XFF, 0X00, 0X00, 0X00, 0X00, 0X02, 0X01, 0X00, 0X02, 0X01,
+  0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
+  0X00, 0X00, 0X13, 0X00, 0X00, 0X00, 0X02, 0X00, 0X00, 0X00, 0X18, 0X00, 0X00,
+  0X00, 0X01, 0X00, 0X00, 0X00, 0X02, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
+  0X00, 0X00, 0X00, 0X00, 0X0E, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X03,
+  0X00, 0X00, 0X00, 0X02, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
+  0X00, 0X00, 0X02, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X18, 0X00, 0X00,
+  0X00, 0X00, 0X54, 0X45, 0X58, 0X43, 0X4F, 0X4F, 0X52, 0X44, 0X00, 0X54, 0X45,
+  0X58, 0X43, 0X4F, 0X4F, 0X52, 0X44, 0X00, 0X6D, 0X61, 0X69, 0X6E, 0X00, 0X02,
+  0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X01, 0X00, 0X00, 0X00, 0X10, 0X00,
+  0X00, 0X00, 0X01, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X01, 0X00, 0X42,
+  0X00, 0X03, 0X02, 0X00, 0X00, 0X0A, 0X00, 0X00, 0X00, 0X01, 0X00, 0X00, 0X00,
+  0X01, 0X01, 0X44, 0X00, 0X03, 0X02, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
+  0X00, 0X00, 0X00, 0X01, 0X00, 0X44, 0X10, 0X03, 0X00, 0X00, 0X00, 0X0F, 0X00,
+  0X00, 0X00, 0X0F, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
+  0X00, 0X01, 0X00, 0X00, 0X00, 0X02, 0X00, 0X00, 0X00, 0X04, 0X00, 0X00, 0X00,
+  0X08, 0X00, 0X00, 0X00, 0X53, 0X54, 0X41, 0X54, 0X74, 0X06, 0X00, 0X00, 0X60,
+  0X00, 0X00, 0X00, 0X9D, 0X01, 0X00, 0X00, 0X44, 0X58, 0X49, 0X4C, 0X00, 0X01,
+  0X00, 0X00, 0X10, 0X00, 0X00, 0X00, 0X5C, 0X06, 0X00, 0X00, 0X42, 0X43, 0XC0,
+  0XDE, 0X21, 0X0C, 0X00, 0X00, 0X94, 0X01, 0X00, 0X00, 0X0B, 0X82, 0X20, 0X00,
+  0X02, 0X00, 0X00, 0X00, 0X13, 0X00, 0X00, 0X00, 0X07, 0X81, 0X23, 0X91, 0X41,
+  0XC8, 0X04, 0X49, 0X06, 0X10, 0X32, 0X39, 0X92, 0X01, 0X84, 0X0C, 0X25, 0X05,
+  0X08, 0X19, 0X1E, 0X04, 0X8B, 0X62, 0X80, 0X14, 0X45, 0X02, 0X42, 0X92, 0X0B,
+  0X42, 0XA4, 0X10, 0X32, 0X14, 0X38, 0X08, 0X18, 0X4B, 0X0A, 0X32, 0X52, 0X88,
+  0X48, 0X90, 0X14, 0X20, 0X43, 0X46, 0X88, 0XA5, 0X00, 0X19, 0X32, 0X42, 0XE4,
+  0X48, 0X0E, 0X90, 0X91, 0X22, 0XC4, 0X50, 0X41, 0X51, 0X81, 0X8C, 0XE1, 0X83,
+  0XE5, 0X8A, 0X04, 0X29, 0X46, 0X06, 0X51, 0X18, 0X00, 0X00, 0X08, 0X00, 0X00,
+  0X00, 0X1B, 0X8C, 0XE0, 0XFF, 0XFF, 0XFF, 0XFF, 0X07, 0X40, 0X02, 0XA8, 0X0D,
+  0X84, 0XF0, 0XFF, 0XFF, 0XFF, 0XFF, 0X03, 0X20, 0X6D, 0X30, 0X86, 0XFF, 0XFF,
+  0XFF, 0XFF, 0X1F, 0X00, 0X09, 0XA8, 0X00, 0X49, 0X18, 0X00, 0X00, 0X03, 0X00,
+  0X00, 0X00, 0X13, 0X82, 0X60, 0X42, 0X20, 0X4C, 0X08, 0X06, 0X00, 0X00, 0X00,
+  0X00, 0X89, 0X20, 0X00, 0X00, 0X43, 0X00, 0X00, 0X00, 0X32, 0X22, 0X48, 0X09,
+  0X20, 0X64, 0X85, 0X04, 0X93, 0X22, 0XA4, 0X84, 0X04, 0X93, 0X22, 0XE3, 0X84,
+  0XA1, 0X90, 0X14, 0X12, 0X4C, 0X8A, 0X8C, 0X0B, 0X84, 0XA4, 0X4C, 0X10, 0X68,
+  0X23, 0X00, 0X25, 0X00, 0X14, 0X66, 0X00, 0XE6, 0X08, 0XC0, 0X60, 0X8E, 0X00,
+  0X29, 0XC6, 0X20, 0X84, 0X14, 0X42, 0XA6, 0X18, 0X80, 0X10, 0X52, 0X06, 0XA1,
+  0X9B, 0X86, 0XCB, 0X9F, 0XB0, 0X87, 0X90, 0XFC, 0X95, 0X90, 0X56, 0X62, 0XF2,
+  0X8B, 0XDB, 0X46, 0XC5, 0X18, 0X63, 0X10, 0X2A, 0XF7, 0X0C, 0X97, 0X3F, 0X61,
+  0X0F, 0X21, 0XF9, 0X21, 0XD0, 0X0C, 0X0B, 0X81, 0X82, 0X55, 0X18, 0X45, 0X18,
+  0X1B, 0X63, 0X0C, 0X42, 0XC8, 0XA0, 0X36, 0X47, 0X10, 0X14, 0X83, 0X91, 0X42,
+  0XC8, 0X23, 0X38, 0X10, 0X30, 0X8C, 0X40, 0X0C, 0X33, 0XB5, 0XC1, 0X38, 0XB0,
+  0X43, 0X38, 0XCC, 0XC3, 0X3C, 0XB8, 0X01, 0X2D, 0X94, 0X03, 0X3E, 0XD0, 0X43,
+  0X3D, 0XC8, 0X43, 0X39, 0XC8, 0X01, 0X29, 0XF0, 0X81, 0X3D, 0X94, 0XC3, 0X38,
+  0XD0, 0XC3, 0X3B, 0XC8, 0X03, 0X1F, 0X98, 0X03, 0X3B, 0XBC, 0X43, 0X38, 0XD0,
+  0X03, 0X1B, 0X80, 0X01, 0X1D, 0XF8, 0X01, 0X18, 0XF8, 0X81, 0X1E, 0XE8, 0X41,
+  0X3B, 0XA4, 0X03, 0X3C, 0XCC, 0XC3, 0X2F, 0XD0, 0X43, 0X3E, 0XC0, 0X43, 0X39,
+  0XA0, 0X80, 0XCC, 0X24, 0X06, 0XE3, 0XC0, 0X0E, 0XE1, 0X30, 0X0F, 0XF3, 0XE0,
+  0X06, 0XB4, 0X50, 0X0E, 0XF8, 0X40, 0X0F, 0XF5, 0X20, 0X0F, 0XE5, 0X20, 0X07,
+  0XA4, 0XC0, 0X07, 0XF6, 0X50, 0X0E, 0XE3, 0X40, 0X0F, 0XEF, 0X20, 0X0F, 0X7C,
+  0X60, 0X0E, 0XEC, 0XF0, 0X0E, 0XE1, 0X40, 0X0F, 0X6C, 0X00, 0X06, 0X74, 0XE0,
+  0X07, 0X60, 0XE0, 0X07, 0X48, 0X98, 0X94, 0XEA, 0X4D, 0XD2, 0X14, 0X51, 0XC2,
+  0XE4, 0XB3, 0X00, 0XF3, 0X2C, 0X44, 0XC4, 0X4E, 0XC0, 0X44, 0XA0, 0X80, 0XD0,
+  0X4D, 0X05, 0X02, 0X00, 0X13, 0X14, 0X72, 0XC0, 0X87, 0X74, 0X60, 0X87, 0X36,
+  0X68, 0X87, 0X79, 0X68, 0X03, 0X72, 0XC0, 0X87, 0X0D, 0XAF, 0X50, 0X0E, 0X6D,
+  0XD0, 0X0E, 0X7A, 0X50, 0X0E, 0X6D, 0X00, 0X0F, 0X7A, 0X30, 0X07, 0X72, 0XA0,
+  0X07, 0X73, 0X20, 0X07, 0X6D, 0X90, 0X0E, 0X71, 0XA0, 0X07, 0X73, 0X20, 0X07,
+  0X6D, 0X90, 0X0E, 0X78, 0XA0, 0X07, 0X73, 0X20, 0X07, 0X6D, 0X90, 0X0E, 0X71,
+  0X60, 0X07, 0X7A, 0X30, 0X07, 0X72, 0XD0, 0X06, 0XE9, 0X30, 0X07, 0X72, 0XA0,
+  0X07, 0X73, 0X20, 0X07, 0X6D, 0X90, 0X0E, 0X76, 0X40, 0X07, 0X7A, 0X60, 0X07,
+  0X74, 0XD0, 0X06, 0XE6, 0X10, 0X07, 0X76, 0XA0, 0X07, 0X73, 0X20, 0X07, 0X6D,
+  0X60, 0X0E, 0X73, 0X20, 0X07, 0X7A, 0X30, 0X07, 0X72, 0XD0, 0X06, 0XE6, 0X60,
+  0X07, 0X74, 0XA0, 0X07, 0X76, 0X40, 0X07, 0X6D, 0XE0, 0X0E, 0X78, 0XA0, 0X07,
+  0X71, 0X60, 0X07, 0X7A, 0X30, 0X07, 0X72, 0XA0, 0X07, 0X76, 0X40, 0X07, 0X43,
+  0X9E, 0X00, 0X08, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X86,
+  0X3C, 0X06, 0X10, 0X00, 0X01, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X0C,
+  0X79, 0X10, 0X20, 0X00, 0X04, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X18,
+  0XF2, 0X34, 0X40, 0X00, 0X0C, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X30,
+  0XE4, 0X81, 0X80, 0X00, 0X18, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X20,
+  0X0B, 0X04, 0X00, 0X00, 0X0F, 0X00, 0X00, 0X00, 0X32, 0X1E, 0X98, 0X14, 0X19,
+  0X11, 0X4C, 0X90, 0X8C, 0X09, 0X26, 0X47, 0XC6, 0X04, 0X43, 0X22, 0X25, 0X30,
+  0X02, 0X50, 0X0C, 0X45, 0X50, 0X12, 0X65, 0X50, 0X1E, 0X85, 0X50, 0X2C, 0X54,
+  0X4A, 0X62, 0X04, 0XA0, 0X08, 0X0A, 0XA1, 0X40, 0XC8, 0XCE, 0X00, 0X10, 0X9E,
+  0X01, 0XA0, 0X3C, 0X96, 0X82, 0X10, 0XCF, 0X03, 0X00, 0X81, 0X40, 0X20, 0X00,
+  0X00, 0X00, 0X00, 0X79, 0X18, 0X00, 0X00, 0X81, 0X00, 0X00, 0X00, 0X1A, 0X03,
+  0X4C, 0X90, 0X46, 0X02, 0X13, 0XC4, 0X31, 0X20, 0XC3, 0X1B, 0X43, 0X81, 0X93,
+  0X4B, 0XB3, 0X0B, 0XA3, 0X2B, 0X4B, 0X01, 0X89, 0X71, 0XC9, 0X71, 0X81, 0X71,
+  0XA9, 0X89, 0XC1, 0XA1, 0X01, 0X41, 0X91, 0X89, 0X21, 0X93, 0XC1, 0X31, 0XBB,
+  0X91, 0XB9, 0X49, 0XD9, 0X10, 0X04, 0X13, 0X04, 0XA2, 0X98, 0X20, 0X10, 0XC6,
+  0X06, 0X61, 0X20, 0X36, 0X08, 0X04, 0X41, 0X01, 0X6E, 0X6E, 0X82, 0X40, 0X1C,
+  0X1B, 0X86, 0X03, 0X21, 0X26, 0X08, 0XD6, 0XC4, 0XA7, 0XCE, 0X2D, 0XED, 0X8B,
+  0XAE, 0X0C, 0XEF, 0X6B, 0X2E, 0XAC, 0X0D, 0X8E, 0XAD, 0X4C, 0X6E, 0X82, 0X40,
+  0X20, 0X13, 0X04, 0X22, 0XD9, 0X20, 0X10, 0XCD, 0X86, 0X84, 0X50, 0X16, 0X86,
+  0X18, 0X18, 0XC2, 0XD9, 0X10, 0X3C, 0X13, 0X04, 0X8C, 0X22, 0XF6, 0X55, 0XE7,
+  0X96, 0XF6, 0X45, 0X57, 0X86, 0XF7, 0X35, 0X17, 0XD6, 0X06, 0XC7, 0X56, 0X26,
+  0XF7, 0X35, 0X17, 0XD6, 0X06, 0XC7, 0X56, 0X26, 0XB7, 0X01, 0X21, 0X22, 0X89,
+  0X21, 0X06, 0X02, 0XD8, 0X10, 0X4C, 0X1B, 0X08, 0X08, 0X00, 0XA8, 0X09, 0X82,
+  0X00, 0X6C, 0X00, 0X36, 0X0C, 0XC4, 0X75, 0X6D, 0X08, 0XB0, 0X0D, 0XC3, 0X60,
+  0X65, 0X13, 0X84, 0XAC, 0XDA, 0X10, 0X6C, 0X24, 0XDA, 0XC2, 0XD2, 0XDC, 0X88,
+  0X50, 0X15, 0X61, 0X0D, 0X3D, 0X3D, 0X49, 0X11, 0X4D, 0X10, 0X0A, 0X67, 0X82,
+  0X50, 0X3C, 0X1B, 0X02, 0X62, 0X82, 0X50, 0X40, 0X13, 0X04, 0X42, 0XD9, 0X20,
+  0X8C, 0XC1, 0X18, 0X6C, 0X58, 0X08, 0XEF, 0X03, 0X83, 0X30, 0X10, 0X83, 0X41,
+  0X0C, 0X08, 0X30, 0X20, 0X83, 0X0D, 0XC1, 0X30, 0X41, 0X28, 0XA2, 0X09, 0X02,
+  0XB1, 0X6C, 0X10, 0XC6, 0X00, 0X0D, 0X36, 0X2C, 0X83, 0XF7, 0X81, 0X81, 0X19,
+  0X88, 0XC1, 0X70, 0X06, 0X03, 0X18, 0XA4, 0XC1, 0X06, 0XA1, 0X0C, 0XD4, 0X80,
+  0XC9, 0X94, 0XD5, 0X17, 0X55, 0X98, 0XDC, 0X59, 0X19, 0XDD, 0X04, 0XA1, 0X90,
+  0X36, 0X2C, 0X04, 0X1B, 0X7C, 0X6D, 0X10, 0X06, 0X60, 0X30, 0X9C, 0X01, 0X01,
+  0X06, 0X69, 0XB0, 0X21, 0X70, 0X83, 0X0D, 0XC3, 0X1A, 0XBC, 0X01, 0XB0, 0XA1,
+  0XB0, 0X3A, 0X38, 0XA8, 0X00, 0X1A, 0X66, 0X6C, 0X6F, 0X61, 0X74, 0X73, 0X13,
+  0X04, 0X82, 0X61, 0X91, 0XE6, 0X36, 0X47, 0X37, 0X37, 0X41, 0X20, 0X1A, 0X1A,
+  0X73, 0X69, 0X67, 0X5F, 0X6C, 0X64, 0X34, 0XE6, 0XD2, 0XCE, 0XBE, 0XE6, 0XE8,
+  0X88, 0XD0, 0X95, 0XE1, 0X7D, 0XB9, 0XBD, 0XC9, 0XB5, 0X6D, 0X50, 0XE4, 0X60,
+  0X0E, 0XE8, 0XA0, 0X0E, 0XEC, 0X00, 0XB9, 0X83, 0X39, 0XC0, 0X83, 0XA1, 0X0A,
+  0X1B, 0X9B, 0X5D, 0X9B, 0X4B, 0X1A, 0X59, 0X99, 0X1B, 0XDD, 0X94, 0X20, 0XA8,
+  0X42, 0X86, 0XE7, 0X62, 0X57, 0X26, 0X37, 0X97, 0XF6, 0XE6, 0X36, 0X25, 0X20,
+  0X9A, 0X90, 0XE1, 0XB9, 0XD8, 0X85, 0XB1, 0XD9, 0X95, 0XC9, 0X4D, 0X09, 0X8A,
+  0X3A, 0X64, 0X78, 0X2E, 0X73, 0X68, 0X61, 0X64, 0X65, 0X72, 0X4D, 0X6F, 0X64,
+  0X65, 0X6C, 0X53, 0X02, 0XA4, 0X0C, 0X19, 0X9E, 0X8B, 0X5C, 0XD9, 0XDC, 0X5B,
+  0X9D, 0XDC, 0X58, 0XD9, 0XDC, 0X94, 0X80, 0XAA, 0X44, 0X86, 0XE7, 0X42, 0X97,
+  0X07, 0X57, 0X16, 0XE4, 0XE6, 0XF6, 0X46, 0X17, 0X46, 0X97, 0XF6, 0XE6, 0X36,
+  0X37, 0X25, 0XC8, 0XEA, 0X90, 0XE1, 0XB9, 0XD8, 0XA5, 0X95, 0XDD, 0X25, 0X91,
+  0X4D, 0XD1, 0X85, 0XD1, 0X95, 0X4D, 0X09, 0XB6, 0X3A, 0X64, 0X78, 0X2E, 0X65,
+  0X6E, 0X74, 0X72, 0X79, 0X50, 0X6F, 0X69, 0X6E, 0X74, 0X73, 0X53, 0X02, 0X38,
+  0XE8, 0X42, 0X86, 0XE7, 0X32, 0XF6, 0X56, 0XE7, 0X46, 0X57, 0X26, 0X37, 0X37,
+  0X25, 0XC0, 0X03, 0X00, 0X00, 0X00, 0X00, 0X79, 0X18, 0X00, 0X00, 0X4C, 0X00,
+  0X00, 0X00, 0X33, 0X08, 0X80, 0X1C, 0XC4, 0XE1, 0X1C, 0X66, 0X14, 0X01, 0X3D,
+  0X88, 0X43, 0X38, 0X84, 0XC3, 0X8C, 0X42, 0X80, 0X07, 0X79, 0X78, 0X07, 0X73,
+  0X98, 0X71, 0X0C, 0XE6, 0X00, 0X0F, 0XED, 0X10, 0X0E, 0XF4, 0X80, 0X0E, 0X33,
+  0X0C, 0X42, 0X1E, 0XC2, 0XC1, 0X1D, 0XCE, 0XA1, 0X1C, 0X66, 0X30, 0X05, 0X3D,
+  0X88, 0X43, 0X38, 0X84, 0X83, 0X1B, 0XCC, 0X03, 0X3D, 0XC8, 0X43, 0X3D, 0X8C,
+  0X03, 0X3D, 0XCC, 0X78, 0X8C, 0X74, 0X70, 0X07, 0X7B, 0X08, 0X07, 0X79, 0X48,
+  0X87, 0X70, 0X70, 0X07, 0X7A, 0X70, 0X03, 0X76, 0X78, 0X87, 0X70, 0X20, 0X87,
+  0X19, 0XCC, 0X11, 0X0E, 0XEC, 0X90, 0X0E, 0XE1, 0X30, 0X0F, 0X6E, 0X30, 0X0F,
+  0XE3, 0XF0, 0X0E, 0XF0, 0X50, 0X0E, 0X33, 0X10, 0XC4, 0X1D, 0XDE, 0X21, 0X1C,
+  0XD8, 0X21, 0X1D, 0XC2, 0X61, 0X1E, 0X66, 0X30, 0X89, 0X3B, 0XBC, 0X83, 0X3B,
+  0XD0, 0X43, 0X39, 0XB4, 0X03, 0X3C, 0XBC, 0X83, 0X3C, 0X84, 0X03, 0X3B, 0XCC,
+  0XF0, 0X14, 0X76, 0X60, 0X07, 0X7B, 0X68, 0X07, 0X37, 0X68, 0X87, 0X72, 0X68,
+  0X07, 0X37, 0X80, 0X87, 0X70, 0X90, 0X87, 0X70, 0X60, 0X07, 0X76, 0X28, 0X07,
+  0X76, 0XF8, 0X05, 0X76, 0X78, 0X87, 0X77, 0X80, 0X87, 0X5F, 0X08, 0X87, 0X71,
+  0X18, 0X87, 0X72, 0X98, 0X87, 0X79, 0X98, 0X81, 0X2C, 0XEE, 0XF0, 0X0E, 0XEE,
+  0XE0, 0X0E, 0XF5, 0XC0, 0X0E, 0XEC, 0X30, 0X03, 0X62, 0XC8, 0XA1, 0X1C, 0XE4,
+  0XA1, 0X1C, 0XCC, 0XA1, 0X1C, 0XE4, 0XA1, 0X1C, 0XDC, 0X61, 0X1C, 0XCA, 0X21,
+  0X1C, 0XC4, 0X81, 0X1D, 0XCA, 0X61, 0X06, 0XD6, 0X90, 0X43, 0X39, 0XC8, 0X43,
+  0X39, 0X98, 0X43, 0X39, 0XC8, 0X43, 0X39, 0XB8, 0XC3, 0X38, 0X94, 0X43, 0X38,
+  0X88, 0X03, 0X3B, 0X94, 0XC3, 0X2F, 0XBC, 0X83, 0X3C, 0XFC, 0X82, 0X3B, 0XD4,
+  0X03, 0X3B, 0XB0, 0XC3, 0X8C, 0XC8, 0X21, 0X07, 0X7C, 0X70, 0X03, 0X72, 0X10,
+  0X87, 0X73, 0X70, 0X03, 0X7B, 0X08, 0X07, 0X79, 0X60, 0X87, 0X70, 0XC8, 0X87,
+  0X77, 0XA8, 0X07, 0X7A, 0X98, 0X81, 0X3C, 0XE4, 0X80, 0X0F, 0X6E, 0X40, 0X0F,
+  0XE5, 0XD0, 0X0E, 0XF0, 0X00, 0X00, 0X00, 0X71, 0X20, 0X00, 0X00, 0X12, 0X00,
+  0X00, 0X00, 0X46, 0X20, 0X0D, 0X97, 0XEF, 0X3C, 0XBE, 0X10, 0X11, 0XC0, 0X44,
+  0X84, 0X40, 0X33, 0X2C, 0X84, 0X05, 0X4C, 0XC3, 0XE5, 0X3B, 0X8F, 0XBF, 0X38,
+  0XC0, 0X20, 0X36, 0X0F, 0X35, 0XF9, 0XC5, 0X6D, 0XDB, 0X00, 0X34, 0X5C, 0XBE,
+  0XF3, 0XF8, 0X12, 0XC0, 0X3C, 0X0B, 0XE1, 0X17, 0XB7, 0X6D, 0X02, 0XD5, 0X70,
+  0XF9, 0XCE, 0XE3, 0X4B, 0X93, 0X13, 0X11, 0X28, 0X35, 0X3D, 0XD4, 0XE4, 0X17,
+  0XB7, 0X6D, 0X00, 0X04, 0X03, 0X20, 0X0D, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
+  0X48, 0X41, 0X53, 0X48, 0X14, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0XDF,
+  0XCB, 0XF8, 0X1F, 0XBB, 0X62, 0X8D, 0X9E, 0X24, 0XD2, 0X98, 0X2E, 0XB8, 0XB8,
+  0X38, 0XF1, 0X44, 0X58, 0X49, 0X4C, 0XC0, 0X06, 0X00, 0X00, 0X60, 0X00, 0X00,
+  0X00, 0XB0, 0X01, 0X00, 0X00, 0X44, 0X58, 0X49, 0X4C, 0X00, 0X01, 0X00, 0X00,
+  0X10, 0X00, 0X00, 0X00, 0XA8, 0X06, 0X00, 0X00, 0X42, 0X43, 0XC0, 0XDE, 0X21,
+  0X0C, 0X00, 0X00, 0XA7, 0X01, 0X00, 0X00, 0X0B, 0X82, 0X20, 0X00, 0X02, 0X00,
+  0X00, 0X00, 0X13, 0X00, 0X00, 0X00, 0X07, 0X81, 0X23, 0X91, 0X41, 0XC8, 0X04,
+  0X49, 0X06, 0X10, 0X32, 0X39, 0X92, 0X01, 0X84, 0X0C, 0X25, 0X05, 0X08, 0X19,
+  0X1E, 0X04, 0X8B, 0X62, 0X80, 0X14, 0X45, 0X02, 0X42, 0X92, 0X0B, 0X42, 0XA4,
+  0X10, 0X32, 0X14, 0X38, 0X08, 0X18, 0X4B, 0X0A, 0X32, 0X52, 0X88, 0X48, 0X90,
+  0X14, 0X20, 0X43, 0X46, 0X88, 0XA5, 0X00, 0X19, 0X32, 0X42, 0XE4, 0X48, 0X0E,
+  0X90, 0X91, 0X22, 0XC4, 0X50, 0X41, 0X51, 0X81, 0X8C, 0XE1, 0X83, 0XE5, 0X8A,
+  0X04, 0X29, 0X46, 0X06, 0X51, 0X18, 0X00, 0X00, 0X08, 0X00, 0X00, 0X00, 0X1B,
+  0X8C, 0XE0, 0XFF, 0XFF, 0XFF, 0XFF, 0X07, 0X40, 0X02, 0XA8, 0X0D, 0X84, 0XF0,
+  0XFF, 0XFF, 0XFF, 0XFF, 0X03, 0X20, 0X6D, 0X30, 0X86, 0XFF, 0XFF, 0XFF, 0XFF,
+  0X1F, 0X00, 0X09, 0XA8, 0X00, 0X49, 0X18, 0X00, 0X00, 0X03, 0X00, 0X00, 0X00,
+  0X13, 0X82, 0X60, 0X42, 0X20, 0X4C, 0X08, 0X06, 0X00, 0X00, 0X00, 0X00, 0X89,
+  0X20, 0X00, 0X00, 0X43, 0X00, 0X00, 0X00, 0X32, 0X22, 0X48, 0X09, 0X20, 0X64,
+  0X85, 0X04, 0X93, 0X22, 0XA4, 0X84, 0X04, 0X93, 0X22, 0XE3, 0X84, 0XA1, 0X90,
+  0X14, 0X12, 0X4C, 0X8A, 0X8C, 0X0B, 0X84, 0XA4, 0X4C, 0X10, 0X68, 0X23, 0X00,
+  0X25, 0X00, 0X14, 0X66, 0X00, 0XE6, 0X08, 0XC0, 0X60, 0X8E, 0X00, 0X29, 0XC6,
+  0X20, 0X84, 0X14, 0X42, 0XA6, 0X18, 0X80, 0X10, 0X52, 0X06, 0XA1, 0X9B, 0X86,
+  0XCB, 0X9F, 0XB0, 0X87, 0X90, 0XFC, 0X95, 0X90, 0X56, 0X62, 0XF2, 0X8B, 0XDB,
+  0X46, 0XC5, 0X18, 0X63, 0X10, 0X2A, 0XF7, 0X0C, 0X97, 0X3F, 0X61, 0X0F, 0X21,
+  0XF9, 0X21, 0XD0, 0X0C, 0X0B, 0X81, 0X82, 0X55, 0X18, 0X45, 0X18, 0X1B, 0X63,
+  0X0C, 0X42, 0XC8, 0XA0, 0X36, 0X47, 0X10, 0X14, 0X83, 0X91, 0X42, 0XC8, 0X23,
+  0X38, 0X10, 0X30, 0X8C, 0X40, 0X0C, 0X33, 0XB5, 0XC1, 0X38, 0XB0, 0X43, 0X38,
+  0XCC, 0XC3, 0X3C, 0XB8, 0X01, 0X2D, 0X94, 0X03, 0X3E, 0XD0, 0X43, 0X3D, 0XC8,
+  0X43, 0X39, 0XC8, 0X01, 0X29, 0XF0, 0X81, 0X3D, 0X94, 0XC3, 0X38, 0XD0, 0XC3,
+  0X3B, 0XC8, 0X03, 0X1F, 0X98, 0X03, 0X3B, 0XBC, 0X43, 0X38, 0XD0, 0X03, 0X1B,
+  0X80, 0X01, 0X1D, 0XF8, 0X01, 0X18, 0XF8, 0X81, 0X1E, 0XE8, 0X41, 0X3B, 0XA4,
+  0X03, 0X3C, 0XCC, 0XC3, 0X2F, 0XD0, 0X43, 0X3E, 0XC0, 0X43, 0X39, 0XA0, 0X80,
+  0XCC, 0X24, 0X06, 0XE3, 0XC0, 0X0E, 0XE1, 0X30, 0X0F, 0XF3, 0XE0, 0X06, 0XB4,
+  0X50, 0X0E, 0XF8, 0X40, 0X0F, 0XF5, 0X20, 0X0F, 0XE5, 0X20, 0X07, 0XA4, 0XC0,
+  0X07, 0XF6, 0X50, 0X0E, 0XE3, 0X40, 0X0F, 0XEF, 0X20, 0X0F, 0X7C, 0X60, 0X0E,
+  0XEC, 0XF0, 0X0E, 0XE1, 0X40, 0X0F, 0X6C, 0X00, 0X06, 0X74, 0XE0, 0X07, 0X60,
+  0XE0, 0X07, 0X48, 0X98, 0X94, 0XEA, 0X4D, 0XD2, 0X14, 0X51, 0XC2, 0XE4, 0XB3,
+  0X00, 0XF3, 0X2C, 0X44, 0XC4, 0X4E, 0XC0, 0X44, 0XA0, 0X80, 0XD0, 0X4D, 0X05,
+  0X02, 0X00, 0X13, 0X14, 0X72, 0XC0, 0X87, 0X74, 0X60, 0X87, 0X36, 0X68, 0X87,
+  0X79, 0X68, 0X03, 0X72, 0XC0, 0X87, 0X0D, 0XAF, 0X50, 0X0E, 0X6D, 0XD0, 0X0E,
+  0X7A, 0X50, 0X0E, 0X6D, 0X00, 0X0F, 0X7A, 0X30, 0X07, 0X72, 0XA0, 0X07, 0X73,
+  0X20, 0X07, 0X6D, 0X90, 0X0E, 0X71, 0XA0, 0X07, 0X73, 0X20, 0X07, 0X6D, 0X90,
+  0X0E, 0X78, 0XA0, 0X07, 0X73, 0X20, 0X07, 0X6D, 0X90, 0X0E, 0X71, 0X60, 0X07,
+  0X7A, 0X30, 0X07, 0X72, 0XD0, 0X06, 0XE9, 0X30, 0X07, 0X72, 0XA0, 0X07, 0X73,
+  0X20, 0X07, 0X6D, 0X90, 0X0E, 0X76, 0X40, 0X07, 0X7A, 0X60, 0X07, 0X74, 0XD0,
+  0X06, 0XE6, 0X10, 0X07, 0X76, 0XA0, 0X07, 0X73, 0X20, 0X07, 0X6D, 0X60, 0X0E,
+  0X73, 0X20, 0X07, 0X7A, 0X30, 0X07, 0X72, 0XD0, 0X06, 0XE6, 0X60, 0X07, 0X74,
+  0XA0, 0X07, 0X76, 0X40, 0X07, 0X6D, 0XE0, 0X0E, 0X78, 0XA0, 0X07, 0X71, 0X60,
+  0X07, 0X7A, 0X30, 0X07, 0X72, 0XA0, 0X07, 0X76, 0X40, 0X07, 0X43, 0X9E, 0X00,
+  0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X86, 0X3C, 0X06,
+  0X10, 0X00, 0X01, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X0C, 0X79, 0X10,
+  0X20, 0X00, 0X04, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X18, 0XF2, 0X34,
+  0X40, 0X00, 0X0C, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X30, 0XE4, 0X81,
+  0X80, 0X00, 0X18, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X20, 0X0B, 0X04,
+  0X00, 0X00, 0X0E, 0X00, 0X00, 0X00, 0X32, 0X1E, 0X98, 0X14, 0X19, 0X11, 0X4C,
+  0X90, 0X8C, 0X09, 0X26, 0X47, 0XC6, 0X04, 0X43, 0X22, 0X25, 0X30, 0X02, 0X50,
+  0X12, 0XC5, 0X50, 0X04, 0X65, 0X50, 0X1E, 0X54, 0X4A, 0X62, 0X04, 0XA0, 0X08,
+  0X0A, 0XA1, 0X40, 0XC8, 0XCE, 0X00, 0X10, 0X9E, 0X01, 0XA0, 0X3C, 0X96, 0X82,
+  0X10, 0XCF, 0X03, 0X00, 0X81, 0X40, 0X20, 0X00, 0X00, 0X00, 0X79, 0X18, 0X00,
+  0X00, 0X59, 0X00, 0X00, 0X00, 0X1A, 0X03, 0X4C, 0X90, 0X46, 0X02, 0X13, 0XC4,
+  0X31, 0X20, 0XC3, 0X1B, 0X43, 0X81, 0X93, 0X4B, 0XB3, 0X0B, 0XA3, 0X2B, 0X4B,
+  0X01, 0X89, 0X71, 0XC9, 0X71, 0X81, 0X71, 0XA9, 0X89, 0XC1, 0XA1, 0X01, 0X41,
+  0X91, 0X89, 0X21, 0X93, 0XC1, 0X31, 0XBB, 0X91, 0XB9, 0X49, 0XD9, 0X10, 0X04,
+  0X13, 0X04, 0XA2, 0X98, 0X20, 0X10, 0XC6, 0X06, 0X61, 0X20, 0X26, 0X08, 0XC4,
+  0XB1, 0X41, 0X18, 0X0C, 0X0A, 0X70, 0X73, 0X13, 0X04, 0X02, 0XD9, 0X30, 0X20,
+  0X09, 0X31, 0X41, 0XB0, 0X22, 0X02, 0X13, 0X04, 0X22, 0XD9, 0X20, 0X10, 0XC6,
+  0X86, 0X84, 0X58, 0X98, 0X86, 0X18, 0X1A, 0XC2, 0XD9, 0X10, 0X3C, 0X13, 0X04,
+  0X4C, 0XDA, 0X80, 0X10, 0X11, 0XD3, 0X10, 0X03, 0X01, 0X6C, 0X08, 0XA4, 0X0D,
+  0X04, 0X04, 0X00, 0XD3, 0X04, 0X21, 0X9B, 0X36, 0X04, 0XD5, 0X04, 0X41, 0X00,
+  0X48, 0XB4, 0X85, 0XA5, 0XB9, 0X11, 0XA1, 0X2A, 0XC2, 0X1A, 0X7A, 0X7A, 0X92,
+  0X22, 0X9A, 0X20, 0X14, 0XCC, 0X04, 0XA1, 0X68, 0X36, 0X04, 0XC4, 0X04, 0XA1,
+  0X70, 0X26, 0X08, 0X84, 0XB2, 0X41, 0XF0, 0XBC, 0X0D, 0X0B, 0X91, 0X69, 0X1B,
+  0XD7, 0X0D, 0X1D, 0XB1, 0X7D, 0X1B, 0X82, 0X61, 0X82, 0X50, 0X3C, 0X13, 0X04,
+  0X62, 0XD9, 0X20, 0X78, 0X63, 0XB0, 0X61, 0X19, 0X32, 0X6D, 0X0B, 0X83, 0X6E,
+  0X10, 0X83, 0X61, 0X23, 0X83, 0X0D, 0X02, 0X18, 0X94, 0X01, 0X93, 0X29, 0XAB,
+  0X2F, 0XAA, 0X30, 0XB9, 0XB3, 0X32, 0XBA, 0X09, 0X42, 0X01, 0X6D, 0X58, 0X88,
+  0X33, 0XD0, 0XD0, 0X80, 0XDB, 0X06, 0X31, 0X20, 0X36, 0X32, 0XD8, 0X10, 0XA4,
+  0XC1, 0X86, 0XC1, 0X0C, 0XD4, 0X00, 0XD8, 0X50, 0X5C, 0XD8, 0X1A, 0X50, 0X40,
+  0X15, 0X36, 0X36, 0XBB, 0X36, 0X97, 0X34, 0XB2, 0X32, 0X37, 0XBA, 0X29, 0X41,
+  0X50, 0X85, 0X0C, 0XCF, 0XC5, 0XAE, 0X4C, 0X6E, 0X2E, 0XED, 0XCD, 0X6D, 0X4A,
+  0X40, 0X34, 0X21, 0XC3, 0X73, 0XB1, 0X0B, 0X63, 0XB3, 0X2B, 0X93, 0X9B, 0X12,
+  0X18, 0X75, 0XC8, 0XF0, 0X5C, 0XE6, 0XD0, 0XC2, 0XC8, 0XCA, 0XE4, 0X9A, 0XDE,
+  0XC8, 0XCA, 0XD8, 0XA6, 0X04, 0X49, 0X19, 0X32, 0X3C, 0X17, 0XB9, 0XB2, 0XB9,
+  0XB7, 0X3A, 0XB9, 0XB1, 0XB2, 0XB9, 0X29, 0XC1, 0X54, 0X87, 0X0C, 0XCF, 0XC5,
+  0X2E, 0XAD, 0XEC, 0X2E, 0X89, 0X6C, 0X8A, 0X2E, 0X8C, 0XAE, 0X6C, 0X4A, 0X50,
+  0XD5, 0X21, 0XC3, 0X73, 0X29, 0X73, 0XA3, 0X93, 0XCB, 0X83, 0X7A, 0X4B, 0X73,
+  0XA3, 0X9B, 0X9B, 0X12, 0XAC, 0X01, 0X00, 0X00, 0X00, 0X00, 0X79, 0X18, 0X00,
+  0X00, 0X4C, 0X00, 0X00, 0X00, 0X33, 0X08, 0X80, 0X1C, 0XC4, 0XE1, 0X1C, 0X66,
+  0X14, 0X01, 0X3D, 0X88, 0X43, 0X38, 0X84, 0XC3, 0X8C, 0X42, 0X80, 0X07, 0X79,
+  0X78, 0X07, 0X73, 0X98, 0X71, 0X0C, 0XE6, 0X00, 0X0F, 0XED, 0X10, 0X0E, 0XF4,
+  0X80, 0X0E, 0X33, 0X0C, 0X42, 0X1E, 0XC2, 0XC1, 0X1D, 0XCE, 0XA1, 0X1C, 0X66,
+  0X30, 0X05, 0X3D, 0X88, 0X43, 0X38, 0X84, 0X83, 0X1B, 0XCC, 0X03, 0X3D, 0XC8,
+  0X43, 0X3D, 0X8C, 0X03, 0X3D, 0XCC, 0X78, 0X8C, 0X74, 0X70, 0X07, 0X7B, 0X08,
+  0X07, 0X79, 0X48, 0X87, 0X70, 0X70, 0X07, 0X7A, 0X70, 0X03, 0X76, 0X78, 0X87,
+  0X70, 0X20, 0X87, 0X19, 0XCC, 0X11, 0X0E, 0XEC, 0X90, 0X0E, 0XE1, 0X30, 0X0F,
+  0X6E, 0X30, 0X0F, 0XE3, 0XF0, 0X0E, 0XF0, 0X50, 0X0E, 0X33, 0X10, 0XC4, 0X1D,
+  0XDE, 0X21, 0X1C, 0XD8, 0X21, 0X1D, 0XC2, 0X61, 0X1E, 0X66, 0X30, 0X89, 0X3B,
+  0XBC, 0X83, 0X3B, 0XD0, 0X43, 0X39, 0XB4, 0X03, 0X3C, 0XBC, 0X83, 0X3C, 0X84,
+  0X03, 0X3B, 0XCC, 0XF0, 0X14, 0X76, 0X60, 0X07, 0X7B, 0X68, 0X07, 0X37, 0X68,
+  0X87, 0X72, 0X68, 0X07, 0X37, 0X80, 0X87, 0X70, 0X90, 0X87, 0X70, 0X60, 0X07,
+  0X76, 0X28, 0X07, 0X76, 0XF8, 0X05, 0X76, 0X78, 0X87, 0X77, 0X80, 0X87, 0X5F,
+  0X08, 0X87, 0X71, 0X18, 0X87, 0X72, 0X98, 0X87, 0X79, 0X98, 0X81, 0X2C, 0XEE,
+  0XF0, 0X0E, 0XEE, 0XE0, 0X0E, 0XF5, 0XC0, 0X0E, 0XEC, 0X30, 0X03, 0X62, 0XC8,
+  0XA1, 0X1C, 0XE4, 0XA1, 0X1C, 0XCC, 0XA1, 0X1C, 0XE4, 0XA1, 0X1C, 0XDC, 0X61,
+  0X1C, 0XCA, 0X21, 0X1C, 0XC4, 0X81, 0X1D, 0XCA, 0X61, 0X06, 0XD6, 0X90, 0X43,
+  0X39, 0XC8, 0X43, 0X39, 0X98, 0X43, 0X39, 0XC8, 0X43, 0X39, 0XB8, 0XC3, 0X38,
+  0X94, 0X43, 0X38, 0X88, 0X03, 0X3B, 0X94, 0XC3, 0X2F, 0XBC, 0X83, 0X3C, 0XFC,
+  0X82, 0X3B, 0XD4, 0X03, 0X3B, 0XB0, 0XC3, 0X8C, 0XC8, 0X21, 0X07, 0X7C, 0X70,
+  0X03, 0X72, 0X10, 0X87, 0X73, 0X70, 0X03, 0X7B, 0X08, 0X07, 0X79, 0X60, 0X87,
+  0X70, 0XC8, 0X87, 0X77, 0XA8, 0X07, 0X7A, 0X98, 0X81, 0X3C, 0XE4, 0X80, 0X0F,
+  0X6E, 0X40, 0X0F, 0XE5, 0XD0, 0X0E, 0XF0, 0X00, 0X00, 0X00, 0X71, 0X20, 0X00,
+  0X00, 0X12, 0X00, 0X00, 0X00, 0X46, 0X20, 0X0D, 0X97, 0XEF, 0X3C, 0XBE, 0X10,
+  0X11, 0XC0, 0X44, 0X84, 0X40, 0X33, 0X2C, 0X84, 0X05, 0X4C, 0XC3, 0XE5, 0X3B,
+  0X8F, 0XBF, 0X38, 0XC0, 0X20, 0X36, 0X0F, 0X35, 0XF9, 0XC5, 0X6D, 0XDB, 0X00,
+  0X34, 0X5C, 0XBE, 0XF3, 0XF8, 0X12, 0XC0, 0X3C, 0X0B, 0XE1, 0X17, 0XB7, 0X6D,
+  0X02, 0XD5, 0X70, 0XF9, 0XCE, 0XE3, 0X4B, 0X93, 0X13, 0X11, 0X28, 0X35, 0X3D,
+  0XD4, 0XE4, 0X17, 0XB7, 0X6D, 0X00, 0X04, 0X03, 0X20, 0X0D, 0X00, 0X00, 0X61,
+  0X20, 0X00, 0X00, 0X3A, 0X00, 0X00, 0X00, 0X13, 0X04, 0X41, 0X2C, 0X10, 0X00,
+  0X00, 0X00, 0X05, 0X00, 0X00, 0X00, 0XF4, 0X46, 0X00, 0X88, 0XCC, 0X00, 0X14,
+  0X42, 0X29, 0X94, 0X5C, 0XE1, 0X51, 0X29, 0X83, 0X12, 0XA0, 0X31, 0X03, 0X00,
+  0X23, 0X06, 0X09, 0X00, 0X82, 0X60, 0X00, 0X65, 0X05, 0X74, 0X5D, 0XC9, 0X88,
+  0X41, 0X02, 0X80, 0X20, 0X18, 0X40, 0X9A, 0X41, 0X60, 0X98, 0X32, 0X62, 0X90,
+  0X00, 0X20, 0X08, 0X06, 0X86, 0X97, 0X68, 0X99, 0XA4, 0X8C, 0X18, 0X24, 0X00,
+  0X08, 0X82, 0X81, 0XF1, 0X29, 0X9B, 0X56, 0X2C, 0X23, 0X06, 0X09, 0X00, 0X82,
+  0X60, 0X60, 0X80, 0XC1, 0XC2, 0X6D, 0X13, 0X33, 0X62, 0X90, 0X00, 0X20, 0X08,
+  0X06, 0X46, 0X18, 0X30, 0X1D, 0X87, 0X34, 0X23, 0X06, 0X09, 0X00, 0X82, 0X60,
+  0X60, 0X88, 0X41, 0XD3, 0X75, 0X96, 0X33, 0X62, 0X90, 0X00, 0X20, 0X08, 0X06,
+  0XC6, 0X18, 0X38, 0X9E, 0X97, 0X3C, 0X23, 0X06, 0X0F, 0X00, 0X82, 0X60, 0XD0,
+  0X88, 0X01, 0X83, 0X1C, 0X42, 0X90, 0X24, 0XDF, 0X07, 0X25, 0XA3, 0X09, 0X01,
+  0X30, 0X9A, 0X20, 0X04, 0XA3, 0X09, 0X83, 0X30, 0X9A, 0X40, 0X0C, 0X46, 0X2C,
+  0XF2, 0X31, 0X62, 0X91, 0X8F, 0X11, 0X8B, 0X7C, 0X8C, 0X58, 0XE4, 0X33, 0X62,
+  0X90, 0X00, 0X20, 0X08, 0X06, 0X08, 0X1B, 0X5C, 0X68, 0X80, 0X06, 0X61, 0X40,
+  0X8C, 0X18, 0X24, 0X00, 0X08, 0X82, 0X01, 0XC2, 0X06, 0X17, 0X1A, 0XA0, 0XC1,
+  0X34, 0X8C, 0X18, 0X24, 0X00, 0X08, 0X82, 0X01, 0XC2, 0X06, 0X17, 0X1A, 0XA0,
+  0X01, 0X18, 0X08, 0X23, 0X06, 0X09, 0X00, 0X82, 0X60, 0X80, 0XB0, 0XC1, 0X85,
+  0X06, 0X68, 0X40, 0X05, 0X08, 0X00, 0X00, 0X00, 0X00
+};
 
-typedef struct _SDL_GPRegion {
+typedef struct _SDL_GPRegion
+{
   float x1, y1, x2, y2;
 } _SDL_GPRegion;
 
-typedef enum {
+typedef enum
+{
   _SDL_GP_COMMAND_NONE = 0,
   _SDL_GP_COMMAND_DRAW,
   _SDL_GP_COMMAND_VIEWPORT,
   _SDL_GP_COMMAND_SCISSOR
 } _SDL_GPCommandType;
 
-typedef struct _SDL_GPDrawArgs {
+typedef struct _SDL_GPDrawArgs
+{
   _SDL_GPRegion region;
   SDL_GPPipeline pipeline;
   SDL_GPTextureUniform texture;
@@ -2106,18 +2150,21 @@ typedef struct _SDL_GPDrawArgs {
   Uint32 vertices_count;
 } _SDL_GPDrawArgs;
 
-typedef union _SDL_GPCommandArgs {
+typedef union _SDL_GPCommandArgs
+{
   _SDL_GPDrawArgs draw;
   SDL_GPIRect viewport;
   SDL_GPIRect scissor;
 } _SDL_GPCommandArgs;
 
-typedef struct _SDL_GPCommand {
+typedef struct _SDL_GPCommand
+{
   _SDL_GPCommandType cmd;
   _SDL_GPCommandArgs args;
 } _SDL_GPCommand;
 
-typedef struct _SDL_GP {
+typedef struct _SDL_GP
+{
   SDL_GPDesc desc;
   SDL_GPUTransferBuffer *vertex_transfer_buffer;
   SDL_GPUBuffer *vertex_data_buffer;
@@ -2149,68 +2196,70 @@ typedef struct _SDL_GP {
   _SDL_GPCommand commands[SDL_GP_COMMANDS_MAX];
 } _SDL_GP;
 
-static _SDL_GP _gp = {0};
+static _SDL_GP _gp            = { 0 };
 static Uint32 _gp_initialized = 0;
 
 // Create painter common shader.
-static SDL_GPShader _SDL_GPCreateCommonShader(SDL_GPUDevice *gpu_device) {
+static SDL_GPShader
+_SDL_GPCreateCommonShader(SDL_GPUDevice *gpu_device)
+{
   SDL_GPUShaderFormat supported_formats = SDL_GetGPUShaderFormats(gpu_device);
   SDL_GPUShaderFormat format;
 
-  Uint8 *bytecode_vert = NULL;
+  Uint8 *bytecode_vert      = NULL;
   size_t bytecode_vert_size = 0;
 
-  Uint8 *bytecode_frag = NULL;
+  Uint8 *bytecode_frag      = NULL;
   size_t bytecode_frag_size = 0;
 
   if (supported_formats & SDL_GPU_SHADERFORMAT_SPIRV) {
     format = SDL_GPU_SHADERFORMAT_SPIRV;
 
-    bytecode_vert = _shader_vert_spv;
+    bytecode_vert      = _shader_vert_spv;
     bytecode_vert_size = _shader_vert_spv_len;
 
-    bytecode_frag = _shader_frag_spv;
+    bytecode_frag      = _shader_frag_spv;
     bytecode_frag_size = _shader_farg_spv_len;
   } else if (supported_formats & SDL_GPU_SHADERFORMAT_MSL) {
     format = SDL_GPU_SHADERFORMAT_MSL;
 
-    bytecode_vert = _shader_vert_msl;
+    bytecode_vert      = _shader_vert_msl;
     bytecode_vert_size = _shader_vert_msl_len;
 
-    bytecode_frag = _shader_frag_msl;
+    bytecode_frag      = _shader_frag_msl;
     bytecode_frag_size = _shader_frag_msl_len;
   } else if (supported_formats & SDL_GPU_SHADERFORMAT_DXIL) {
-    format = SDL_GPU_SHADERFORMAT_DXIL;
-    bytecode_vert = _shader_vert_dxil;
+    format             = SDL_GPU_SHADERFORMAT_DXIL;
+    bytecode_vert      = _shader_vert_dxil;
     bytecode_vert_size = _shader_vert_dxil_len;
 
-    bytecode_frag = _shader_frag_dxil;
+    bytecode_frag      = _shader_frag_dxil;
     bytecode_frag_size = _shader_frag_dxil_len;
   } else {
     _SDL_GPSetError(SDL_GP_ERROR_CREATE_COMMON_SHADER_FAILED);
-    return (SDL_GPShader){.id = SDL_GP_INVALID_ID};
+    return (SDL_GPShader){ .id = SDL_GP_INVALID_ID };
   }
 
   SDL_GPShaderDesc shader_desc = {
-      // Vertex shader description
-      .vert_code_size = bytecode_vert_size,
-      .vert_code = bytecode_vert,
-      .vert_entrypoint = "main",
-      .vert_format = format,
-      .vert_num_samplers = 0,
-      .vert_num_storage_textures = 0,
-      .vert_num_storage_buffers = 0,
-      .vert_num_uniform_buffers = 0,
+    // Vertex shader description
+    .vert_code_size            = bytecode_vert_size,
+    .vert_code                 = bytecode_vert,
+    .vert_entrypoint           = "main",
+    .vert_format               = format,
+    .vert_num_samplers         = 0,
+    .vert_num_storage_textures = 0,
+    .vert_num_storage_buffers  = 0,
+    .vert_num_uniform_buffers  = 0,
 
-      // Fragment shader description
-      .frag_code_size = bytecode_frag_size,
-      .frag_code = bytecode_frag,
-      .frag_entrypoint = "main",
-      .frag_format = format,
-      .frag_num_samplers = SDL_GP_TEXTURE_SLOTS_MAX,
-      .frag_num_storage_textures = 0,
-      .frag_num_storage_buffers = 0,
-      .frag_num_uniform_buffers = 0,
+    // Fragment shader description
+    .frag_code_size            = bytecode_frag_size,
+    .frag_code                 = bytecode_frag,
+    .frag_entrypoint           = "main",
+    .frag_format               = format,
+    .frag_num_samplers         = SDL_GP_TEXTURE_SLOTS_MAX,
+    .frag_num_storage_textures = 0,
+    .frag_num_storage_buffers  = 0,
+    .frag_num_uniform_buffers  = 0,
   };
 
   return SDL_GPCreateShader(&shader_desc);
@@ -2218,20 +2267,23 @@ static SDL_GPShader _SDL_GPCreateCommonShader(SDL_GPUDevice *gpu_device) {
 
 static SDL_GPPipeline
 _SDL_GP_FindOrCreatePipeline(SDL_GPPrimitiveType primitive_type,
-                             SDL_GPBlendMode blend_mode) {
-  SDL_GPPipeline pipeline =
-      _gp.pipelines[primitive_type * SDL_GP_BLENDMODE_SIZE + blend_mode];
+                             SDL_GPBlendMode blend_mode)
+{
+  SDL_GPPipeline pipeline
+      = _gp.pipelines[primitive_type * SDL_GP_BLENDMODE_SIZE + blend_mode];
 
   if (pipeline.id == SDL_GP_INVALID_ID) {
     pipeline = SDL_GPCreatePipeline(_gp.shader, primitive_type, blend_mode);
-    _gp.pipelines[primitive_type * SDL_GP_BLENDMODE_SIZE + blend_mode] =
-        pipeline;
+    _gp.pipelines[primitive_type * SDL_GP_BLENDMODE_SIZE + blend_mode]
+        = pipeline;
   }
 
   return pipeline;
 }
 
-SDL_GP_INLINE SDL_GPUniform *_SDL_GPNextUniform(void) {
+SDL_GP_INLINE SDL_GPUniform *
+_SDL_GPNextUniform(void)
+{
   if (_gp.current_uniform < SDL_GP_COMMANDS_MAX) {
     return &_gp.uniforms[_gp.current_uniform++];
   } else {
@@ -2240,7 +2292,9 @@ SDL_GP_INLINE SDL_GPUniform *_SDL_GPNextUniform(void) {
   }
 }
 
-SDL_GP_INLINE SDL_GPUniform *_SDL_GPPrevUniform(void) {
+SDL_GP_INLINE SDL_GPUniform *
+_SDL_GPPrevUniform(void)
+{
   if (_gp.current_uniform > 0) {
     return &_gp.uniforms[_gp.current_uniform - 1];
   } else {
@@ -2248,7 +2302,9 @@ SDL_GP_INLINE SDL_GPUniform *_SDL_GPPrevUniform(void) {
   }
 }
 
-SDL_GP_INLINE SDL_GPVertex *_SDL_GPNextVertices(Uint32 count) {
+SDL_GP_INLINE SDL_GPVertex *
+_SDL_GPNextVertices(Uint32 count)
+{
   if (_gp.current_vertex + count <= SDL_GP_VERTICES_MAX) {
     SDL_GPVertex *vertices = &_gp.vertices[_gp.current_vertex];
     _gp.current_vertex += count;
@@ -2260,7 +2316,9 @@ SDL_GP_INLINE SDL_GPVertex *_SDL_GPNextVertices(Uint32 count) {
   }
 }
 
-SDL_GP_INLINE _SDL_GPCommand *_SDL_GPNextCommand(void) {
+SDL_GP_INLINE _SDL_GPCommand *
+_SDL_GPNextCommand(void)
+{
   if ((_gp.current_command < SDL_GP_COMMANDS_MAX)) {
     return &_gp.commands[_gp.current_command++];
   } else {
@@ -2268,7 +2326,9 @@ SDL_GP_INLINE _SDL_GPCommand *_SDL_GPNextCommand(void) {
   }
 }
 
-SDL_GP_INLINE _SDL_GPCommand *_SDL_GPPrevCommand(Uint32 count) {
+SDL_GP_INLINE _SDL_GPCommand *
+_SDL_GPPrevCommand(Uint32 count)
+{
   if (_gp.current_command - _gp.state.base_command >= count) {
     return &_gp.commands[_gp.current_command - count];
   } else {
@@ -2276,19 +2336,22 @@ SDL_GP_INLINE _SDL_GPCommand *_SDL_GPPrevCommand(Uint32 count) {
   }
 }
 
-SDL_GP_INLINE SDL_GPMat2x3 _SDL_GPDefaultProjection(int width, int height) {
+SDL_GP_INLINE SDL_GPMat2x3
+_SDL_GPDefaultProjection(int width, int height)
+{
   float w = (float)width;
   float h = (float)height;
 
   return SDL_GPCreateMat2x3(2.0f / w, 0.0f, -1.0f, 0.0f, -2.0f / h, 1.0f);
 }
 
-SDL_GP_INLINE SDL_GPMat2x3 _SDL_GPMulProjectionTransform(
-    SDL_GPMat2x3 *projection, SDL_GPMat2x3 *transform) {
+SDL_GP_INLINE SDL_GPMat2x3
+_SDL_GPMulProjectionTransform(SDL_GPMat2x3 *projection, SDL_GPMat2x3 *transform)
+{
   float x = projection->m00;
   float y = projection->m11;
 
-  SDL_GPMat2x3 out = {0};
+  SDL_GPMat2x3 out = { 0 };
 
   out.m00 = x * transform->m00;
   out.m01 = x * transform->m01;
@@ -2301,20 +2364,27 @@ SDL_GP_INLINE SDL_GPMat2x3 _SDL_GPMulProjectionTransform(
   return out;
 }
 
-SDL_GP_INLINE SDL_GPVec2 _SDL_GPMat3MulVec2(SDL_GPMat2x3 *m,
-                                            const SDL_GPVec2 *v) {
-  return (SDL_GPVec2){m->m00 * v->x + m->m01 * v->y + m->m02,
-                      m->m10 * v->x + m->m11 * v->y + m->m12};
+SDL_GP_INLINE SDL_GPVec2
+_SDL_GPMat3MulVec2(SDL_GPMat2x3 *m, const SDL_GPVec2 *v)
+{
+  return (SDL_GPVec2){ m->m00 * v->x + m->m01 * v->y + m->m02,
+                       m->m10 * v->x + m->m11 * v->y + m->m12 };
 }
 
-SDL_GP_INLINE void _SDL_GPTransform(SDL_GPMat2x3 *matrix, SDL_GPVec2 *dst,
-                                    const SDL_GPVec2 *src, Uint32 count) {
+SDL_GP_INLINE void
+_SDL_GPTransform(SDL_GPMat2x3 *matrix,
+                 SDL_GPVec2 *dst,
+                 const SDL_GPVec2 *src,
+                 Uint32 count)
+{
   for (Uint32 i = 0; i < count; ++i) {
     dst[i] = _SDL_GPMat3MulVec2(matrix, &src[i]);
   }
 }
 
-void SDL_GPSetup(SDL_GPDesc *desc) {
+void
+SDL_GPSetup(SDL_GPDesc *desc)
+{
   SDL_assert(_gp_initialized == 0);
   SDL_assert(desc);
 
@@ -2323,17 +2393,17 @@ void SDL_GPSetup(SDL_GPDesc *desc) {
   _gp_initialized = _SDL_GP_INIT_COOKIE;
 
   _gp.desc = *desc;
-  _gp.desc.max_vertices =
-      SDL_GP_DEFAULT(desc->max_vertices, SDL_GP_VERTICES_MAX);
-  _gp.desc.max_commands =
-      SDL_GP_DEFAULT(desc->max_commands, SDL_GP_COMMANDS_MAX);
+  _gp.desc.max_vertices
+      = SDL_GP_DEFAULT(desc->max_vertices, SDL_GP_VERTICES_MAX);
+  _gp.desc.max_commands
+      = SDL_GP_DEFAULT(desc->max_commands, SDL_GP_COMMANDS_MAX);
 
   // Get Swapchain pixel format
-  SDL_GPUTextureFormat texture_format =
-      SDL_GetGPUSwapchainTextureFormat(_gp.desc.gpu_device, _gp.desc.window);
+  SDL_GPUTextureFormat texture_format
+      = SDL_GetGPUSwapchainTextureFormat(_gp.desc.gpu_device, _gp.desc.window);
 
-  SDL_PixelFormat pixel_format =
-      SDL_GetPixelFormatFromGPUTextureFormat(texture_format);
+  SDL_PixelFormat pixel_format
+      = SDL_GetPixelFormatFromGPUTextureFormat(texture_format);
 
   _gp.pixel_format = pixel_format;
 
@@ -2346,8 +2416,10 @@ void SDL_GPSetup(SDL_GPDesc *desc) {
   // Create a white texture
 
   SDL_Surface *white_surface = SDL_CreateSurfaceFrom(
-      2, 2, SDL_PIXELFORMAT_RGBA8888,
-      (Uint32[]){0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF},
+      2,
+      2,
+      SDL_PIXELFORMAT_RGBA8888,
+      (Uint32[]){ 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF },
       4 * sizeof(Uint32));
 
   if (white_surface == NULL) {
@@ -2363,8 +2435,8 @@ void SDL_GPSetup(SDL_GPDesc *desc) {
   // Create a GPU transfer buffer for vertex data
 
   SDL_GPUTransferBufferCreateInfo vertex_transfer_buffer_create_info = {
-      .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
-      .size = (Uint32)(_gp.desc.max_vertices * sizeof(SDL_GPVertex)),
+    .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
+    .size  = (Uint32)(_gp.desc.max_vertices * sizeof(SDL_GPVertex)),
   };
 
   _gp.vertex_transfer_buffer = SDL_CreateGPUTransferBuffer(
@@ -2378,12 +2450,12 @@ void SDL_GPSetup(SDL_GPDesc *desc) {
   // Create a GPU buffer for vertex data
 
   SDL_GPUBufferCreateInfo vertex_data_buffer_create_info = {
-      .size = (Uint32)(_gp.desc.max_vertices * sizeof(SDL_GPVertex)),
-      .usage = SDL_GPU_BUFFERUSAGE_VERTEX,
+    .size  = (Uint32)(_gp.desc.max_vertices * sizeof(SDL_GPVertex)),
+    .usage = SDL_GPU_BUFFERUSAGE_VERTEX,
   };
 
-  _gp.vertex_data_buffer =
-      SDL_CreateGPUBuffer(desc->gpu_device, &vertex_data_buffer_create_info);
+  _gp.vertex_data_buffer
+      = SDL_CreateGPUBuffer(desc->gpu_device, &vertex_data_buffer_create_info);
 
   if (_gp.vertex_data_buffer == NULL) {
     SDL_ReleaseGPUTransferBuffer(desc->gpu_device, _gp.vertex_transfer_buffer);
@@ -2394,16 +2466,16 @@ void SDL_GPSetup(SDL_GPDesc *desc) {
   // Create nearest sampler
 
   SDL_GPUSamplerCreateInfo nearest_sampler_info = {
-      .min_filter = SDL_GPU_FILTER_NEAREST,
-      .mag_filter = SDL_GPU_FILTER_NEAREST,
-      .mipmap_mode = SDL_GPU_SAMPLERMIPMAPMODE_NEAREST,
-      .address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
-      .address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
-      .address_mode_w = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
+    .min_filter     = SDL_GPU_FILTER_NEAREST,
+    .mag_filter     = SDL_GPU_FILTER_NEAREST,
+    .mipmap_mode    = SDL_GPU_SAMPLERMIPMAPMODE_NEAREST,
+    .address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
+    .address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
+    .address_mode_w = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
   };
 
-  _gp.nearest_samplers =
-      SDL_CreateGPUSampler(desc->gpu_device, &nearest_sampler_info);
+  _gp.nearest_samplers
+      = SDL_CreateGPUSampler(desc->gpu_device, &nearest_sampler_info);
 
   // Create common shader
 
@@ -2414,28 +2486,36 @@ void SDL_GPSetup(SDL_GPDesc *desc) {
   bool is_ok = true;
   is_ok &= _SDL_GP_FindOrCreatePipeline(SDL_GP_PRIMITIVE_POINTS,
                                         SDL_GP_BLENDMODE_NONE)
-               .id != SDL_GP_INVALID_ID;
+               .id
+           != SDL_GP_INVALID_ID;
   is_ok &= _SDL_GP_FindOrCreatePipeline(SDL_GP_PRIMITIVE_POINTS,
                                         SDL_GP_BLENDMODE_BLEND)
-               .id != SDL_GP_INVALID_ID;
+               .id
+           != SDL_GP_INVALID_ID;
   is_ok &= _SDL_GP_FindOrCreatePipeline(SDL_GP_PRIMITIVE_LINES,
                                         SDL_GP_BLENDMODE_NONE)
-               .id != SDL_GP_INVALID_ID;
+               .id
+           != SDL_GP_INVALID_ID;
   is_ok &= _SDL_GP_FindOrCreatePipeline(SDL_GP_PRIMITIVE_LINES,
                                         SDL_GP_BLENDMODE_BLEND)
-               .id != SDL_GP_INVALID_ID;
+               .id
+           != SDL_GP_INVALID_ID;
   is_ok &= _SDL_GP_FindOrCreatePipeline(SDL_GP_PRIMITIVE_LINE_STRIP,
                                         SDL_GP_BLENDMODE_NONE)
-               .id != SDL_GP_INVALID_ID;
+               .id
+           != SDL_GP_INVALID_ID;
   is_ok &= _SDL_GP_FindOrCreatePipeline(SDL_GP_PRIMITIVE_LINE_STRIP,
                                         SDL_GP_BLENDMODE_BLEND)
-               .id != SDL_GP_INVALID_ID;
+               .id
+           != SDL_GP_INVALID_ID;
   is_ok &= _SDL_GP_FindOrCreatePipeline(SDL_GP_PRIMITIVE_TRIANGLES,
                                         SDL_GP_BLENDMODE_NONE)
-               .id != SDL_GP_INVALID_ID;
+               .id
+           != SDL_GP_INVALID_ID;
   is_ok &= _SDL_GP_FindOrCreatePipeline(SDL_GP_PRIMITIVE_TRIANGLES,
                                         SDL_GP_BLENDMODE_BLEND)
-               .id != SDL_GP_INVALID_ID;
+               .id
+           != SDL_GP_INVALID_ID;
 
   if (!is_ok) {
     SDL_GPShutdown();
@@ -2444,7 +2524,9 @@ void SDL_GPSetup(SDL_GPDesc *desc) {
   }
 }
 
-void SDL_GPShutdown() {
+void
+SDL_GPShutdown()
+{
   if (_gp_initialized != _SDL_GP_INIT_COOKIE) {
     return;
   }
@@ -2454,7 +2536,7 @@ void SDL_GPShutdown() {
   for (int i = 0; i < SDL_GP_PRIMITIVE_SIZE * SDL_GP_BLENDMODE_SIZE; ++i) {
     if (_gp.pipelines[i].id != SDL_GP_INVALID_ID) {
       SDL_GPPipelineDestroy(_gp.pipelines[i]);
-      _gp.pipelines[i] = (SDL_GPPipeline){.id = SDL_GP_INVALID_ID};
+      _gp.pipelines[i] = (SDL_GPPipeline){ .id = SDL_GP_INVALID_ID };
     }
   }
 
@@ -2462,7 +2544,7 @@ void SDL_GPShutdown() {
 
   if (_gp.shader.id != SDL_GP_INVALID_ID) {
     SDL_GPDestroyShader(_gp.shader);
-    _gp.shader = (SDL_GPShader){.id = SDL_GP_INVALID_ID};
+    _gp.shader = (SDL_GPShader){ .id = SDL_GP_INVALID_ID };
   }
 
   // Destroy nearest sampler
@@ -2491,7 +2573,7 @@ void SDL_GPShutdown() {
 
   if (_gp.white_image.id != SDL_GP_INVALID_ID) {
     SDL_GPDestroyImage(_gp.white_image);
-    _gp.white_image = (SDL_GPImage){.id = SDL_GP_INVALID_ID};
+    _gp.white_image = (SDL_GPImage){ .id = SDL_GP_INVALID_ID };
   }
 
   // Shutdown resources management for shaders, pipelines and images
@@ -2502,57 +2584,60 @@ void SDL_GPShutdown() {
   SDL_memset(&_gp, 0, sizeof(_SDL_GP));
 }
 
-void SDL_GPBegin(int width, int height) {
+void
+SDL_GPBegin(int width, int height)
+{
   SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
 
   _gp.states[_gp.current_state++] = _gp.state;
 
   _gp.state.projection = _SDL_GPDefaultProjection(width, height);
-  _gp.state.transform = SDL_GPCreateMat2x3Identity();
-  _gp.state.mvp = _gp.state.projection;
+  _gp.state.transform  = SDL_GPCreateMat2x3Identity();
+  _gp.state.mvp        = _gp.state.projection;
 
-  _gp.state.texture.count = 1;
-  _gp.state.texture.images[0] = _gp.white_image;
+  _gp.state.texture.count       = 1;
+  _gp.state.texture.images[0]   = _gp.white_image;
   _gp.state.texture.samplers[0] = _gp.nearest_samplers;
 
-  SDL_GPImage image = {.id = SDL_GP_INVALID_ID};
+  SDL_GPImage image = { .id = SDL_GP_INVALID_ID };
   for (int i = 1; i < SDL_GP_TEXTURE_SLOTS_MAX; ++i) {
-    _gp.state.texture.images[i] = image;
+    _gp.state.texture.images[i]   = image;
     _gp.state.texture.samplers[i] = _gp.nearest_samplers;
   }
 
-  SDL_memset(_gp.state.uniform, 0, sizeof(SDL_GPUniform));
-  _gp.state.uniform = (SDL_GPUniform){.vs_size = 0, .fs_size = 0};
+  SDL_memset(&_gp.state.uniform, 0, sizeof(SDL_GPUniform));
+  _gp.state.uniform = (SDL_GPUniform){ .vs_size = 0, .fs_size = 0 };
 
   _gp.state.blend_mode = SDL_GP_BLENDMODE_NONE;
 
   _gp.state.frame_size.w = width;
   _gp.state.frame_size.h = height;
-  _gp.state.viewport =
-      (SDL_GPRect){.x = 0, .y = 0, .w = (float)width, .h = (float)height};
-  _gp.state.scissor = (SDL_GPRect){.x = 0, .y = 0, .w = -1, .h = -1};
-  _gp.state.color = (SDL_Color){.r = 255, .g = 255, .b = 255, .a = 255};
+  _gp.state.viewport = (SDL_GPIRect){ .x = 0, .y = 0, .w = width, .h = height };
+  _gp.state.scissor  = (SDL_GPIRect){ .x = 0, .y = 0, .w = -1, .h = -1 };
+  _gp.state.color    = (SDL_Color){ .r = 255, .g = 255, .b = 255, .a = 255 };
 
-  _gp.state.thickness = SDL_max(1.0f / width, 1.0f / height);
-  _gp.state.base_vertex = _gp.current_vertex;
+  _gp.state.thickness    = SDL_max(1.0f / width, 1.0f / height);
+  _gp.state.base_vertex  = _gp.current_vertex;
   _gp.state.base_uniform = _gp.current_uniform;
   _gp.state.base_command = _gp.current_command;
 }
 
-void SDL_GPFlush() {
+void
+SDL_GPFlush()
+{
   SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
 
   Uint32 end_command = _gp.current_command;
-  Uint32 end_vertex = _gp.current_vertex;
+  Uint32 end_vertex  = _gp.current_vertex;
 
-  Uint32 vertices_count =
-      end_vertex - _gp.state.base_vertex; // Number of vertices to draw
+  Uint32 vertices_count
+      = end_vertex - _gp.state.base_vertex; // Number of vertices to draw
 
   // Rewind Index
   _gp.current_command = _gp.state.base_command;
   _gp.current_uniform = _gp.state.base_uniform;
-  _gp.current_vertex = _gp.state.base_vertex;
+  _gp.current_vertex  = _gp.state.base_vertex;
 
   // Error, Nothing to draw
   if (_last_error != SDL_GP_ERROR_NONE) {
@@ -2574,7 +2659,8 @@ void SDL_GPFlush() {
     return;
   }
 
-  SDL_memcpy(vertex_data, &_gp.vertices[_gp.state.base_vertex],
+  SDL_memcpy(vertex_data,
+             &_gp.vertices[_gp.state.base_vertex],
              vertices_count * sizeof(SDL_GPVertex));
 
   SDL_UnmapGPUTransferBuffer(_gp.desc.gpu_device, _gp.vertex_transfer_buffer);
@@ -2583,33 +2669,33 @@ void SDL_GPFlush() {
 
   SDL_GPUCopyPass *copy_pass = SDL_BeginGPUCopyPass(_gp.desc.cmd_buffer);
 
-  SDL_GPUTransferBufferLocation vertex_transfer_location = {
-      .transfer_buffer = _gp.vertex_transfer_buffer, .offset = 0};
+  SDL_GPUTransferBufferLocation vertex_transfer_location
+      = { .transfer_buffer = _gp.vertex_transfer_buffer, .offset = 0 };
 
-  SDL_GPUBufferRegion vertex_buffer_region = {
-      .buffer = _gp.vertex_data_buffer,
-      .offset = (Uint32)(_gp.state.base_vertex * sizeof(SDL_GPVertex)),
-      .size = (Uint32)((vertices_count) * sizeof(SDL_GPVertex))};
+  SDL_GPUBufferRegion vertex_buffer_region
+      = { .buffer = _gp.vertex_data_buffer,
+          .offset = (Uint32)(_gp.state.base_vertex * sizeof(SDL_GPVertex)),
+          .size   = (Uint32)((vertices_count) * sizeof(SDL_GPVertex)) };
 
-  SDL_UploadToGPUBuffer(copy_pass, &vertex_transfer_location,
-                        &vertex_buffer_region, true);
+  SDL_UploadToGPUBuffer(
+      copy_pass, &vertex_transfer_location, &vertex_buffer_region, true);
 
   SDL_EndGPUCopyPass(copy_pass);
 
   // Render pass
 
   SDL_GPUColorTargetInfo color_target_info = {
-      .texture = _gp.desc.target_texture,
-      .clear_color = {0, 0, 0, 1},
-      .load_op = SDL_GPU_LOADOP_CLEAR,
-      .store_op = SDL_GPU_STOREOP_STORE,
-      .cycle = false,
+    .texture     = _gp.desc.target_texture,
+    .clear_color = { 0, 0, 0, 1 },
+    .load_op     = SDL_GPU_LOADOP_CLEAR,
+    .store_op    = SDL_GPU_STOREOP_STORE,
+    .cycle       = false,
   };
 
-  SDL_GPURenderPass *render_pass =
-      SDL_BeginGPURenderPass(_gp.desc.cmd_buffer, &color_target_info, 1, NULL);
+  SDL_GPURenderPass *render_pass = SDL_BeginGPURenderPass(
+      _gp.desc.cmd_buffer, &color_target_info, 1, NULL);
 
-  Uint32 cur_pipeline_id = SDL_GP_IMPOSSIBLE_ID;
+  Uint32 cur_pipeline_id   = SDL_GP_IMPOSSIBLE_ID;
   Uint32 cur_uniform_index = SDL_GP_IMPOSSIBLE_ID;
   Uint32 cur_image_ids[SDL_GP_TEXTURE_SLOTS_MAX];
   for (int i = 0; i < SDL_GP_TEXTURE_SLOTS_MAX; ++i) {
@@ -2621,8 +2707,8 @@ void SDL_GPFlush() {
   for (Uint32 i = _gp.state.base_command; i < end_command; ++i) {
     _SDL_GPCommand *cmd = &_gp.commands[i];
 
-    SDL_Rect scissor = {0};
-    SDL_GPUViewport viewport = {0};
+    SDL_Rect scissor         = { 0 };
+    SDL_GPUViewport viewport = { 0 };
 
     switch (cmd->cmd) {
     case _SDL_GP_COMMAND_DRAW: {
@@ -2631,7 +2717,7 @@ void SDL_GPFlush() {
       }
 
       bool rebind_uniforms = false;
-      bool rebind_texture = false;
+      bool rebind_texture  = false;
 
       // Check if pipeline needs to be changed
       if (cmd->args.draw.pipeline.id != cur_pipeline_id) {
@@ -2643,7 +2729,7 @@ void SDL_GPFlush() {
 
         // When pipeline changes we need to rebind uniforms and textures
         rebind_uniforms = true;
-        rebind_texture = true;
+        rebind_texture  = true;
       }
 
       // Check if texture needs to be changed
@@ -2661,13 +2747,14 @@ void SDL_GPFlush() {
 
           if (image_id != SDL_GP_INVALID_ID) {
             image_bindings[j] = (SDL_GPUTextureSamplerBinding){
-                .texture =
-                    SDL_GPGetImageGPUTexture(cmd->args.draw.texture.images[j]),
-                .sampler = cmd->args.draw.texture.samplers[j]};
+              .texture
+              = SDL_GPGetImageGPUTexture(cmd->args.draw.texture.images[j]),
+              .sampler = cmd->args.draw.texture.samplers[j]
+            };
           } else {
             image_bindings[j] = (SDL_GPUTextureSamplerBinding){
-                .texture = SDL_GPGetImageGPUTexture(_gp.white_image),
-                .sampler = _gp.nearest_samplers,
+              .texture = SDL_GPGetImageGPUTexture(_gp.white_image),
+              .sampler = _gp.nearest_samplers,
             };
           }
 
@@ -2678,8 +2765,8 @@ void SDL_GPFlush() {
 
       // Rebind textures if needed
       if (rebind_texture) {
-        SDL_BindGPUFragmentSamplers(render_pass, 0, image_bindings,
-                                    SDL_GP_TEXTURE_DIMENSION_MAX);
+        SDL_BindGPUFragmentSamplers(
+            render_pass, 0, image_bindings, SDL_GP_TEXTURE_DIMENSION_MAX);
       }
 
       // Rebind uniforms if needed
@@ -2687,44 +2774,46 @@ void SDL_GPFlush() {
         SDL_GPUniform *uniform = &_gp.uniforms[cmd->args.draw.uniform_index];
 
         if (uniform->vs_size > 0) {
-          SDL_PushGPUVertexUniformData(
-              _gp.desc.cmd_buffer, SDL_GP_UNIFORM_SLOT_VS,
-              &uniform->data.bytes[0], uniform->vs_size);
+          SDL_PushGPUVertexUniformData(_gp.desc.cmd_buffer,
+                                       SDL_GP_UNIFORM_SLOT_VS,
+                                       &uniform->data.bytes[0],
+                                       uniform->vs_size);
         }
         if (uniform->fs_size > 0) {
-          SDL_PushGPUFragmentUniformData(
-              _gp.desc.cmd_buffer, SDL_GP_UNIFORM_SLOT_FS,
-              &uniform->data.bytes[0], uniform->fs_size);
+          SDL_PushGPUFragmentUniformData(_gp.desc.cmd_buffer,
+                                         SDL_GP_UNIFORM_SLOT_FS,
+                                         &uniform->data.bytes[0],
+                                         uniform->fs_size);
         }
       }
 
-      SDL_GPUBufferBinding vertex_buffer_binding = {
-          .buffer = _gp.vertex_data_buffer,
-          .offset =
-              (Uint32)(cmd->args.draw.vertex_index * sizeof(SDL_GPVertex))};
+      SDL_GPUBufferBinding vertex_buffer_binding
+          = { .buffer = _gp.vertex_data_buffer,
+              .offset
+              = (Uint32)(cmd->args.draw.vertex_index * sizeof(SDL_GPVertex)) };
 
       // In every case we need to bind vertex buffers
       SDL_BindGPUVertexBuffers(render_pass, 0, &vertex_buffer_binding, 1);
 
-      SDL_DrawGPUPrimitives(render_pass, cmd->args.draw.vertices_count, 1, 0,
-                            0);
+      SDL_DrawGPUPrimitives(
+          render_pass, cmd->args.draw.vertices_count, 1, 0, 0);
       break;
     }
     case _SDL_GP_COMMAND_VIEWPORT:
       viewport = (SDL_GPUViewport){
-          .x = (float)cmd->args.viewport.x,
-          .y = (float)cmd->args.viewport.y,
-          .w = (float)cmd->args.viewport.w,
-          .h = (float)cmd->args.viewport.h,
+        .x = (float)cmd->args.viewport.x,
+        .y = (float)cmd->args.viewport.y,
+        .w = (float)cmd->args.viewport.w,
+        .h = (float)cmd->args.viewport.h,
       };
       SDL_SetGPUViewport(render_pass, &viewport);
       break;
     case _SDL_GP_COMMAND_SCISSOR:
       scissor = (SDL_Rect){
-          .x = (int)cmd->args.scissor.x,
-          .y = (int)cmd->args.scissor.y,
-          .w = (int)cmd->args.scissor.w,
-          .h = (int)cmd->args.scissor.h,
+        .x = (int)cmd->args.scissor.x,
+        .y = (int)cmd->args.scissor.y,
+        .w = (int)cmd->args.scissor.w,
+        .h = (int)cmd->args.scissor.h,
       };
       SDL_SetGPUScissor(render_pass, &scissor);
       break;
@@ -2738,28 +2827,37 @@ void SDL_GPFlush() {
   SDL_EndGPURenderPass(render_pass);
 }
 
-void SDL_GPEnd() {
+void
+SDL_GPEnd()
+{
   SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
 
   _gp.state = _gp.states[--_gp.current_state];
 }
 
-void SDL_GPSetProjection(float left, float right, float bottom, float top) {
+void
+SDL_GPSetProjection(float left, float right, float bottom, float top)
+{
   SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
 
-  float width = right - left;
+  float width  = right - left;
   float height = top - bottom;
 
-  _gp.state.projection =
-      SDL_GPCreateMat2x3(2.0f / width, 0.0f, -(right + left) / width, 0.0f,
-                         2.0f / height, -(top + bottom) / height);
+  _gp.state.projection = SDL_GPCreateMat2x3(2.0f / width,
+                                            0.0f,
+                                            -(right + left) / width,
+                                            0.0f,
+                                            2.0f / height,
+                                            -(top + bottom) / height);
 
   _gp.state.mvp = _SDL_GPMulProjectionTransform(&_gp.state.projection,
                                                 &_gp.state.transform);
 }
 
-void SDL_GPResetProjection() {
+void
+SDL_GPResetProjection()
+{
   SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
 
@@ -2770,7 +2868,9 @@ void SDL_GPResetProjection() {
                                                 &_gp.state.transform);
 }
 
-void SDL_GPPushTransform() {
+void
+SDL_GPPushTransform()
+{
   SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
   SDL_assert(_gp.current_transform < SDL_GP_TRANSFORMS_MAX);
@@ -2778,26 +2878,32 @@ void SDL_GPPushTransform() {
   _gp.transforms[_gp.current_transform++] = _gp.state.transform;
 }
 
-void SDL_GPPopTransform() {
+void
+SDL_GPPopTransform()
+{
   SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
   SDL_assert(_gp.current_transform > 0);
 
   _gp.state.transform = _gp.transforms[--_gp.current_transform];
-  _gp.state.mvp = _SDL_GPMulProjectionTransform(&_gp.state.projection,
-                                                &_gp.state.transform);
+  _gp.state.mvp       = _SDL_GPMulProjectionTransform(&_gp.state.projection,
+                                                      &_gp.state.transform);
 }
 
-void SDL_GPResetTransform() {
+void
+SDL_GPResetTransform()
+{
   SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
 
   _gp.state.transform = SDL_GPCreateMat2x3Identity();
-  _gp.state.mvp = _SDL_GPMulProjectionTransform(&_gp.state.projection,
-                                                &_gp.state.transform);
+  _gp.state.mvp       = _SDL_GPMulProjectionTransform(&_gp.state.projection,
+                                                      &_gp.state.transform);
 }
 
-void SDL_GPTranslate(float x, float y) {
+void
+SDL_GPTranslate(float x, float y)
+{
   SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
 
@@ -2805,16 +2911,18 @@ void SDL_GPTranslate(float x, float y) {
   // 1.0f, 0.0f, tx,
   // 0.0f, 1.0f, ty,
 
-  _gp.state.transform.m02 +=
-      x * _gp.state.transform.m00 + y * _gp.state.transform.m01;
-  _gp.state.transform.m12 +=
-      x * _gp.state.transform.m10 + y * _gp.state.transform.m11;
+  _gp.state.transform.m02
+      += x * _gp.state.transform.m00 + y * _gp.state.transform.m01;
+  _gp.state.transform.m12
+      += x * _gp.state.transform.m10 + y * _gp.state.transform.m11;
 
   _gp.state.mvp = _SDL_GPMulProjectionTransform(&_gp.state.projection,
                                                 &_gp.state.transform);
 }
 
-void SDL_GPRotateAt(float angle, float ax, float ay) {
+void
+SDL_GPRotateAt(float angle, float ax, float ay)
+{
   SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
 
@@ -2834,11 +2942,13 @@ void SDL_GPRotateAt(float angle, float ax, float ay) {
       _gp.state.transform.m12);
 
   _gp.state.transform = rotation;
-  _gp.state.mvp = _SDL_GPMulProjectionTransform(&_gp.state.projection,
-                                                &_gp.state.transform);
+  _gp.state.mvp       = _SDL_GPMulProjectionTransform(&_gp.state.projection,
+                                                      &_gp.state.transform);
 }
 
-void SDL_GPScale(float sx, float sy) {
+void
+SDL_GPScale(float sx, float sy)
+{
   SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
 
@@ -2855,7 +2965,9 @@ void SDL_GPScale(float sx, float sy) {
                                                 &_gp.state.transform);
 }
 
-void SDL_GPScaleAt(float sx, float sy, float ax, float ay) {
+void
+SDL_GPScaleAt(float sx, float sy, float ax, float ay)
+{
   SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
 
@@ -2864,7 +2976,9 @@ void SDL_GPScaleAt(float sx, float sy, float ax, float ay) {
   SDL_GPTranslate(-ax, -ay);
 }
 
-void SDL_GPSetPipeline(SDL_GPPipeline pipeline) {
+void
+SDL_GPSetPipeline(SDL_GPPipeline pipeline)
+{
   SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
 
   _gp.state.pipeline = pipeline;
@@ -2873,16 +2987,22 @@ void SDL_GPSetPipeline(SDL_GPPipeline pipeline) {
   SDL_memset(&_gp.state.uniform, 0, sizeof(SDL_GPUniform));
 }
 
-void SDL_GPResetPipeline() {
+void
+SDL_GPResetPipeline()
+{
   SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
 
-  SDL_GPPipeline pipeline = {.id = SDL_GP_INVALID_ID};
+  SDL_GPPipeline pipeline = { .id = SDL_GP_INVALID_ID };
 
   SDL_GPSetPipeline(pipeline);
 }
 
-void SDL_GPSetUniform(const void *vs_data, size_t vs_size, const void *fs_data,
-                      size_t fs_size) {
+void
+SDL_GPSetUniform(const void *vs_data,
+                 size_t vs_size,
+                 const void *fs_data,
+                 size_t fs_size)
+{
   SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.state.pipeline.id != SDL_GP_INVALID_ID);
 
@@ -2910,49 +3030,63 @@ void SDL_GPSetUniform(const void *vs_data, size_t vs_size, const void *fs_data,
   _gp.state.uniform.fs_size = (Uint16)fs_size;
 }
 
-void SDL_GPResetUniform() {
+void
+SDL_GPResetUniform()
+{
   SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.state.pipeline.id != SDL_GP_INVALID_ID);
 
   SDL_GPSetUniform(NULL, 0, NULL, 0);
 }
 
-void SDL_GPPainterSetBlendMode(SDL_GPBlendMode blend_mode) {
+void
+SDL_GPPainterSetBlendMode(SDL_GPBlendMode blend_mode)
+{
   SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
 
   _gp.state.blend_mode = blend_mode;
 }
 
-void SDL_GPPainterResetBlendMode() {
+void
+SDL_GPPainterResetBlendMode()
+{
   SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
 
   _gp.state.blend_mode = SDL_GP_BLENDMODE_NONE;
 }
 
-void SDL_GPPainterSetColor(SDL_Color color) {
+void
+SDL_GPPainterSetColor(SDL_Color color)
+{
   SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
 
   _gp.state.color = color;
 }
 
-SDL_Color SDL_GPGetColor() {
+SDL_Color
+SDL_GPGetColor()
+{
   SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
 
   return _gp.state.color;
 }
 
-void SDL_GPResetColor() {
+void
+SDL_GPResetColor()
+{
   SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
 
-  _gp.state.color = (SDL_Color){255, 255, 255, 255};
+  _gp.state.color = (SDL_Color){ 255, 255, 255, 255 };
 }
 
-void SDL_GPSetImage(int channel, SDL_GPImage image) {
+void
+SDL_GPSetImage(int channel, SDL_GPImage image)
+{
   SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
   SDL_assert(channel >= 0 && channel < SDL_GP_TEXTURE_SLOTS_MAX);
@@ -2975,7 +3109,9 @@ void SDL_GPSetImage(int channel, SDL_GPImage image) {
   _gp.state.texture.count = texture_count;
 }
 
-SDL_GPImage SDL_GPGetImage(int channel) {
+SDL_GPImage
+SDL_GPGetImage(int channel)
+{
   SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
   SDL_assert(channel >= 0 && channel < SDL_GP_TEXTURE_SLOTS_MAX);
@@ -2983,7 +3119,9 @@ SDL_GPImage SDL_GPGetImage(int channel) {
   return _gp.state.texture.images[channel];
 }
 
-void SDL_GPResetImage(int channel) {
+void
+SDL_GPResetImage(int channel)
+{
   SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
   SDL_assert(channel >= 0 && channel < SDL_GP_TEXTURE_SLOTS_MAX);
@@ -2991,15 +3129,19 @@ void SDL_GPResetImage(int channel) {
   SDL_GPSetImage(channel, _gp.white_image);
 }
 
-void SDL_GPUnsetImage(int channel) {
+void
+SDL_GPUnsetImage(int channel)
+{
   SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
   SDL_assert(channel >= 0 && channel < SDL_GP_TEXTURE_SLOTS_MAX);
 
-  SDL_GPSetImage(channel, (SDL_GPImage){.id = SDL_GP_INVALID_ID});
+  SDL_GPSetImage(channel, (SDL_GPImage){ .id = SDL_GP_INVALID_ID });
 }
 
-void SDL_GPSetSampler(int channel, SDL_GPUSampler *sampler) {
+void
+SDL_GPSetSampler(int channel, SDL_GPUSampler *sampler)
+{
   SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
   SDL_assert(channel >= 0 && channel < SDL_GP_TEXTURE_SLOTS_MAX);
@@ -3007,7 +3149,9 @@ void SDL_GPSetSampler(int channel, SDL_GPUSampler *sampler) {
   _gp.state.texture.samplers[channel] = sampler;
 }
 
-void SDL_GPResetSampler(int channel) {
+void
+SDL_GPResetSampler(int channel)
+{
   SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
   SDL_assert(channel >= 0 && channel < SDL_GP_TEXTURE_SLOTS_MAX);
@@ -3016,13 +3160,15 @@ void SDL_GPResetSampler(int channel) {
 }
 
 // Set the viewport for subsequent draw calls.
-void SDL_GPViewport(int x, int y, int w, int h) {
+void
+SDL_GPViewport(int x, int y, int w, int h)
+{
   SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
 
   // If no change in viewport, skip
-  if (_gp.state.viewport.x == x && _gp.state.viewport.y == y &&
-      _gp.state.viewport.w == w && _gp.state.viewport.h == h) {
+  if (_gp.state.viewport.x == x && _gp.state.viewport.y == y
+      && _gp.state.viewport.w == w && _gp.state.viewport.h == h) {
     return;
   }
 
@@ -3038,13 +3184,13 @@ void SDL_GPViewport(int x, int y, int w, int h) {
   SDL_memset(&cmd->args.viewport, 0, sizeof(SDL_GPIRect));
 
   SDL_GPIRect viewport = {
-      .x = x,
-      .y = y,
-      .w = w,
-      .h = h,
+    .x = x,
+    .y = y,
+    .w = w,
+    .h = h,
   };
 
-  cmd->cmd = _SDL_GP_COMMAND_VIEWPORT;
+  cmd->cmd           = _SDL_GP_COMMAND_VIEWPORT;
   cmd->args.viewport = viewport;
 
   // When viewport changes, scissor needs to be updated to keep the same region
@@ -3053,14 +3199,16 @@ void SDL_GPViewport(int x, int y, int w, int h) {
     _gp.state.scissor.y += y - _gp.state.viewport.y;
   }
 
-  _gp.state.viewport = viewport;
-  _gp.state.thickness = SDL_max(1.0f / w, 1.0f / h);
+  _gp.state.viewport   = viewport;
+  _gp.state.thickness  = SDL_max(1.0f / w, 1.0f / h);
   _gp.state.projection = _SDL_GPDefaultProjection(w, h);
-  _gp.state.mvp = _SDL_GPMulProjectionTransform(&_gp.state.projection,
-                                                &_gp.state.transform);
+  _gp.state.mvp        = _SDL_GPMulProjectionTransform(&_gp.state.projection,
+                                                       &_gp.state.transform);
 }
 
-void SDL_GPResetViewport(void) {
+void
+SDL_GPResetViewport(void)
+{
   SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
 
@@ -3068,13 +3216,15 @@ void SDL_GPResetViewport(void) {
 }
 
 // Set the scissor for subsequent draw calls.
-void SDL_GPScissor(int x, int y, int w, int h) {
+void
+SDL_GPScissor(int x, int y, int w, int h)
+{
   SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
 
   // Skip if scissor is the same
-  if (_gp.state.scissor.x == x && _gp.state.scissor.y == y &&
-      _gp.state.scissor.w == w && _gp.state.scissor.h == h) {
+  if (_gp.state.scissor.x == x && _gp.state.scissor.y == y
+      && _gp.state.scissor.w == w && _gp.state.scissor.h == h) {
     return;
   }
 
@@ -3088,8 +3238,9 @@ void SDL_GPScissor(int x, int y, int w, int h) {
   }
 
   // Coordinates scissor relative to viewport
-  SDL_GPIRect viewport_scissor =
-      (SDL_GPIRect){_gp.state.viewport.x + x, _gp.state.viewport.y + y, w, h};
+  SDL_GPIRect viewport_scissor = (SDL_GPIRect){
+    _gp.state.viewport.x + x, _gp.state.viewport.y + y, w, h
+  };
 
   // Reset scissor
   if (w < 0 && h < 0) {
@@ -3101,24 +3252,29 @@ void SDL_GPScissor(int x, int y, int w, int h) {
 
   SDL_memset(&cmd->args.scissor, 0, sizeof(SDL_GPIRect));
 
-  cmd->cmd = _SDL_GP_COMMAND_SCISSOR;
+  cmd->cmd          = _SDL_GP_COMMAND_SCISSOR;
   cmd->args.scissor = viewport_scissor;
 
-  _gp.state.scissor = (SDL_GPIRect){.x = x, .y = y, .w = w, .h = h};
+  _gp.state.scissor = (SDL_GPIRect){ .x = x, .y = y, .w = w, .h = h };
 }
 
-void SDL_GPResetScissor() {
+void
+SDL_GPResetScissor()
+{
   SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
 
-  _gp.state.scissor = (SDL_GPIRect){.x = 0, .y = 0, .w = -1, .h = -1};
+  _gp.state.scissor = (SDL_GPIRect){ .x = 0, .y = 0, .w = -1, .h = -1 };
 }
 
-static bool _SDL_GPMergeDrawCommands(SDL_GPUGraphicsPipeline *pipeline,
-                                     SDL_GPTextureUniform *texture,
-                                     SDL_GPUniform *uniform,
-                                     Uint32 vertex_index, Uint32 vertices_count,
-                                     SDL_GPUPrimitiveType primitive_type) {
+static bool
+_SDL_GPMergeDrawCommands(SDL_GPUGraphicsPipeline *pipeline,
+                         SDL_GPTextureUniform *texture,
+                         SDL_GPUniform *uniform,
+                         Uint32 vertex_index,
+                         Uint32 vertices_count,
+                         SDL_GPUPrimitiveType primitive_type)
+{
 #if BXR_PAINTER_OPTIMIZE_DEPTH > 0
   _bxr_command_t *prev_cmd = NULL;
   _bxr_command_t *inter_cmds[BXR_PAINTER_OPTIMIZE_DEPTH];
@@ -3154,9 +3310,13 @@ static bool _SDL_GPMergeDrawCommands(SDL_GPUGraphicsPipeline *pipeline,
   return false;
 }
 
-static void _SDL_GPQueueDraw(SDL_GPPipeline pipeline, _SDL_GPRegion region,
-                             Uint32 vertex_index, Uint32 vertices_count,
-                             SDL_GPPrimitiveType primitive_type) {
+static void
+_SDL_GPQueueDraw(SDL_GPPipeline pipeline,
+                 _SDL_GPRegion region,
+                 Uint32 vertex_index,
+                 Uint32 vertices_count,
+                 SDL_GPPrimitiveType primitive_type)
+{
   /*
   if (region.x0 > 1.0f || region.y0 > 1.0f || region.x1 < 0.0f
       || region.y1 < 0.0f) {
@@ -3181,7 +3341,7 @@ static void _SDL_GPQueueDraw(SDL_GPPipeline pipeline, _SDL_GPRegion region,
   SDL_GPUniform *uniform = NULL;
   if (_gp.state.pipeline.id != SDL_GP_INVALID_ID) {
     pipeline = _gp.state.pipeline;
-    uniform = &_gp.state.uniform;
+    uniform  = &_gp.state.uniform;
   }
 
   Uint32 uniform_index = SDL_GP_IMPOSSIBLE_ID;
@@ -3189,9 +3349,9 @@ static void _SDL_GPQueueDraw(SDL_GPPipeline pipeline, _SDL_GPRegion region,
   if (uniform) {
     SDL_GPUniform *prev_uniform = _SDL_GPPrevUniform();
 
-    bool reuse_uniform =
-        prev_uniform &&
-        (SDL_memcmp(prev_uniform, uniform, sizeof(SDL_GPUniform)) == 0);
+    bool reuse_uniform
+        = prev_uniform
+          && (SDL_memcmp(prev_uniform, uniform, sizeof(SDL_GPUniform)) == 0);
 
     if (!reuse_uniform) {
       SDL_GPUniform *next_uniform = _SDL_GPNextUniform();
@@ -3202,9 +3362,9 @@ static void _SDL_GPQueueDraw(SDL_GPPipeline pipeline, _SDL_GPRegion region,
       *next_uniform = _gp.state.uniform;
     }
 
-    uniform_index =
-        _gp.current_uniform - 1; // - 1 since _bxr_painter_next_uniform
-                                 // already incremented the index
+    uniform_index
+        = _gp.current_uniform - 1; // - 1 since _bxr_painter_next_uniform
+                                   // already incremented the index
   }
 
   // New draw command
@@ -3215,18 +3375,20 @@ static void _SDL_GPQueueDraw(SDL_GPPipeline pipeline, _SDL_GPRegion region,
     return;
   }
 
-  cmd->cmd = _SDL_GP_COMMAND_DRAW;
+  cmd->cmd                = _SDL_GP_COMMAND_DRAW;
   cmd->args.draw.pipeline = pipeline;
-  cmd->args.draw.texture = _gp.state.texture;
+  cmd->args.draw.texture  = _gp.state.texture;
   // TODO region for optimization
-  cmd->args.draw.uniform_index = uniform_index;
-  cmd->args.draw.vertex_index = vertex_index;
+  cmd->args.draw.uniform_index  = uniform_index;
+  cmd->args.draw.vertex_index   = vertex_index;
   cmd->args.draw.vertices_count = vertices_count;
 }
 
-static void _SDL_GPDrawSolid(SDL_GPPrimitiveType primitive_type,
-                             const SDL_GPVec2 *vertices,
-                             Uint32 vertices_count) {
+static void
+_SDL_GPDrawSolid(SDL_GPPrimitiveType primitive_type,
+                 const SDL_GPVec2 *vertices,
+                 Uint32 vertices_count)
+{
   SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
 
@@ -3236,19 +3398,19 @@ static void _SDL_GPDrawSolid(SDL_GPPrimitiveType primitive_type,
 
   // Setup vertices
   Uint32 vertex_index = _gp.current_vertex;
-  SDL_GPVertex *v = _SDL_GPNextVertices(vertices_count);
+  SDL_GPVertex *v     = _SDL_GPNextVertices(vertices_count);
   if (!v) {
     return;
   }
 
-  float thickness = (primitive_type == SDL_GP_PRIMITIVE_POINTS ||
-                     primitive_type == SDL_GP_PRIMITIVE_LINES ||
-                     primitive_type == SDL_GP_PRIMITIVE_LINE_STRIP)
-                        ? _gp.state.thickness
-                        : 1.0f;
-  SDL_Color color = _gp.state.color;
-  SDL_GPMat2x3 mvp = _gp.state.mvp;
-  _SDL_GPRegion region = {FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX};
+  float thickness      = (primitive_type == SDL_GP_PRIMITIVE_POINTS
+                          || primitive_type == SDL_GP_PRIMITIVE_LINES
+                          || primitive_type == SDL_GP_PRIMITIVE_LINE_STRIP)
+                             ? _gp.state.thickness
+                             : 1.0f;
+  SDL_Color color      = _gp.state.color;
+  SDL_GPMat2x3 mvp     = _gp.state.mvp;
+  _SDL_GPRegion region = { FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX };
 
   for (Uint32 i = 0; i < vertices_count; ++i) {
     SDL_GPVec2 p = _SDL_GPMat3MulVec2(&mvp, &vertices[i]);
@@ -3259,25 +3421,27 @@ static void _SDL_GPDrawSolid(SDL_GPPrimitiveType primitive_type,
     region.y2 = SDL_max(region.y2, p.y + thickness);
 
     v[i].position = p;
-    v[i].texcoord = (SDL_GPVec2){0.0f, 0.0f};
-    v[i].color = color;
+    v[i].texcoord = (SDL_GPVec2){ 0.0f, 0.0f };
+    v[i].color    = color;
   }
 
-  SDL_GPPipeline pipeline =
-      _SDL_GP_FindOrCreatePipeline(primitive_type, _gp.state.blend_mode);
+  SDL_GPPipeline pipeline
+      = _SDL_GP_FindOrCreatePipeline(primitive_type, _gp.state.blend_mode);
 
   // Queue draw
-  _SDL_GPQueueDraw(pipeline, region, vertex_index, vertices_count,
-                   primitive_type);
+  _SDL_GPQueueDraw(
+      pipeline, region, vertex_index, vertices_count, primitive_type);
 }
 
-void SDL_GPClear() {
+void
+SDL_GPClear()
+{
   SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
 
   // Setup vertices
   Uint32 vertices_count = 6;
-  Uint32 vertex_index = _gp.current_vertex;
+  Uint32 vertex_index   = _gp.current_vertex;
 
   SDL_GPVertex *v = _SDL_GPNextVertices(vertices_count);
   if (!v) {
@@ -3286,39 +3450,51 @@ void SDL_GPClear() {
 
   // Compute vertices
   const SDL_GPVec2 quad[4] = {
-      {-1.0f, -1.0f}, // bottom-left
-      {1.0f, -1.0f},  // bottom-right
-      {1.0f, 1.0f},   // top-right
-      {-1.0f, 1.0f}   // top-left
+    { -1.0f, -1.0f }, // bottom-left
+    { 1.0f, -1.0f },  // bottom-right
+    { 1.0f, 1.0f },   // top-right
+    { -1.0f, 1.0f }   // top-left
   };
 
-  const SDL_GPVec2 texcoord = {0.0f, 0.0f};
-  SDL_Color color = _gp.state.color;
+  const SDL_GPVec2 texcoord = { 0.0f, 0.0f };
+  SDL_Color color           = _gp.state.color;
 
-  v[0] =
-      (SDL_GPVertex){.position = quad[0], .texcoord = texcoord, .color = color};
-  v[1] =
-      (SDL_GPVertex){.position = quad[1], .texcoord = texcoord, .color = color};
-  v[2] =
-      (SDL_GPVertex){.position = quad[2], .texcoord = texcoord, .color = color};
-  v[3] =
-      (SDL_GPVertex){.position = quad[2], .texcoord = texcoord, .color = color};
-  v[4] =
-      (SDL_GPVertex){.position = quad[3], .texcoord = texcoord, .color = color};
-  v[5] =
-      (SDL_GPVertex){.position = quad[0], .texcoord = texcoord, .color = color};
+  v[0] = (SDL_GPVertex){ .position = quad[0],
+                         .texcoord = texcoord,
+                         .color    = color };
+  v[1] = (SDL_GPVertex){ .position = quad[1],
+                         .texcoord = texcoord,
+                         .color    = color };
+  v[2] = (SDL_GPVertex){ .position = quad[2],
+                         .texcoord = texcoord,
+                         .color    = color };
+  v[3] = (SDL_GPVertex){ .position = quad[2],
+                         .texcoord = texcoord,
+                         .color    = color };
+  v[4] = (SDL_GPVertex){ .position = quad[3],
+                         .texcoord = texcoord,
+                         .color    = color };
+  v[5] = (SDL_GPVertex){ .position = quad[0],
+                         .texcoord = texcoord,
+                         .color    = color };
 
-  _SDL_GPRegion region = {-1.0f, -1.0f, 1.0f, 1.0f};
+  _SDL_GPRegion region = { -1.0f, -1.0f, 1.0f, 1.0f };
 
   SDL_GPPipeline pipeline = _SDL_GP_FindOrCreatePipeline(
       SDL_GP_PRIMITIVE_TRIANGLES, _gp.state.blend_mode);
 
-  _SDL_GPQueueDraw(pipeline, region, vertex_index, vertices_count,
+  _SDL_GPQueueDraw(pipeline,
+                   region,
+                   vertex_index,
+                   vertices_count,
                    SDL_GP_PRIMITIVE_TRIANGLES);
 }
 
-void SDL_GPDraw(SDL_GPPrimitiveType primitive_type,
-                const SDL_GPVertex *vertices, Uint32 vertices_count) {
+void
+SDL_GPDraw(SDL_GPPrimitiveType primitive_type,
+           const SDL_GPVertex *vertices,
+           Uint32 vertices_count)
+{
   SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
 
@@ -3328,18 +3504,18 @@ void SDL_GPDraw(SDL_GPPrimitiveType primitive_type,
 
   // Setup vertices
   Uint32 vertex_index = _gp.current_vertex;
-  SDL_GPVertex *v = _SDL_GPNextVertices(vertices_count);
+  SDL_GPVertex *v     = _SDL_GPNextVertices(vertices_count);
   if (!v) {
     return;
   }
 
-  float thickness = (primitive_type == SDL_GP_PRIMITIVE_POINTS ||
-                     primitive_type == SDL_GP_PRIMITIVE_LINES ||
-                     primitive_type == SDL_GP_PRIMITIVE_LINE_STRIP)
-                        ? _gp.state.thickness
-                        : 1.0f;
-  SDL_GPMat2x3 mvp = _gp.state.mvp;
-  _SDL_GPRegion region = {FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX};
+  float thickness      = (primitive_type == SDL_GP_PRIMITIVE_POINTS
+                          || primitive_type == SDL_GP_PRIMITIVE_LINES
+                          || primitive_type == SDL_GP_PRIMITIVE_LINE_STRIP)
+                             ? _gp.state.thickness
+                             : 1.0f;
+  SDL_GPMat2x3 mvp     = _gp.state.mvp;
+  _SDL_GPRegion region = { FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX };
 
   for (Uint32 i = 0; i < vertices_count; ++i) {
     SDL_GPVec2 p = _SDL_GPMat3MulVec2(&mvp, &vertices[i].position);
@@ -3351,48 +3527,70 @@ void SDL_GPDraw(SDL_GPPrimitiveType primitive_type,
 
     v[i].position = p;
     v[i].texcoord = vertices[i].texcoord;
-    v[i].color = vertices[i].color;
+    v[i].color    = vertices[i].color;
   }
 
-  SDL_GPPipeline pipeline =
-      _SDL_GP_FindOrCreatePipeline(primitive_type, _gp.state.blend_mode);
+  SDL_GPPipeline pipeline
+      = _SDL_GP_FindOrCreatePipeline(primitive_type, _gp.state.blend_mode);
 
   // Queue draw
-  _SDL_GPQueueDraw(pipeline, region, vertex_index, vertices_count,
-                   primitive_type);
+  _SDL_GPQueueDraw(
+      pipeline, region, vertex_index, vertices_count, primitive_type);
 }
 
-void SDL_GPDrawPoints(const SDL_GPVec2 *points, Uint32 count) {
+void
+SDL_GPDrawPoints(const SDL_GPVec2 *points, Uint32 count)
+{
   _SDL_GPDrawSolid(SDL_GP_PRIMITIVE_POINTS, points, count);
 }
 
-void SDL_GPDrawPoint(SDL_GPVec2 point) { SDL_GPDrawPoints(&point, 1); }
-
-void SDL_GPDrawLines(const SDL_GPLine *lines, Uint32 count) {
-  _SDL_GPDrawSolid(SDL_GP_PRIMITIVE_LINES, (const SDL_GPVec2 *)lines,
-                   count * 2);
+void
+SDL_GPDrawPoint(SDL_GPVec2 point)
+{
+  SDL_GPDrawPoints(&point, 1);
 }
 
-void SDL_GPDrawLine(SDL_GPLine line) { SDL_GPDrawLines(&line, 1); }
+void
+SDL_GPDrawLines(const SDL_GPLine *lines, Uint32 count)
+{
+  _SDL_GPDrawSolid(
+      SDL_GP_PRIMITIVE_LINES, (const SDL_GPVec2 *)lines, count * 2);
+}
 
-void SDL_GPDrawLinesStrip(const SDL_GPVec2 *points, Uint32 count) {
+void
+SDL_GPDrawLine(SDL_GPLine line)
+{
+  SDL_GPDrawLines(&line, 1);
+}
+
+void
+SDL_GPDrawLinesStrip(const SDL_GPVec2 *points, Uint32 count)
+{
   _SDL_GPDrawSolid(SDL_GP_PRIMITIVE_LINE_STRIP, points, count);
 }
 
-void SDL_GPDrawTriangles(const SDL_GPTriangle *triangles, Uint32 count) {
-  _SDL_GPDrawSolid(SDL_GP_PRIMITIVE_TRIANGLES, (const SDL_GPVec2 *)triangles,
-                   count * 3);
+void
+SDL_GPDrawTriangles(const SDL_GPTriangle *triangles, Uint32 count)
+{
+  _SDL_GPDrawSolid(
+      SDL_GP_PRIMITIVE_TRIANGLES, (const SDL_GPVec2 *)triangles, count * 3);
 }
 
-void SDL_GPDrawTriangleFilled(SDL_GPTriangle triangle) {
+void
+SDL_GPDrawTriangleFilled(SDL_GPTriangle triangle)
+{
   SDL_GPDrawTriangles(&triangle, 1);
 }
 
-void SDL_GPDrawTrianglesStrip(const SDL_GPVec2 *points, Uint32 count) {
+void
+SDL_GPDrawTrianglesStrip(const SDL_GPVec2 *points, Uint32 count)
+{
   _SDL_GPDrawSolid(SDL_GP_PRIMITIVE_TRIANGLE_STRIP, points, count);
 }
 
-void SDL_GPDrawRectsFilled(const SDL_GPRect *rects, Uint32 count) {
+void
+SDL_GPDrawRectsFilled(const SDL_GPRect *rects, Uint32 count)
+{
   SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
 
@@ -3402,24 +3600,24 @@ void SDL_GPDrawRectsFilled(const SDL_GPRect *rects, Uint32 count) {
 
   // Setup vertices
   Uint32 total_vertices = count * 6; // 2 triangles per rect, 3 vertices each
-  Uint32 vertex_index = _gp.current_vertex;
-  SDL_GPVertex *v = _SDL_GPNextVertices(total_vertices);
+  Uint32 vertex_index   = _gp.current_vertex;
+  SDL_GPVertex *v       = _SDL_GPNextVertices(total_vertices);
   if (!v) {
     return;
   }
 
   // Compute vertices
   const SDL_GPRect *rect = rects;
-  SDL_Color color = _gp.state.color;
-  SDL_GPMat2x3 mvp = _gp.state.mvp;
-  _SDL_GPRegion region = {FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX};
+  SDL_Color color        = _gp.state.color;
+  SDL_GPMat2x3 mvp       = _gp.state.mvp;
+  _SDL_GPRegion region   = { FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX };
 
   for (Uint32 i = 0; i < count; ++i, ++rect) {
     SDL_GPVec2 quad[4] = {
-        {rect->x, rect->y + rect->h},           // bottom-left
-        {rect->x + rect->w, rect->y + rect->h}, // bottom-right
-        {rect->x + rect->w, rect->y},           // top-right
-        {rect->x, rect->y},                     // top-left
+      { rect->x, rect->y + rect->h },           // bottom-left
+      { rect->x + rect->w, rect->y + rect->h }, // bottom-right
+      { rect->x + rect->w, rect->y },           // top-right
+      { rect->x, rect->y },                     // top-left
     };
 
     _SDL_GPTransform(&mvp, quad, quad, 4);
@@ -3432,25 +3630,31 @@ void SDL_GPDrawRectsFilled(const SDL_GPRect *rects, Uint32 count) {
     }
 
     const SDL_GPVec2 texcoords[4] = {
-        {0.0f, 1.0f}, // bottom-left
-        {1.0f, 1.0f}, // bottom-right
-        {1.0f, 0.0f}, // top-right
-        {0.0f, 0.0f}  // top-left
+      { 0.0f, 1.0f }, // bottom-left
+      { 1.0f, 1.0f }, // bottom-right
+      { 1.0f, 0.0f }, // top-right
+      { 0.0f, 0.0f }  // top-left
     };
 
     // Make two triangles to form the quad
-    v[0] = (SDL_GPVertex){
-        .position = quad[0], .texcoord = texcoords[0], .color = color};
-    v[1] = (SDL_GPVertex){
-        .position = quad[1], .texcoord = texcoords[1], .color = color};
-    v[2] = (SDL_GPVertex){
-        .position = quad[2], .texcoord = texcoords[2], .color = color};
-    v[3] = (SDL_GPVertex){
-        .position = quad[3], .texcoord = texcoords[3], .color = color};
-    v[4] = (SDL_GPVertex){
-        .position = quad[0], .texcoord = texcoords[0], .color = color};
-    v[5] = (SDL_GPVertex){
-        .position = quad[2], .texcoord = texcoords[2], .color = color};
+    v[0] = (SDL_GPVertex){ .position = quad[0],
+                           .texcoord = texcoords[0],
+                           .color    = color };
+    v[1] = (SDL_GPVertex){ .position = quad[1],
+                           .texcoord = texcoords[1],
+                           .color    = color };
+    v[2] = (SDL_GPVertex){ .position = quad[2],
+                           .texcoord = texcoords[2],
+                           .color    = color };
+    v[3] = (SDL_GPVertex){ .position = quad[3],
+                           .texcoord = texcoords[3],
+                           .color    = color };
+    v[4] = (SDL_GPVertex){ .position = quad[0],
+                           .texcoord = texcoords[0],
+                           .color    = color };
+    v[5] = (SDL_GPVertex){ .position = quad[2],
+                           .texcoord = texcoords[2],
+                           .color    = color };
     v += 6;
   }
 
@@ -3458,14 +3662,24 @@ void SDL_GPDrawRectsFilled(const SDL_GPRect *rects, Uint32 count) {
   SDL_GPPipeline pipeline = _SDL_GP_FindOrCreatePipeline(
       SDL_GP_PRIMITIVE_TRIANGLES, _gp.state.blend_mode);
 
-  _SDL_GPQueueDraw(pipeline, region, vertex_index, total_vertices,
+  _SDL_GPQueueDraw(pipeline,
+                   region,
+                   vertex_index,
+                   total_vertices,
                    SDL_GP_PRIMITIVE_TRIANGLES);
 }
 
-void SDL_GPDrawRectFilled(SDL_GPRect rect) { SDL_GPDrawRectsFilled(&rect, 1); }
+void
+SDL_GPDrawRectFilled(SDL_GPRect rect)
+{
+  SDL_GPDrawRectsFilled(&rect, 1);
+}
 
-void SDL_GPDrawRectsTextured(int channel, const SDL_GPTexturedRect *rects,
-                             Uint32 count) {
+void
+SDL_GPDrawRectsTextured(int channel,
+                        const SDL_GPTexturedRect *rects,
+                        Uint32 count)
+{
   SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
 
@@ -3474,8 +3688,8 @@ void SDL_GPDrawRectsTextured(int channel, const SDL_GPTexturedRect *rects,
   }
 
   // Setup vertices
-  Uint32 total_vertices = count * 6; // 2 triangles per rect, 3 vertices each
-  Uint32 vertex_index = _gp.current_vertex;
+  Uint32 total_vertices  = count * 6; // 2 triangles per rect, 3 vertices each
+  Uint32 vertex_index    = _gp.current_vertex;
   SDL_GPVertex *vertices = _SDL_GPNextVertices(total_vertices);
   if (!vertices) {
     return;
@@ -3484,7 +3698,7 @@ void SDL_GPDrawRectsTextured(int channel, const SDL_GPTexturedRect *rects,
   // Get image info
   SDL_GPImage image = _gp.state.texture.images[channel];
 
-  int width = SDL_GPGetImageWidth(image);
+  int width  = SDL_GPGetImageWidth(image);
   int height = SDL_GPGetImageHeight(image);
 
   // Check image dimension with unlikely
@@ -3493,17 +3707,17 @@ void SDL_GPDrawRectsTextured(int channel, const SDL_GPTexturedRect *rects,
   float ih = 1.0f / (float)height;
 
   // Compute vertices
-  SDL_GPMat2x3 mvp = _gp.state.mvp;
-  SDL_Color color = _gp.state.color;
-  _SDL_GPRegion region = {FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX};
+  SDL_GPMat2x3 mvp     = _gp.state.mvp;
+  SDL_Color color      = _gp.state.color;
+  _SDL_GPRegion region = { FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX };
 
   for (Uint32 i = 0; i < count; ++i) {
     SDL_GPVec2 quad[4] = {
-        {rects[i].dst.x, rects[i].dst.y + rects[i].dst.h}, // bottom left
-        {rects[i].dst.x + rects[i].dst.w,
-         rects[i].dst.y + rects[i].dst.h},                 // bottom right
-        {rects[i].dst.x + rects[i].dst.w, rects[i].dst.y}, // top right
-        {rects[i].dst.x, rects[i].dst.y},                  // top left
+      { rects[i].dst.x, rects[i].dst.y + rects[i].dst.h }, // bottom left
+      { rects[i].dst.x + rects[i].dst.w,
+        rects[i].dst.y + rects[i].dst.h },                 // bottom right
+      { rects[i].dst.x + rects[i].dst.w, rects[i].dst.y }, // top right
+      { rects[i].dst.x, rects[i].dst.y },                  // top left
     };
 
     _SDL_GPTransform(&mvp, quad, quad, 4);
@@ -3521,37 +3735,48 @@ void SDL_GPDrawRectsTextured(int channel, const SDL_GPTexturedRect *rects,
     float tb = (rects[i].src.y + rects[i].src.h) * ih;
 
     SDL_GPVec2 vtexquad[4] = {
-        {tl, tb}, // bottom-left
-        {tr, tb}, // bottom-right
-        {tr, tt}, // top-right
-        {tl, tt}  // top-left
+      { tl, tb }, // bottom-left
+      { tr, tb }, // bottom-right
+      { tr, tt }, // top-right
+      { tl, tt }  // top-left
     };
 
     SDL_GPVertex *v = &vertices[i * 6];
 
-    v[0] = (SDL_GPVertex){
-        .position = quad[0], .texcoord = vtexquad[0], .color = color};
-    v[1] = (SDL_GPVertex){
-        .position = quad[1], .texcoord = vtexquad[1], .color = color};
-    v[2] = (SDL_GPVertex){
-        .position = quad[2], .texcoord = vtexquad[2], .color = color};
-    v[3] = (SDL_GPVertex){
-        .position = quad[3], .texcoord = vtexquad[3], .color = color};
-    v[4] = (SDL_GPVertex){
-        .position = quad[0], .texcoord = vtexquad[0], .color = color};
-    v[5] = (SDL_GPVertex){
-        .position = quad[2], .texcoord = vtexquad[2], .color = color};
+    v[0] = (SDL_GPVertex){ .position = quad[0],
+                           .texcoord = vtexquad[0],
+                           .color    = color };
+    v[1] = (SDL_GPVertex){ .position = quad[1],
+                           .texcoord = vtexquad[1],
+                           .color    = color };
+    v[2] = (SDL_GPVertex){ .position = quad[2],
+                           .texcoord = vtexquad[2],
+                           .color    = color };
+    v[3] = (SDL_GPVertex){ .position = quad[3],
+                           .texcoord = vtexquad[3],
+                           .color    = color };
+    v[4] = (SDL_GPVertex){ .position = quad[0],
+                           .texcoord = vtexquad[0],
+                           .color    = color };
+    v[5] = (SDL_GPVertex){ .position = quad[2],
+                           .texcoord = vtexquad[2],
+                           .color    = color };
   }
 
   // Queue draw
   SDL_GPPipeline pipeline = _SDL_GP_FindOrCreatePipeline(
       SDL_GP_PRIMITIVE_TRIANGLES, _gp.state.blend_mode);
 
-  _SDL_GPQueueDraw(pipeline, region, vertex_index, total_vertices,
+  _SDL_GPQueueDraw(pipeline,
+                   region,
+                   vertex_index,
+                   total_vertices,
                    SDL_GP_PRIMITIVE_TRIANGLES);
 }
 
-void SDL_GPDrawRectTextured(int channel, SDL_GPTexturedRect rect) {
+void
+SDL_GPDrawRectTextured(int channel, SDL_GPTexturedRect rect)
+{
   SDL_GPDrawRectsTextured(channel, &rect, 1);
 }
 

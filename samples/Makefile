@@ -31,7 +31,7 @@ LDFLAGS = -lSDL3 -lSDL3_ttf -lm
 
 CFLAGS = -std=c99 -Wall
 
-INC_FLAGS := -I$(INC_DIR)
+INC_FLAGS := -I$(INC_DIR) -I../
 
 ifeq ($(DEBUG), 1)
 CFLAGS += -g -O0 -DDEBUG $(INC_FLAGS)
