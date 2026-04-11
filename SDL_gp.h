@@ -56,6 +56,8 @@
 
 #include <SDL3/SDL.h>
 
+#include <float.h>
+
 #if defined(_MSC_VER)
 #define INLINE __forceinline
 #elif defined(__GNUC__) || defined(__clang__)
@@ -461,15 +463,24 @@ extern "C"
     Uint32 max_commands;
     SDL_Window *window;
     SDL_GPUDevice *gpu_device;
-    SDL_GPUTexture *target_texture; // Swapchain
-    SDL_GPUCommandBuffer *cmd_buffer;
   } SDL_GPDesc;
+
+  typedef struct SDL_GPContext
+  {
+    SDL_GPUTexture *swapchain_texture;
+    SDL_GPUCommandBuffer *cmd_buffer;
+  } SDL_GPContext;
+
+  static SDL_GPContext _gp_context = { 0 };
+
+  void SDL_GPSetSwapchainTexture(SDL_GPUTexture *swapchain_texture);
+  void SDL_GPSetCommandBuffer(SDL_GPUCommandBuffer *cmd_buffer);
 
   void SDL_GPSetup(SDL_GPDesc *desc);
   void SDL_GPShutdown();
 
   void SDL_GPBegin(int width, int height);
-  void SDL_GPFlush(void);
+  void SDL_GPFlush(SDL_GPUTexture *swapchain_texture);
   void SDL_GPEnd(void);
 
   void SDL_GPSetProjection(float left, float right, float bottom, float top);
@@ -489,16 +500,16 @@ extern "C"
                         const void *fs_data,
                         size_t fs_size);
   void SDL_GPResetUniform(void);
-  void SDL_GPPainterSetBlendMode(SDL_GPBlendMode blend_mode);
-  void SDL_GPPainterResetBlendMode(void);
-  void SDL_GPPainterSetColor(SDL_Color color);
+  void SDL_GPSetBlendMode(SDL_GPBlendMode blend_mode);
+  void SDL_GPResetBlendMode(void);
+  void SDL_GPSetColor(SDL_Color color);
   SDL_Color SDL_GPGetColor(void);
   void SDL_GPResetColor(void);
   void SDL_GPSetImage(int channel, SDL_GPImage image);
   SDL_GPImage SDL_GPGetImage(int channel);
   void SDL_GPResetImage(int channel);
   void SDL_GPUnsetImage(int channel);
-  void SDL_GPSetSampler(int channel, SDL_GPUSampler *sampler);
+  void SDL_SDL_GPShutdownGPSetSampler(int channel, SDL_GPUSampler *sampler);
   void SDL_GPResetSampler(int channel);
 
   // Set the viewport for subsequent draw calls.
@@ -544,7 +555,7 @@ extern "C"
 // Implementation and internal API
 // ----------------------------------------------------------------------------
 
-// TODO remove the next line once done.
+// TODO remove once done
 #define SDL_GP_IMPLEMENTATION
 
 #ifdef SDL_GP_IMPLEMENTATION
@@ -559,6 +570,8 @@ static SDL_GP_Error _last_error = SDL_GP_ERROR_NONE;
 static void
 _SDL_GPSetError(SDL_GP_Error error)
 {
+  SDL_LogError(
+      SDL_LOG_CATEGORY_VIDEO, "SDL_gp error: %s", SDL_GPGetErrorMessage(error));
   _last_error = error;
 }
 
@@ -703,23 +716,19 @@ static _SDL_GPImage *_images                                 = NULL;
 static SDL_GPPool *_image_pool                               = NULL;
 static SDL_GPUTransferBuffer *_image_texture_transfer_buffer = NULL;
 static SDL_GPUDevice *_image_gpu_device                      = NULL;
-static SDL_GPUCommandBuffer *_image_cmd_buffer               = NULL;
-static SDL_PixelFormat *_image_pixel_format                  = NULL;
+static SDL_PixelFormat _image_pixel_format;
 
 // Setup image resources management.
 static void
-_SDL_GPImageSetup(SDL_GPUDevice *gpu_device,
-                  SDL_GPUCommandBuffer *cmd_buffer,
-                  SDL_PixelFormat pixel_format)
+_SDL_GPImageSetup(SDL_GPUDevice *gpu_device, SDL_PixelFormat pixel_format)
 {
   SDL_assert(_image_initialized == 0);
   SDL_assert(gpu_device);
-  SDL_assert(cmd_buffer);
 
   _image_initialized = _SDL_GP_INIT_COOKIE;
 
-  _image_gpu_device = gpu_device;
-  _image_cmd_buffer = cmd_buffer;
+  _image_gpu_device   = gpu_device;
+  _image_pixel_format = pixel_format;
 
   _image_pool = SDL_GPCeatePool(SDL_GP_IMAGE_MAX);
 
@@ -757,14 +766,15 @@ SDL_GPCreateImage(SDL_Surface *surface)
 {
   SDL_assert(_image_initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(surface);
+  SDL_assert(_gp_context.cmd_buffer);
 
   SDL_Surface *inner_surface = surface;
 
   // Convert the surface to the swapchain texture format if needed
 
   bool converted = false;
-  if (surface->format != *_image_pixel_format) {
-    inner_surface = SDL_ConvertSurface(surface, *_image_pixel_format);
+  if (surface->format != _image_pixel_format) {
+    inner_surface = SDL_ConvertSurface(surface, _image_pixel_format);
 
     if (inner_surface == NULL) {
       _SDL_GPSetError(SDL_GP_ERROR_CREATE_IMAGE_FAILED);
@@ -791,7 +801,7 @@ SDL_GPCreateImage(SDL_Surface *surface)
   // Create GPU texture and copy the transfer buffer to it
 
   SDL_GPUTextureFormat _image_texture_format
-      = SDL_GetGPUTextureFormatFromPixelFormat(*_image_pixel_format);
+      = SDL_GetGPUTextureFormatFromPixelFormat(_image_pixel_format);
 
   SDL_GPUTextureCreateInfo texture_create_info
       = { .type                 = SDL_GPU_TEXTURETYPE_2D,
@@ -813,7 +823,7 @@ SDL_GPCreateImage(SDL_Surface *surface)
   // Copy the texture data from the transfer buffer to the GPU texture using a
   // copy pass
 
-  SDL_GPUCopyPass *copy_pass = SDL_BeginGPUCopyPass(_image_cmd_buffer);
+  SDL_GPUCopyPass *copy_pass = SDL_BeginGPUCopyPass(_gp_context.cmd_buffer);
 
   SDL_GPUTextureTransferInfo transfer_info = {
     .transfer_buffer = _image_texture_transfer_buffer,
@@ -1089,8 +1099,12 @@ static void
 _SDL_GPPipelineSetup(SDL_GPUDevice *gpu_device, SDL_Window *window)
 {
   SDL_assert(_pipeline_initialized == 0);
+  SDL_assert(gpu_device);
+  SDL_assert(window);
 
   _pipeline_initialized = _SDL_GP_INIT_COOKIE;
+  _pipeline_gpu_device  = gpu_device;
+  _pipeline_window      = window;
 
   _pipeline_pool = SDL_GPCeatePool(SDL_GP_PIPELINE_MAX);
   _pipelines     = (_SDL_GPPipeline *)SDL_malloc(SDL_GP_PIPELINE_MAX
@@ -2383,6 +2397,20 @@ _SDL_GPTransform(SDL_GPMat2x3 *matrix,
 }
 
 void
+SDL_GPSetSwapchainTexture(SDL_GPUTexture *swapchain_texture)
+{
+  SDL_assert(swapchain_texture);
+  _gp_context.swapchain_texture = swapchain_texture;
+}
+
+void
+SDL_GPSetCommandBuffer(SDL_GPUCommandBuffer *cmd_buffer)
+{
+  SDL_assert(cmd_buffer);
+  _gp_context.cmd_buffer = cmd_buffer;
+}
+
+void
 SDL_GPSetup(SDL_GPDesc *desc)
 {
   SDL_assert(_gp_initialized == 0);
@@ -2392,11 +2420,12 @@ SDL_GPSetup(SDL_GPDesc *desc)
 
   _gp_initialized = _SDL_GP_INIT_COOKIE;
 
-  _gp.desc = *desc;
   _gp.desc.max_vertices
       = SDL_GP_DEFAULT(desc->max_vertices, SDL_GP_VERTICES_MAX);
   _gp.desc.max_commands
       = SDL_GP_DEFAULT(desc->max_commands, SDL_GP_COMMANDS_MAX);
+  _gp.desc.window     = desc->window;
+  _gp.desc.gpu_device = desc->gpu_device;
 
   // Get Swapchain pixel format
   SDL_GPUTextureFormat texture_format
@@ -2411,7 +2440,7 @@ SDL_GPSetup(SDL_GPDesc *desc)
 
   _SDL_GPShaderSetup(_gp.desc.gpu_device);
   _SDL_GPPipelineSetup(_gp.desc.gpu_device, _gp.desc.window);
-  _SDL_GPImageSetup(_gp.desc.gpu_device, _gp.desc.cmd_buffer, _gp.pixel_format);
+  _SDL_GPImageSetup(_gp.desc.gpu_device, _gp.pixel_format);
 
   // Create a white texture
 
@@ -2518,8 +2547,8 @@ SDL_GPSetup(SDL_GPDesc *desc)
            != SDL_GP_INVALID_ID;
 
   if (!is_ok) {
-    SDL_GPShutdown();
     _SDL_GPSetError(SDL_GP_ERROR_CREATE_COMMON_PIPELINE_FAILED);
+    SDL_GPShutdown();
     return;
   }
 }
@@ -2623,10 +2652,13 @@ SDL_GPBegin(int width, int height)
 }
 
 void
-SDL_GPFlush()
+SDL_GPFlush(SDL_GPUTexture *swapchain_texture)
 {
   SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
+
+  SDL_assert(_gp_context.cmd_buffer);
+  SDL_assert(_gp_context.swapchain_texture);
 
   Uint32 end_command = _gp.current_command;
   Uint32 end_vertex  = _gp.current_vertex;
@@ -2667,7 +2699,7 @@ SDL_GPFlush()
 
   // Copy pass
 
-  SDL_GPUCopyPass *copy_pass = SDL_BeginGPUCopyPass(_gp.desc.cmd_buffer);
+  SDL_GPUCopyPass *copy_pass = SDL_BeginGPUCopyPass(_gp_context.cmd_buffer);
 
   SDL_GPUTransferBufferLocation vertex_transfer_location
       = { .transfer_buffer = _gp.vertex_transfer_buffer, .offset = 0 };
@@ -2685,7 +2717,7 @@ SDL_GPFlush()
   // Render pass
 
   SDL_GPUColorTargetInfo color_target_info = {
-    .texture     = _gp.desc.target_texture,
+    .texture     = swapchain_texture, // _gp.desc.target_texture,
     .clear_color = { 0, 0, 0, 1 },
     .load_op     = SDL_GPU_LOADOP_CLEAR,
     .store_op    = SDL_GPU_STOREOP_STORE,
@@ -2693,7 +2725,7 @@ SDL_GPFlush()
   };
 
   SDL_GPURenderPass *render_pass = SDL_BeginGPURenderPass(
-      _gp.desc.cmd_buffer, &color_target_info, 1, NULL);
+      _gp_context.cmd_buffer, &color_target_info, 1, NULL);
 
   Uint32 cur_pipeline_id   = SDL_GP_IMPOSSIBLE_ID;
   Uint32 cur_uniform_index = SDL_GP_IMPOSSIBLE_ID;
@@ -2766,7 +2798,7 @@ SDL_GPFlush()
       // Rebind textures if needed
       if (rebind_texture) {
         SDL_BindGPUFragmentSamplers(
-            render_pass, 0, image_bindings, SDL_GP_TEXTURE_DIMENSION_MAX);
+            render_pass, 0, image_bindings, SDL_GP_TEXTURE_SLOTS_MAX);
       }
 
       // Rebind uniforms if needed
@@ -2774,13 +2806,13 @@ SDL_GPFlush()
         SDL_GPUniform *uniform = &_gp.uniforms[cmd->args.draw.uniform_index];
 
         if (uniform->vs_size > 0) {
-          SDL_PushGPUVertexUniformData(_gp.desc.cmd_buffer,
+          SDL_PushGPUVertexUniformData(_gp_context.cmd_buffer,
                                        SDL_GP_UNIFORM_SLOT_VS,
                                        &uniform->data.bytes[0],
                                        uniform->vs_size);
         }
         if (uniform->fs_size > 0) {
-          SDL_PushGPUFragmentUniformData(_gp.desc.cmd_buffer,
+          SDL_PushGPUFragmentUniformData(_gp_context.cmd_buffer,
                                          SDL_GP_UNIFORM_SLOT_FS,
                                          &uniform->data.bytes[0],
                                          uniform->fs_size);
@@ -3040,7 +3072,7 @@ SDL_GPResetUniform()
 }
 
 void
-SDL_GPPainterSetBlendMode(SDL_GPBlendMode blend_mode)
+SDL_GPSetBlendMode(SDL_GPBlendMode blend_mode)
 {
   SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
@@ -3049,7 +3081,7 @@ SDL_GPPainterSetBlendMode(SDL_GPBlendMode blend_mode)
 }
 
 void
-SDL_GPPainterResetBlendMode()
+SDL_GPResetBlendMode()
 {
   SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
@@ -3058,7 +3090,7 @@ SDL_GPPainterResetBlendMode()
 }
 
 void
-SDL_GPPainterSetColor(SDL_Color color)
+SDL_GPSetColor(SDL_Color color)
 {
   SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
