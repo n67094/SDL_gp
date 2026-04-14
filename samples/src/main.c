@@ -178,6 +178,7 @@ SDL_AppEvent(void *appstate, SDL_Event *event)
     switch (event->key.key) {
     case SDLK_LEFT:
       _current_test = (_current_test - 1 + SAMPLE_COUNT) % SAMPLE_COUNT;
+      break;
     case SDLK_RIGHT:
       _current_test = (_current_test + 1) % SAMPLE_COUNT;
       break;

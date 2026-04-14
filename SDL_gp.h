@@ -512,6 +512,8 @@ extern "C"
   void SDL_GPScissor(int x, int y, int w, int h);
   void SDL_GPResetScissor(void);
 
+  void SDL_GPResetState(void);
+
   void SDL_GPClear(void);
 
   void SDL_GPDraw(SDL_GPPrimitiveType primitive_type,
@@ -2426,6 +2428,7 @@ SDL_GPSetup(SDL_GPDesc *desc)
       = SDL_GP_DEFAULT(desc->max_vertices, SDL_GP_VERTICES_MAX);
   _gp.desc.max_commands
       = SDL_GP_DEFAULT(desc->max_commands, SDL_GP_COMMANDS_MAX);
+
   _gp.desc.window     = desc->window;
   _gp.desc.gpu_device = desc->gpu_device;
 
@@ -3290,6 +3293,22 @@ SDL_GPResetScissor()
   SDL_assert(_gp.current_state > 0);
 
   _gp.state.scissor = (SDL_GPIRect){ .x = 0, .y = 0, .w = -1, .h = -1 };
+}
+
+void
+SDL_GPResetState()
+{
+  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.current_state > 0);
+
+  SDL_GPResetViewport();
+  SDL_GPResetScissor();
+  SDL_GPResetProjection();
+  SDL_GPResetTransform();
+  SDL_GPResetBlendMode();
+  SDL_GPResetColor();
+  SDL_GPResetUniform();
+  SDL_GPResetPipeline();
 }
 
 static bool

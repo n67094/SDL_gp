@@ -6,7 +6,7 @@
 
 #include "sample-blend.h"
 
-static Context *_context;
+static Context *_context = NULL;
 
 static void
 draw_rects(int brightness, int alpha)
