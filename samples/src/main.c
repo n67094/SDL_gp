@@ -138,7 +138,7 @@ SDL_AppIterate(void *appstate)
 
   SDL_GPBegin(WINDOW_WIDTH, WINDOW_HEIGHT);
   {
-    SDL_GPSetColor((SDL_Color){ 255, 0, 0, 255 });
+    SDL_GPSetColor((SDL_Color){ 0, 0, 0, 255 });
     SDL_GPClear();
 
     switch (_current_test) {

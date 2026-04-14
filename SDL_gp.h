@@ -465,16 +465,8 @@ extern "C"
     SDL_GPUDevice *gpu_device;
   } SDL_GPDesc;
 
-  typedef struct SDL_GPContext
-  {
-    SDL_GPUTexture *swapchain_texture;
-    SDL_GPUCommandBuffer *cmd_buffer;
-  } SDL_GPContext;
-
-  static SDL_GPContext _gp_context = { 0 };
-
-  void SDL_GPSetSwapchainTexture(SDL_GPUTexture *swapchain_texture);
-  void SDL_GPSetCommandBuffer(SDL_GPUCommandBuffer *cmd_buffer);
+  void SDL_GPUpdateSwapchainTexture(SDL_GPUTexture *swapchain_texture);
+  void SDL_GPUpdateCommandBuffer(SDL_GPUCommandBuffer *cmd_buffer);
 
   void SDL_GPSetup(SDL_GPDesc *desc);
   void SDL_GPShutdown();
@@ -556,11 +548,14 @@ extern "C"
 // ----------------------------------------------------------------------------
 
 // TODO remove once done
-#define SDL_GP_IMPLEMENTATION
+// #define SDL_GP_IMPLEMENTATION
 
 #ifdef SDL_GP_IMPLEMENTATION
 
 #define _SDL_GP_INIT_COOKIE 0xC0DED1ED
+
+static SDL_GPUTexture *_swapchain_texture;
+static SDL_GPUCommandBuffer *_cmd_buffer;
 
 // Error handling (Private)
 // ----------------------------------------------------------------------------
@@ -716,19 +711,19 @@ static _SDL_GPImage *_images                                 = NULL;
 static SDL_GPPool *_image_pool                               = NULL;
 static SDL_GPUTransferBuffer *_image_texture_transfer_buffer = NULL;
 static SDL_GPUDevice *_image_gpu_device                      = NULL;
-static SDL_PixelFormat _image_pixel_format;
+static SDL_Window *_image_window                             = NULL;
 
 // Setup image resources management.
 static void
-_SDL_GPImageSetup(SDL_GPUDevice *gpu_device, SDL_PixelFormat pixel_format)
+_SDL_GPImageSetup(SDL_GPUDevice *gpu_device, SDL_Window *window)
 {
   SDL_assert(_image_initialized == 0);
   SDL_assert(gpu_device);
 
   _image_initialized = _SDL_GP_INIT_COOKIE;
 
-  _image_gpu_device   = gpu_device;
-  _image_pixel_format = pixel_format;
+  _image_gpu_device = gpu_device;
+  _image_window     = window;
 
   _image_pool = SDL_GPCeatePool(SDL_GP_IMAGE_MAX);
 
@@ -766,17 +761,28 @@ SDL_GPCreateImage(SDL_Surface *surface)
 {
   SDL_assert(_image_initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(surface);
-  SDL_assert(_gp_context.cmd_buffer);
+  SDL_assert(_cmd_buffer);
 
-  SDL_Surface *inner_surface = surface;
+  SDL_Surface *converted_surface = surface;
+
+  SDL_GPUTextureFormat texture_format
+      = SDL_GetGPUSwapchainTextureFormat(_image_gpu_device, _image_window);
+  SDL_PixelFormat pixel_format
+      = SDL_GetPixelFormatFromGPUTextureFormat(texture_format);
 
   // Convert the surface to the swapchain texture format if needed
 
   bool converted = false;
-  if (surface->format != _image_pixel_format) {
-    inner_surface = SDL_ConvertSurface(surface, _image_pixel_format);
+  if (surface->format != pixel_format) {
 
-    if (inner_surface == NULL) {
+    SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
+                "Converting image pixel format from %s to %s",
+                SDL_GetPixelFormatName(surface->format),
+                SDL_GetPixelFormatName(pixel_format));
+
+    converted_surface = SDL_ConvertSurface(surface, pixel_format);
+
+    if (converted_surface == NULL) {
       _SDL_GPSetError(SDL_GP_ERROR_CREATE_IMAGE_FAILED);
       return (SDL_GPImage){ .id = SDL_GP_INVALID_ID };
     }
@@ -800,12 +806,9 @@ SDL_GPCreateImage(SDL_Surface *surface)
 
   // Create GPU texture and copy the transfer buffer to it
 
-  SDL_GPUTextureFormat _image_texture_format
-      = SDL_GetGPUTextureFormatFromPixelFormat(_image_pixel_format);
-
   SDL_GPUTextureCreateInfo texture_create_info
       = { .type                 = SDL_GPU_TEXTURETYPE_2D,
-          .format               = _image_texture_format,
+          .format               = texture_format,
           .width                = (Uint32)surface->w,
           .height               = (Uint32)surface->h,
           .layer_count_or_depth = 1,
@@ -823,7 +826,7 @@ SDL_GPCreateImage(SDL_Surface *surface)
   // Copy the texture data from the transfer buffer to the GPU texture using a
   // copy pass
 
-  SDL_GPUCopyPass *copy_pass = SDL_BeginGPUCopyPass(_gp_context.cmd_buffer);
+  SDL_GPUCopyPass *copy_pass = SDL_BeginGPUCopyPass(_cmd_buffer);
 
   SDL_GPUTextureTransferInfo transfer_info = {
     .transfer_buffer = _image_texture_transfer_buffer,
@@ -841,7 +844,7 @@ SDL_GPCreateImage(SDL_Surface *surface)
   // Destroy the converted surface if we created one
 
   if (converted) {
-    SDL_DestroySurface(inner_surface);
+    SDL_DestroySurface(converted_surface);
   }
 
   // Allocate image from resource
@@ -2185,7 +2188,6 @@ typedef struct _SDL_GP
   SDL_GPShader shader;
   SDL_GPPipeline pipelines[SDL_GP_PRIMITIVE_SIZE * SDL_GP_BLENDMODE_SIZE];
   SDL_GPUSampler *nearest_samplers;
-  SDL_PixelFormat pixel_format;
   SDL_GPImage white_image;
 
   // States stack
@@ -2400,14 +2402,14 @@ void
 SDL_GPSetSwapchainTexture(SDL_GPUTexture *swapchain_texture)
 {
   SDL_assert(swapchain_texture);
-  _gp_context.swapchain_texture = swapchain_texture;
+  _swapchain_texture = swapchain_texture;
 }
 
 void
 SDL_GPSetCommandBuffer(SDL_GPUCommandBuffer *cmd_buffer)
 {
   SDL_assert(cmd_buffer);
-  _gp_context.cmd_buffer = cmd_buffer;
+  _cmd_buffer = cmd_buffer;
 }
 
 void
@@ -2427,20 +2429,11 @@ SDL_GPSetup(SDL_GPDesc *desc)
   _gp.desc.window     = desc->window;
   _gp.desc.gpu_device = desc->gpu_device;
 
-  // Get Swapchain pixel format
-  SDL_GPUTextureFormat texture_format
-      = SDL_GetGPUSwapchainTextureFormat(_gp.desc.gpu_device, _gp.desc.window);
-
-  SDL_PixelFormat pixel_format
-      = SDL_GetPixelFormatFromGPUTextureFormat(texture_format);
-
-  _gp.pixel_format = pixel_format;
-
   // Setup resources management for shaders, pipelines and images
 
   _SDL_GPShaderSetup(_gp.desc.gpu_device);
   _SDL_GPPipelineSetup(_gp.desc.gpu_device, _gp.desc.window);
-  _SDL_GPImageSetup(_gp.desc.gpu_device, _gp.pixel_format);
+  _SDL_GPImageSetup(_gp.desc.gpu_device, _gp.desc.window);
 
   // Create a white texture
 
@@ -2657,8 +2650,8 @@ SDL_GPFlush(SDL_GPUTexture *swapchain_texture)
   SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
 
-  SDL_assert(_gp_context.cmd_buffer);
-  SDL_assert(_gp_context.swapchain_texture);
+  SDL_assert(_cmd_buffer);
+  SDL_assert(_swapchain_texture);
 
   Uint32 end_command = _gp.current_command;
   Uint32 end_vertex  = _gp.current_vertex;
@@ -2699,7 +2692,7 @@ SDL_GPFlush(SDL_GPUTexture *swapchain_texture)
 
   // Copy pass
 
-  SDL_GPUCopyPass *copy_pass = SDL_BeginGPUCopyPass(_gp_context.cmd_buffer);
+  SDL_GPUCopyPass *copy_pass = SDL_BeginGPUCopyPass(_cmd_buffer);
 
   SDL_GPUTransferBufferLocation vertex_transfer_location
       = { .transfer_buffer = _gp.vertex_transfer_buffer, .offset = 0 };
@@ -2724,8 +2717,8 @@ SDL_GPFlush(SDL_GPUTexture *swapchain_texture)
     .cycle       = false,
   };
 
-  SDL_GPURenderPass *render_pass = SDL_BeginGPURenderPass(
-      _gp_context.cmd_buffer, &color_target_info, 1, NULL);
+  SDL_GPURenderPass *render_pass
+      = SDL_BeginGPURenderPass(_cmd_buffer, &color_target_info, 1, NULL);
 
   Uint32 cur_pipeline_id   = SDL_GP_IMPOSSIBLE_ID;
   Uint32 cur_uniform_index = SDL_GP_IMPOSSIBLE_ID;
@@ -2806,13 +2799,13 @@ SDL_GPFlush(SDL_GPUTexture *swapchain_texture)
         SDL_GPUniform *uniform = &_gp.uniforms[cmd->args.draw.uniform_index];
 
         if (uniform->vs_size > 0) {
-          SDL_PushGPUVertexUniformData(_gp_context.cmd_buffer,
+          SDL_PushGPUVertexUniformData(_cmd_buffer,
                                        SDL_GP_UNIFORM_SLOT_VS,
                                        &uniform->data.bytes[0],
                                        uniform->vs_size);
         }
         if (uniform->fs_size > 0) {
-          SDL_PushGPUFragmentUniformData(_gp_context.cmd_buffer,
+          SDL_PushGPUFragmentUniformData(_cmd_buffer,
                                          SDL_GP_UNIFORM_SLOT_FS,
                                          &uniform->data.bytes[0],
                                          uniform->fs_size);
