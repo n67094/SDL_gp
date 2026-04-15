@@ -291,3 +291,7 @@ You can also check out my blog at [www.nsix.blog](https://www.nsix.blog) for mor
 
 - [Edubart](https://github.com/edubart) - Creator of the original `sokol_gp`.
 - [The SDL team](https://github.com/libsdl-org) - For developing and maintaining `SDL3`.
+
+# License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
