@@ -1,6 +1,6 @@
 # SDL_gp 🏁🏎️
 
-> A minimal, high-performance 2D graphics painter for `SDL3`.
+> A minimal, high-performance 2D (g)raphics (p)ainter for `SDL3`.
 
 This is a port of [sokol_gp](https://github.com/edubart/sokol_gp) to SDL3, with one main difference:
 
@@ -95,8 +95,8 @@ Pipeline API:
 ```c
 // Create a graphics pipeline
 SDL_GPPipeline SDL_GPCreatePipeline(SDL_GPShader shader,
-                                      SDL_GPPrimitiveType primitive_type,
-                                      SDL_GPBlendMode blend_mode);
+                                    SDL_GPPrimitiveType primitive_type,
+                                    SDL_GPBlendMode blend_mode);
 
 // Destroy a graphics pipeline and free its resources.
 void SDL_GPPipelineDestroy(SDL_GPPipeline pipeline);
@@ -278,6 +278,14 @@ void SDL_GPDrawTexturedRects(int channel,
 // Draw a single textured rectangle.
 void SDL_GPDrawTextureddRect(int channel, SDL_GPTexturedRect rect);
 ```
+
+# Sponsors
+
+Hi everyone, I'm nsix, an indie game developer and open source contributor trying to make a living from my work.
+
+If you enjoy what I create and want to support me, consider becoming a sponsor on GitHub Sponsors. Every bit of support means a lot and is greatly appreciated!
+
+You can also check out my blog at [www.nsix.blog](https://www.nsix.blog) for more updates and insights into my work.
 
 # Acknowledgements
 
