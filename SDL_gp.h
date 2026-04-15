@@ -1,5 +1,6 @@
 /**
  * TODO re-organize structures to take less memory.
+ *
  * https://github.com/n67094/SDL_gp
  *
  * SDL_gp: A minimal and efficient 2D (g)raphics (p)ainter for SDL3.
@@ -58,21 +59,8 @@
 
 #include <float.h>
 
-#if defined(_MSC_VER)
-#define INLINE __forceinline
-#elif defined(__GNUC__) || defined(__clang__)
-#define SDL_GP_INLINE static inline __attribute((always_inline))
-#else
-#define INLINE
-#endif
-
-#ifdef __cplusplus
-extern "C"
-{
-#endif
-
-  // Resource limits
-  // ----------------------------------------------------------------------------
+// Resource limits
+// ----------------------------------------------------------------------------
 
 #ifndef SDL_GP_PATH_MAX
 #define SDL_GP_PATH_MAX 512
@@ -138,9 +126,13 @@ extern "C"
 #define SDL_GP_OPTIMIZER_DEPTH 8
 #endif
 
-  // ----------------------------------------------------------------------------
-  // Public API
-  // ----------------------------------------------------------------------------
+#if defined(_MSC_VER)
+#define INLINE __forceinline
+#elif defined(__GNUC__) || defined(__clang__)
+#define SDL_GP_INLINE static inline __attribute((always_inline))
+#else
+#define INLINE
+#endif
 
 #define SDL_GP_INVALID_ID 0
 #define SDL_GP_IMPOSSIBLE_ID 0xFFFFFFFF
@@ -150,6 +142,15 @@ extern "C"
 
 // Get the offset of an element in a structure
 #define SDL_GP_OFFSET_OF(TYPE, ELEMENT) ((size_t)&(((TYPE *)0)->ELEMENT))
+
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
+  // ----------------------------------------------------------------------------
+  // Public API
+  // ----------------------------------------------------------------------------
 
   // Error handling (Public)
   // ----------------------------------------------------------------------------
@@ -262,9 +263,6 @@ extern "C"
 
   // Get the height of an image in pixels. Returns 0 if the image is invalid.
   int SDL_GPGetImageHeight(SDL_GPImage image);
-
-  // Sampler (Public)
-  // ----------------------------------------------------------------------------
 
   // Shader (Public)
   // ----------------------------------------------------------------------------
@@ -762,10 +760,10 @@ SDL_GPImage
 SDL_GPCreateImage(SDL_Surface *surface)
 {
   SDL_assert(_image_initialized == _SDL_GP_INIT_COOKIE);
-  SDL_assert(surface);
   SDL_assert(_cmd_buffer);
+  SDL_assert(surface);
 
-  SDL_Surface *converted_surface = surface;
+  SDL_Surface *inner_surface = surface;
 
   SDL_GPUTextureFormat texture_format
       = SDL_GetGPUSwapchainTextureFormat(_image_gpu_device, _image_window);
@@ -782,9 +780,9 @@ SDL_GPCreateImage(SDL_Surface *surface)
                 SDL_GetPixelFormatName(surface->format),
                 SDL_GetPixelFormatName(pixel_format));
 
-    converted_surface = SDL_ConvertSurface(surface, pixel_format);
+    inner_surface = SDL_ConvertSurface(surface, pixel_format);
 
-    if (converted_surface == NULL) {
+    if (inner_surface == NULL) {
       _SDL_GPSetError(SDL_GP_ERROR_CREATE_IMAGE_FAILED);
       return (SDL_GPImage){ .id = SDL_GP_INVALID_ID };
     }
@@ -797,12 +795,18 @@ SDL_GPCreateImage(SDL_Surface *surface)
   void *texture_transfer_ptr = SDL_MapGPUTransferBuffer(
       _image_gpu_device, _image_texture_transfer_buffer, true);
 
-  SDL_assert(surface->w * surface->h * 4 <= SDL_GP_TEXTURE_DIMENSION_MAX
-                                                * SDL_GP_TEXTURE_DIMENSION_MAX
-                                                * 4);
+  const SDL_PixelFormatDetails *format_details
+      = SDL_GetPixelFormatDetails(inner_surface->format);
 
-  SDL_memcpy(
-      texture_transfer_ptr, surface->pixels, surface->w * surface->h * 4);
+  SDL_assert(inner_surface->w * inner_surface->h
+                 * format_details->bytes_per_pixel
+             <= SDL_GP_TEXTURE_DIMENSION_MAX * SDL_GP_TEXTURE_DIMENSION_MAX
+                    * format_details->bytes_per_pixel);
+
+  SDL_memcpy(texture_transfer_ptr,
+             inner_surface->pixels,
+             inner_surface->w * inner_surface->h
+                 * format_details->bytes_per_pixel);
 
   SDL_UnmapGPUTransferBuffer(_image_gpu_device, _image_texture_transfer_buffer);
 
@@ -811,8 +815,8 @@ SDL_GPCreateImage(SDL_Surface *surface)
   SDL_GPUTextureCreateInfo texture_create_info
       = { .type                 = SDL_GPU_TEXTURETYPE_2D,
           .format               = texture_format,
-          .width                = (Uint32)surface->w,
-          .height               = (Uint32)surface->h,
+          .width                = (Uint32)inner_surface->w,
+          .height               = (Uint32)inner_surface->h,
           .layer_count_or_depth = 1,
           .num_levels           = 1,
           .usage                = SDL_GPU_TEXTUREUSAGE_SAMPLER };
@@ -835,19 +839,14 @@ SDL_GPCreateImage(SDL_Surface *surface)
     .offset          = 0,
   };
 
-  SDL_GPUTextureRegion region = {
-    .texture = texture, .w = (Uint32)surface->w, .h = (Uint32)surface->h, .d = 1
-  };
+  SDL_GPUTextureRegion region = { .texture = texture,
+                                  .w       = (Uint32)inner_surface->w,
+                                  .h       = (Uint32)inner_surface->h,
+                                  .d       = 1 };
 
   SDL_UploadToGPUTexture(copy_pass, &transfer_info, &region, false);
 
   SDL_EndGPUCopyPass(copy_pass);
-
-  // Destroy the converted surface if we created one
-
-  if (converted) {
-    SDL_DestroySurface(converted_surface);
-  }
 
   // Allocate image from resource
 
@@ -860,9 +859,15 @@ SDL_GPCreateImage(SDL_Surface *surface)
 
   _images[slot] = (_SDL_GPImage){
     .texture = texture,
-    .width   = surface->w,
-    .height  = surface->h,
+    .width   = inner_surface->w,
+    .height  = inner_surface->h,
   };
+
+  // Destroy the converted surface if we created one
+
+  if (converted) {
+    SDL_DestroySurface(inner_surface);
+  }
 
   return (SDL_GPImage){ .id = SDL_GPGeneratePoolId(_image_pool, slot) };
 }
@@ -2440,12 +2445,23 @@ SDL_GPSetup(SDL_GPDesc *desc)
 
   // Create a white texture
 
-  SDL_Surface *white_surface = SDL_CreateSurfaceFrom(
-      2,
-      2,
-      SDL_PIXELFORMAT_RGBA8888,
-      (Uint32[]){ 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF },
-      4 * sizeof(Uint32));
+  SDL_GPUTextureFormat texture_format
+      = SDL_GetGPUSwapchainTextureFormat(_image_gpu_device, _image_window);
+
+  SDL_PixelFormat pixel_format
+      = SDL_GetPixelFormatFromGPUTextureFormat(texture_format);
+
+  const SDL_PixelFormatDetails *format_details
+      = SDL_GetPixelFormatDetails(pixel_format);
+
+  Uint32 white = SDL_MapRGBA(format_details, NULL, 255, 255, 255, 255);
+
+  SDL_Surface *white_surface
+      = SDL_CreateSurfaceFrom(2,
+                              2,
+                              pixel_format,
+                              (Uint32[]){ white, white, white, white },
+                              format_details->bytes_per_pixel * 2);
 
   if (white_surface == NULL) {
     SDL_GPShutdown();
