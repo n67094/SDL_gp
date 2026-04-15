@@ -66,7 +66,7 @@ sample_primitive_render(Uint64 delta_time_ms)
 
       SDL_GPSetColor((SDL_Color){ 255, 0, 255, 255 });
 
-      SDL_GPDrawTriangleFilled((SDL_GPTriangle){
+      SDL_GPDrawFilledTriangle((SDL_GPTriangle){
           .a = (SDL_GPPoint){ 0, -half_shape },
           .b = (SDL_GPPoint){ half_shape, half_shape },
           .c = (SDL_GPPoint){ -half_shape, half_shape },

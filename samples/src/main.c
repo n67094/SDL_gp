@@ -12,8 +12,8 @@
 #include "sample-primitive.h"
 #include "sample-rect.h"
 
-#define WINDOW_WIDTH 640
-#define WINDOW_HEIGHT 480
+#define WINDOW_WIDTH 1026
+#define WINDOW_HEIGHT 576
 #define DELTA_TIME_MS 16 // ~60 FPS
 
 typedef enum
@@ -92,7 +92,7 @@ SDL_AppInit(void **appstate, int argc, char **argv)
     SDL_Log("Failed to acquire GPU command buffer (error: %s)", SDL_GetError());
     return SDL_APP_FAILURE;
   }
-  SDL_GPSetCommandBuffer(_context.cmd_buffer);
+  SDL_GPUpdateCommandBuffer(_context.cmd_buffer);
 
   // Setup SDL_gp
 
@@ -124,7 +124,7 @@ SDL_AppIterate(void *appstate)
     SDL_Log("Failed to acquire GPU command buffer (error: %s)", SDL_GetError());
     return SDL_APP_FAILURE;
   }
-  SDL_GPSetCommandBuffer(_context.cmd_buffer);
+  SDL_GPUpdateCommandBuffer(_context.cmd_buffer);
 
   if (!SDL_WaitAndAcquireGPUSwapchainTexture(_context.cmd_buffer,
                                              _context.window,
@@ -134,7 +134,7 @@ SDL_AppIterate(void *appstate)
     SDL_Log("Failed to acquire swapchain texture (error: %s)", SDL_GetError());
     return SDL_APP_FAILURE;
   }
-  SDL_GPSetSwapchainTexture(_context.swapchain_texture);
+  SDL_GPUpdateSwapchainTexture(_context.swapchain_texture);
 
   SDL_GPBegin(WINDOW_WIDTH, WINDOW_HEIGHT);
   {

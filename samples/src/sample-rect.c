@@ -32,7 +32,7 @@ sample_rect_render(Uint64 delta_time_ms)
   // Draw a red filled rectangle.
   SDL_GPSetColor((SDL_Color){ 255, 0, 0, 255 });
   {
-    SDL_GPDrawRectFilled((SDL_GPRect){ 10, 10, 100, 100 });
+    SDL_GPDrawFilledRect((SDL_GPRect){ 10, 10, 100, 100 });
   }
 
   // Draw a textured rectangle keeping it's original color.
@@ -43,7 +43,7 @@ sample_rect_render(Uint64 delta_time_ms)
     int width  = SDL_GPGetImageWidth(image);
     int height = SDL_GPGetImageHeight(image);
 
-    SDL_GPDrawRectTextured(
+    SDL_GPDrawTexturedRect(
         0,
         (SDL_GPTexturedRect){
             .src = (SDL_GPRect){ 0, 0, width, height },

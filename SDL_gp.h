@@ -3,9 +3,9 @@
  *
  * https://github.com/n67094/SDL_gp
  *
- * SDL_gp: A minimal and efficient 2D (g)raphics (p)ainter for SDL3.
- *
  * # SDL_gp
+ *
+ * > SDL_gp: A minimal and efficient 2D (g)raphics (p)ainter for SDL3.
  *
  * This is a port of sokol_gp (https://github.com/edubart/sokol_gp) to SDL3,
  * with one main difference:
@@ -173,8 +173,12 @@ extern "C"
     SDL_GP_ERROR_FLUSH_FAILED
   } SDL_GP_Error;
 
+  // Get the last error that occurred in SDL_gp. Returns SDL_GP_ERROR_NONE if no
+  // error has occurred.
   SDL_GP_Error SDL_GPGetLastError(void);
 
+  // Get a human-readable string describing an SDL_GP_Error value. Returns
+  // "Unknown error" if the error value is not recognized.
   const char *SDL_GPGetErrorMessage(SDL_GP_Error error);
 
   // Pool (Public for users who want to re-use it as-is for other resources).
@@ -299,8 +303,12 @@ extern "C"
   // invalid shader if creation failed.
   SDL_GPShader SDL_GPCreateShader(SDL_GPShaderDesc *desc);
 
+  // Get the GPU vertex shader associated with a shader. Returns NULL if the
+  // shader is invalid.
   SDL_GPUShader *SDL_GPGetGPUVertexShader(SDL_GPShader shader);
 
+  // Get the GPU fragment shader associated with a shader. Returns NULL if the
+  // shader is invalid.
   SDL_GPUShader *SDL_GPGetGPUFragmentShader(SDL_GPShader shader);
 
   // Destroy a shader and free its resources.
@@ -344,8 +352,8 @@ extern "C"
   // Destroy a graphics pipeline and free its resources.
   void SDL_GPPipelineDestroy(SDL_GPPipeline pipeline);
 
-  // Get the GPU graphics pipeline associated with a pipeline. Returns NULL if
-  // the pipeline is invalid.
+  // Get the GPU graphics pipeline associated with a SDL_gp pipeline. Returns
+  // NULL if the pipeline is invalid.
   SDL_GPUGraphicsPipeline *SDL_GPGetGPUPipeline(SDL_GPPipeline pipeline);
 
   // Painter (Public)
@@ -463,79 +471,174 @@ extern "C"
     SDL_GPUDevice *gpu_device;
   } SDL_GPDesc;
 
+  // Update the swapchain texture for the current frame. This should be called
+  // after acquiring a new swapchain texture and before issuing any draw calls
+  // that use it.
   void SDL_GPUpdateSwapchainTexture(SDL_GPUTexture *swapchain_texture);
+
+  // Update the command buffer for the current frame. This should be called
+  // after acquiring a new command buffer and before issuing any draw calls.
   void SDL_GPUpdateCommandBuffer(SDL_GPUCommandBuffer *cmd_buffer);
 
+  // Setup SDL_GP context.
   void SDL_GPSetup(SDL_GPDesc *desc);
+
+  // Shutdown SDL_GP context.
   void SDL_GPShutdown();
 
+  // Begin recoarding draw calls for the current frame. This should be called
+  // after setting up SDL_gp and acquiring a swapchain texture and command
+  // buffer for the current frame.
   void SDL_GPBegin(int width, int height);
+
+  // Flush the recorded draw calls to the GPU.
   void SDL_GPFlush(SDL_GPUTexture *swapchain_texture);
+
+  // End recording draw calls for the current frame.
   void SDL_GPEnd(void);
 
+  // Set the coordinate space boundaries in the current viewport.
   void SDL_GPSetProjection(float left, float right, float bottom, float top);
+
+  // Reset the projection to the default coordinate space, which is the
+  // coordinate of the current viewport.
   void SDL_GPResetProjection(void);
+
+  // Save the current transform matrix on the transform stack. To be pop later
+  // with SDL_GPPopTransform.
   void SDL_GPPushTransform(void);
+
+  // Restore the transform matrix from the top of the transform stack.
   void SDL_GPPopTransform(void);
+
+  // Set the current transform matrix to identity (no transformation).
   void SDL_GPResetTransform(void);
+
+  // Translates the 2D coordinates space.
   void SDL_GPTranslate(float x, float y);
+
+  // Rotates the 2D coordinate space around the origin.
+  void SDL_GPRotate(float angle);
+
+  // Rotates the 2D coordinate space around a point.
   void SDL_GPRotateAt(float angle, float ax, float ay);
+
+  // Scales the 2D coordinate space around the origin.
   void SDL_GPScale(float sx, float sy);
+
+  // Scales the 2D coordinate space around a point.
   void SDL_GPScaleAt(float sx, float sy, float ax, float ay);
 
+  // Set the current graphics pipeline.
   void SDL_GPSetPipeline(SDL_GPPipeline pipeline);
+
+  // Reset the graphics pipeline to the default pipeline builtin pipeline.
   void SDL_GPResetPipeline(void);
+
+  // Set uniform data for the current pipeline.
   void SDL_GPSetUniform(const void *vs_data,
                         size_t vs_size,
                         const void *fs_data,
                         size_t fs_size);
+
+  // Reset uniform data to the default state (current state color).
   void SDL_GPResetUniform(void);
+
+  // Set the current blend mode.
   void SDL_GPSetBlendMode(SDL_GPBlendMode blend_mode);
+
+  // Reset the current blend mode to the default blend mode (no blending).
   void SDL_GPResetBlendMode(void);
+
+  // Sets current color.
   void SDL_GPSetColor(SDL_Color color);
+
+  // Gets current color.
   SDL_Color SDL_GPGetColor(void);
+
+  // Reset current color to the default color (white).
   void SDL_GPResetColor(void);
+
+  // Sets current bound image in a texture channel.
   void SDL_GPSetImage(int channel, SDL_GPImage image);
-  SDL_GPImage SDL_GPGetImage(int channel);
-  void SDL_GPResetImage(int channel);
+
+  // Remove current bound image from a texture channel (no texture).
   void SDL_GPUnsetImage(int channel);
-  void SDL_SDL_GPShutdownGPSetSampler(int channel, SDL_GPUSampler *sampler);
+
+  // Reset current bound image in a texture channel to the default (white
+  // texture).
+  void SDL_GPResetImage(int channel);
+
+  // Set current bound sampler in a texture channel.
+  void SDL_GPSetSampler(int channel, SDL_GPUSampler *sampler);
+
+  // Remove current bound sampler from a texture channel (no sampler).
+  void SDL_GPUnsetSampler(int channel);
+
+  // Reset current bound sampler in a texture channel to default (nearest
+  // sampler).
   void SDL_GPResetSampler(int channel);
 
-  // Set the viewport for subsequent draw calls.
+  // Set the screen are to draw to.
   void SDL_GPViewport(int x, int y, int w, int h);
+
+  // Reset the viewport to default (0, 0, width, height).
   void SDL_GPResetViewport(void);
 
-  // Set the scissor for subsequent draw calls.
+  // Set the clipping rectangle in the viewport.
   void SDL_GPScissor(int x, int y, int w, int h);
+
+  // Reset the clipping rectangle to default (viewport bounds).
   void SDL_GPResetScissor(void);
 
+  // Reset all state to default.
   void SDL_GPResetState(void);
 
+  // Clear the current viewport with the current color.
   void SDL_GPClear(void);
 
+  // Draw any primitive.
   void SDL_GPDraw(SDL_GPPrimitiveType primitive_type,
                   const SDL_GPVertex *vertices,
                   Uint32 vertices_count);
 
+  // Draw points in batch.
   void SDL_GPDrawPoints(const SDL_GPVec2 *points, Uint32 count);
+
+  // Draw a single point.
   void SDL_GPDrawPoint(SDL_GPVec2 point);
 
-  void SDL_GPDrawLine(SDL_GPLine line);
+  // Draw lines in batch.
   void SDL_GPDrawLines(const SDL_GPLine *lines, Uint32 count);
+
+  // Draw a single line.
+  void SDL_GPDrawLine(SDL_GPLine line);
+
+  // Draw a stip of lines.
   void SDL_GPDrawLinesStrip(const SDL_GPVec2 *points, Uint32 count);
 
-  void SDL_GPDrawTriangleFilled(SDL_GPTriangle triangle);
-  void SDL_GPDrawTriangles(const SDL_GPTriangle *triangles, Uint32 count);
-  void SDL_GPDrawTrianglesStrip(const SDL_GPVec2 *points, Uint32 count);
+  // Draw triangles in batch.
+  void SDL_GPDrawFilledTriangles(const SDL_GPTriangle *triangles, Uint32 count);
 
-  void SDL_GPDrawRectFilled(SDL_GPRect rect);
-  void SDL_GPDrawRectsFilled(const SDL_GPRect *rects, Uint32 count);
+  // Draw a single triangle.
+  void SDL_GPDrawFilledTriangle(SDL_GPTriangle triangle);
 
-  void SDL_GPDrawRectTextured(int channel, SDL_GPTexturedRect rect);
-  void SDL_GPDrawRectsTextured(int channel,
+  // Draw a strip of triangles.
+  void SDL_GPDrawFilledTrianglesStrip(const SDL_GPVec2 *points, Uint32 count);
+
+  // Draw rectangles in batch.
+  void SDL_GPDrawFilledRects(const SDL_GPRect *rects, Uint32 count);
+
+  // Draw a single rectangle.
+  void SDL_GPDrawFilledRect(SDL_GPRect rect);
+
+  // Draw textured rectangles in batch.
+  void SDL_GPDrawTexturedRects(int channel,
                                const SDL_GPTexturedRect *rects,
                                Uint32 count);
+
+  // Draw a single textured rectangle.
+  void SDL_GPDrawTexturedRect(int channel, SDL_GPTexturedRect rect);
 
 #ifdef __cplusplus
 }
@@ -546,9 +649,6 @@ extern "C"
 // ----------------------------------------------------------------------------
 // Implementation and internal API
 // ----------------------------------------------------------------------------
-
-// TODO remove once done
-// #define SDL_GP_IMPLEMENTATION
 
 #ifdef SDL_GP_IMPLEMENTATION
 
@@ -2406,14 +2506,14 @@ _SDL_GPTransform(SDL_GPMat2x3 *matrix,
 }
 
 void
-SDL_GPSetSwapchainTexture(SDL_GPUTexture *swapchain_texture)
+SDL_GPUpdateSwapchainTexture(SDL_GPUTexture *swapchain_texture)
 {
   SDL_assert(swapchain_texture);
   _swapchain_texture = swapchain_texture;
 }
 
 void
-SDL_GPSetCommandBuffer(SDL_GPUCommandBuffer *cmd_buffer)
+SDL_GPUpdateCommandBuffer(SDL_GPUCommandBuffer *cmd_buffer)
 {
   SDL_assert(cmd_buffer);
   _cmd_buffer = cmd_buffer;
@@ -2965,7 +3065,7 @@ SDL_GPTranslate(float x, float y)
 }
 
 void
-SDL_GPRotateAt(float angle, float ax, float ay)
+SDL_GPRotate(float angle)
 {
   SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
@@ -2988,6 +3088,17 @@ SDL_GPRotateAt(float angle, float ax, float ay)
   _gp.state.transform = rotation;
   _gp.state.mvp       = _SDL_GPMulProjectionTransform(&_gp.state.projection,
                                                       &_gp.state.transform);
+}
+
+void
+SDL_GPRotateAt(float angle, float ax, float ay)
+{
+  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.current_state > 0);
+
+  SDL_GPTranslate(ax, ay);
+  SDL_GPRotate(angle);
+  SDL_GPTranslate(-ax, -ay);
 }
 
 void
@@ -3153,16 +3264,6 @@ SDL_GPSetImage(int channel, SDL_GPImage image)
   _gp.state.texture.count = texture_count;
 }
 
-SDL_GPImage
-SDL_GPGetImage(int channel)
-{
-  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
-  SDL_assert(_gp.current_state > 0);
-  SDL_assert(channel >= 0 && channel < SDL_GP_TEXTURE_SLOTS_MAX);
-
-  return _gp.state.texture.images[channel];
-}
-
 void
 SDL_GPResetImage(int channel)
 {
@@ -3191,6 +3292,16 @@ SDL_GPSetSampler(int channel, SDL_GPUSampler *sampler)
   SDL_assert(channel >= 0 && channel < SDL_GP_TEXTURE_SLOTS_MAX);
 
   _gp.state.texture.samplers[channel] = sampler;
+}
+
+void
+SDL_GPUnsetSampler(int channel)
+{
+  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.current_state > 0);
+  SDL_assert(channel >= 0 && channel < SDL_GP_TEXTURE_SLOTS_MAX);
+
+  _gp.state.texture.samplers[channel] = NULL;
 }
 
 void
@@ -3630,26 +3741,26 @@ SDL_GPDrawLinesStrip(const SDL_GPVec2 *points, Uint32 count)
 }
 
 void
-SDL_GPDrawTriangles(const SDL_GPTriangle *triangles, Uint32 count)
+SDL_GPDrawFilledTriangles(const SDL_GPTriangle *triangles, Uint32 count)
 {
   _SDL_GPDrawSolid(
       SDL_GP_PRIMITIVE_TRIANGLES, (const SDL_GPVec2 *)triangles, count * 3);
 }
 
 void
-SDL_GPDrawTriangleFilled(SDL_GPTriangle triangle)
+SDL_GPDrawFilledTriangle(SDL_GPTriangle triangle)
 {
-  SDL_GPDrawTriangles(&triangle, 1);
+  SDL_GPDrawFilledTriangles(&triangle, 1);
 }
 
 void
-SDL_GPDrawTrianglesStrip(const SDL_GPVec2 *points, Uint32 count)
+SDL_GPDrawFilledTrianglesStrip(const SDL_GPVec2 *points, Uint32 count)
 {
   _SDL_GPDrawSolid(SDL_GP_PRIMITIVE_TRIANGLE_STRIP, points, count);
 }
 
 void
-SDL_GPDrawRectsFilled(const SDL_GPRect *rects, Uint32 count)
+SDL_GPDrawFilledRects(const SDL_GPRect *rects, Uint32 count)
 {
   SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
@@ -3730,13 +3841,13 @@ SDL_GPDrawRectsFilled(const SDL_GPRect *rects, Uint32 count)
 }
 
 void
-SDL_GPDrawRectFilled(SDL_GPRect rect)
+SDL_GPDrawFilledRect(SDL_GPRect rect)
 {
-  SDL_GPDrawRectsFilled(&rect, 1);
+  SDL_GPDrawFilledRects(&rect, 1);
 }
 
 void
-SDL_GPDrawRectsTextured(int channel,
+SDL_GPDrawTexturedRects(int channel,
                         const SDL_GPTexturedRect *rects,
                         Uint32 count)
 {
@@ -3835,9 +3946,9 @@ SDL_GPDrawRectsTextured(int channel,
 }
 
 void
-SDL_GPDrawRectTextured(int channel, SDL_GPTexturedRect rect)
+SDL_GPDrawTexturedRect(int channel, SDL_GPTexturedRect rect)
 {
-  SDL_GPDrawRectsTextured(channel, &rect, 1);
+  SDL_GPDrawTexturedRects(channel, &rect, 1);
 }
 
 #endif // SDL_GP_IMPLEMENTATION

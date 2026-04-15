@@ -13,19 +13,19 @@ draw_rects(int brightness, int alpha)
 {
   // Red rectangle
   SDL_GPSetColor((SDL_Color){ brightness, 0, 0, alpha });
-  SDL_GPDrawRectFilled((SDL_GPRect){ 10, 10, 50, 50 });
+  SDL_GPDrawFilledRect((SDL_GPRect){ 10, 10, 50, 50 });
 
   SDL_GPTranslate(10, 10);
 
   // Green rectangle
   SDL_GPSetColor((SDL_Color){ 0, brightness, 0, alpha });
-  SDL_GPDrawRectFilled((SDL_GPRect){ 10, 10, 50, 50 });
+  SDL_GPDrawFilledRect((SDL_GPRect){ 10, 10, 50, 50 });
 
   SDL_GPTranslate(10, 10);
 
   // Blue rectangle
   SDL_GPSetColor((SDL_Color){ 0, 0, brightness, alpha });
-  SDL_GPDrawRectFilled((SDL_GPRect){ 10, 10, 50, 50 });
+  SDL_GPDrawFilledRect((SDL_GPRect){ 10, 10, 50, 50 });
 }
 
 static void
@@ -38,7 +38,7 @@ draw_checkboard(int width, int height)
       SDL_Color color = is_white ? (SDL_Color){ 150, 150, 150, 255 }
                                  : (SDL_Color){ 50, 50, 50, 255 };
       SDL_GPSetColor(color);
-      SDL_GPDrawRectFilled((SDL_GPRect){ x, y, size, size });
+      SDL_GPDrawFilledRect((SDL_GPRect){ x, y, size, size });
     }
   }
 }
