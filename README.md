@@ -283,7 +283,7 @@ void SDL_GPDrawTextureddRect(int channel, SDL_GPTexturedRect rect);
 
 Hi everyone, I'm nsix, an indie game developer and open source contributor trying to make a living from my work.
 
-If you enjoy what I create and want to support me, consider becoming a sponsor on GitHub Sponsors. Every bit of support means a lot and is greatly appreciated!
+If you enjoy what I create and want to support me, consider becoming a sponsor on [GitHub Sponsors](https://github.com/sponsors/n67094). Every bit of support means a lot and is greatly appreciated!
 
 You can also check out my blog at [www.nsix.blog](https://www.nsix.blog) for more updates and insights into my work.
 

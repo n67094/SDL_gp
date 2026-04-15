@@ -44,8 +44,8 @@
  * trying to make a living from my work.
  *
  * If you enjoy what I create and want to support me, consider becoming a
- * sponsor on GitHub Sponsors. Every bit of support means a lot and is greatly
- * appreciated!
+ * sponsor on [GitHub Sponsors](https://github.com/sponsors/n67094). Every bit
+ * of support means a lot and is greatly appreciated!
  *
  * You can also check out my blog at www.nsix.blog.
  *
