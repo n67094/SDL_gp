@@ -6,7 +6,19 @@ This is a port of [sokol_gp](https://github.com/edubart/sokol_gp) to SDL3, with 
 
 `sokol_gp` relies on sokol, which manages resources internally. SDL_gpu is lower-level and does not; So `SDL_gp` provides a simple resource management system very similar to sokol's.
 
-// TODO add preview image
+# Samples
+
+Primitive:
+
+![Screenshot of primite](images/primitive.png)
+
+Rectangles:
+
+![Screenshot of rectangles](images/rect.png)
+
+Blendmode:
+
+![Screenshot of blendmode](images/blend.png)
 
 # Getting Started
 
@@ -36,7 +48,7 @@ SDL_GPBegin(WINDOW_WIDTH, WINDOW_HEIGHT);
 SDL_GPEnd();
 ```
 
-# Quick API Reference
+# Quick Reference
 
 Error API:
 
