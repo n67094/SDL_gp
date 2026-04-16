@@ -288,7 +288,7 @@ void SDL_GPDrawTexturedRects(int channel,
                              Uint32 count);
 
 // Draw a single textured rectangle.
-void SDL_GPDrawTextureddRect(int channel, SDL_GPTexturedRect rect);
+void SDL_GPDrawTexturedRect(int channel, SDL_GPTexturedRect rect);
 ```
 
 # Sponsors
@@ -301,7 +301,7 @@ You can also check out my blog at [www.nsix.blog](https://www.nsix.blog) for mor
 
 # Acknowledgements
 
-- [Edubart](https://github.com/edubart) - Creator of the original `sokol_gp`.
+- [Edubart](https://github.com/edubart) - Creator of the original `sokol_gp` that encouraged me to create `SDL_gp`. [The SDL
 - [The SDL team](https://github.com/libsdl-org) - For developing and maintaining `SDL3`.
 
 # License

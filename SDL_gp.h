@@ -7,10 +7,10 @@
  *
  * A minimal, high-performance 2D (g)raphics (p)ainter for `SDL3`.
  *
- * This is a port of [sokol_gp](https://github.com/edubart/sokol_gp) to SDL3,
+ * This is a port of [sokol_gp](https://github.com/edubart/sokol_gp) to `SDL3`,
  * with one main difference:
  *
- * `sokol_gp` relies on sokol, which manages resources internally. SDL_gpu is
+ * `sokol_gp` relies on sokol, which manages resources internally. `SDL_gpu` is
  * lower-level and does not; So `SDL_gp` provides a simple resource management
  * system very similar to sokol's.
  *
@@ -40,7 +40,7 @@
  *
  * # Sponsors
  *
- * Hi everyone, I'm nsix — an indie game developer and open source contributor
+ * Hi everyone, I'm nsix, an indie game developer and open source contributor
  * trying to make a living from my work.
  *
  * If you enjoy what I create and want to support me, consider becoming a
@@ -51,9 +51,9 @@
  *
  * # Acknowledgements
  *
- * [Edubart](https://github.com/edubart) - Creator of the original `sokol_gp`.
- * [The SDL team](https://github.com/libsdl-org) - For developing and
- * maintaining `SDL3`.
+ * [Edubart](https://github.com/edubart) - Creator of the original `sokol_gp`
+ * that encouraged me to create `SDL_gp`. [The SDL
+ * team](https://github.com/libsdl-org) - For developing and maintaining `SDL3`.
  *
  * # License
  *
@@ -181,7 +181,7 @@ extern "C"
   // Error handling (Public)
   // ----------------------------------------------------------------------------
 
-  typedef enum SDL_GP_Error
+  typedef enum SDL_GPError
   {
     SDL_GP_ERROR_NONE = 0,
     SDL_GP_ERROR_SETUP_IMAGE_FAILED,
@@ -197,15 +197,15 @@ extern "C"
     SDL_GP_ERROR_PAINTER_VERTICES_FULL,
     SDL_GP_ERROR_PAINTER_COMMANDS_FULL,
     SDL_GP_ERROR_FLUSH_FAILED
-  } SDL_GP_Error;
+  } SDL_GPError;
 
   // Get the last error that occurred in SDL_gp. Returns SDL_GP_ERROR_NONE if no
   // error has occurred.
-  SDL_GP_Error SDL_GPGetLastError(void);
+  SDL_GPError SDL_GPGetLastError(void);
 
-  // Get a human-readable string describing an SDL_GP_Error value. Returns
+  // Get a human-readable string describing an SDL_GPError value. Returns
   // "Unknown error" if the error value is not recognized.
-  const char *SDL_GPGetErrorMessage(SDL_GP_Error error);
+  const char *SDL_GPGetErrorMessage(SDL_GPError error);
 
   // Pool (Public for users who want to re-use it as-is for other resources).
   // ----------------------------------------------------------------------------
@@ -214,6 +214,7 @@ extern "C"
   // The pool work like this, there is a fixed number of slots (defined at pool
   // creation) that can be acquired and released. Each slot has an incrementing
   // generation counter, which is used to generate unique ids for each slot.
+  //
   // When a slot is released, its generation counter is incremented, so that any
   // ids generated from that slot will be invalid until the slot is acquired
   // again.
