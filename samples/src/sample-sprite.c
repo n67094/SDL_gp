@@ -52,7 +52,7 @@ sample_sprite_render(Uint64 delta_time_ms)
     int y = SDL_rand(window_height);
 
     SDL_GPRect src_rect = tile_region[i % 3];
-    SDL_GPRect dst_rect = { x, y, tile_width, tile_height };
+    SDL_GPRect dst_rect = { x, y, tile_width * 2, tile_height * 2 };
 
     SDL_GPDrawTexturedRect(0,
                            (SDL_GPTexturedRect){
