@@ -125,19 +125,9 @@
 #define SDL_GP_TEXTURE_SLOTS_MAX 4
 #endif
 
-// Max number of vertices that can be drawn in a single flush
-#ifndef SDL_GP_VERTICES_MAX
-#define SDL_GP_VERTICES_MAX 65536
-#endif
-
-// Max number of draw commands that can be issued in a single flush
-#ifndef SDL_GP_COMMANDS_MAX
-#define SDL_GP_COMMANDS_MAX 16384
-#endif
-
 // Max number of transforms that can be pushed at the same time (per frame)
 #ifndef SDL_GP_TRANSFORMS_MAX
-#define SDL_GP_TRANSFORMS_MAX 256
+#define SDL_GP_TRANSFORMS_MAX 64
 #endif
 
 // Max number of float (4-bytes) uniforms that can be set in a shader
@@ -151,6 +141,16 @@
 #define SDL_GP_OPTIMIZER_DEPTH 8
 #endif
 
+#define SDL_GP_INVALID_ID 0
+#define SDL_GP_IMPOSSIBLE_ID 0xFFFFFFFF
+
+// Get a default value if the provided value is 0
+#define SDL_GP_DEFAULT(val, def) (((val) == 0) ? (def) : (val))
+#define SDL_GP_UNUSED(x) (void)(x)
+
+// Get the offset of an element in a structure
+#define SDL_GP_OFFSET_OF(TYPE, ELEMENT) ((size_t)&(((TYPE *)0)->ELEMENT))
+
 #if defined(_MSC_VER)
 #define INLINE __forceinline
 #elif defined(__GNUC__) || defined(__clang__)
@@ -159,14 +159,15 @@
 #define INLINE
 #endif
 
-#define SDL_GP_INVALID_ID 0
-#define SDL_GP_IMPOSSIBLE_ID 0xFFFFFFFF
-
-// Get a default value if the provided value is 0
-#define SDL_GP_DEFAULT(val, def) (((val) == 0) ? (def) : (val))
-
-// Get the offset of an element in a structure
-#define SDL_GP_OFFSET_OF(TYPE, ELEMENT) ((size_t)&(((TYPE *)0)->ELEMENT))
+#if defined(_WIN32) && defined(SDL_GP_DLL)
+#if defined(SDL_GP_IMPLEMENTATION)
+#define SDL_GP_API_DECL __declspec(dllexport)
+#else
+#define SDL_GP_API_DECL __declspec(dllimport)
+#endif
+#else
+#define SDL_GP_API_DECL extern
+#endif
 
 #ifdef __cplusplus
 extern "C"
@@ -201,11 +202,11 @@ extern "C"
 
   // Get the last error that occurred in SDL_gp. Returns SDL_GP_ERROR_NONE if no
   // error has occurred.
-  SDL_GPError SDL_GPGetLastError(void);
+  SDL_GP_API_DECL SDL_GPError SDL_GPGetLastError(void);
 
   // Get a human-readable string describing an SDL_GPError value. Returns
   // "Unknown error" if the error value is not recognized.
-  const char *SDL_GPGetErrorMessage(SDL_GPError error);
+  SDL_GP_API_DECL const char *SDL_GPGetErrorMessage(SDL_GPError error);
 
   // Pool (Public for users who want to re-use it as-is for other resources).
   // ----------------------------------------------------------------------------
@@ -234,25 +235,27 @@ extern "C"
 
   // Create a pool with the specified number of slots (not counting the invalid
   // slot).
-  SDL_GPPool *SDL_GPCeatePool(size_t number_of_slots);
+  SDL_GP_API_DECL SDL_GPPool *SDL_GPCeatePool(size_t number_of_slots);
 
   // Destroy a pool and free its resources.
-  void SDL_GPDestroyPool(SDL_GPPool *resource);
+  SDL_GP_API_DECL void SDL_GPDestroyPool(SDL_GPPool *resource);
 
   // Acquire a slot from the pool and return its index. Returns
   // SDL_GP_POOL_INVALID_SLOT if no more slots are available.
-  int SDL_GPAcquirePoolSlot(SDL_GPPool *resource);
+  SDL_GP_API_DECL int SDL_GPAcquirePoolSlot(SDL_GPPool *resource);
 
   // Release a slot back to the pool, making it available for future
   // acquisitions.
-  void SDL_GPReleasePoolSlot(SDL_GPPool *resource, int slot_index);
+  SDL_GP_API_DECL void SDL_GPReleasePoolSlot(SDL_GPPool *resource,
+                                             int slot_index);
 
   // Generate a unique id for a slot in the pool using its index and generation
   // counter.
-  Uint32 SDL_GPGeneratePoolId(SDL_GPPool *resource, int slot_index);
+  SDL_GP_API_DECL Uint32 SDL_GPGeneratePoolId(SDL_GPPool *resource,
+                                              int slot_index);
 
   // Extract the slot index from a generated id.
-  int SDL_GPPoolIdToSlot(Uint32 id);
+  SDL_GP_API_DECL int SDL_GPPoolIdToSlot(Uint32 id);
 
   // Image (Public)
   // ----------------------------------------------------------------------------
@@ -280,20 +283,20 @@ extern "C"
 
   // Create an image from an SDL_Surface. Returns an invalid image if creation
   // failed.
-  SDL_GPImage SDL_GPCreateImage(SDL_Surface *surface);
+  SDL_GP_API_DECL SDL_GPImage SDL_GPCreateImage(SDL_Surface *surface);
 
   // Destroy an image and free its resources.
-  void SDL_GPDestroyImage(SDL_GPImage image);
+  SDL_GP_API_DECL void SDL_GPDestroyImage(SDL_GPImage image);
 
   // Get the GPU texture associated with an image. Returns NULL if the image is
   // invalid.
-  SDL_GPUTexture *SDL_GPGetImageGPUTexture(SDL_GPImage image);
+  SDL_GP_API_DECL SDL_GPUTexture *SDL_GPGetImageGPUTexture(SDL_GPImage image);
 
   // Get the width of an image in pixels. Returns 0 if the image is invalid.
-  int SDL_GPGetImageWidth(SDL_GPImage image);
+  SDL_GP_API_DECL int SDL_GPGetImageWidth(SDL_GPImage image);
 
   // Get the height of an image in pixels. Returns 0 if the image is invalid.
-  int SDL_GPGetImageHeight(SDL_GPImage image);
+  SDL_GP_API_DECL int SDL_GPGetImageHeight(SDL_GPImage image);
 
   // Shader (Public)
   // ----------------------------------------------------------------------------
@@ -328,18 +331,19 @@ extern "C"
 
   // Create a shader from vertex and fragment shader descriptions. Returns an
   // invalid shader if creation failed.
-  SDL_GPShader SDL_GPCreateShader(SDL_GPShaderDesc *desc);
+  SDL_GP_API_DECL SDL_GPShader SDL_GPCreateShader(SDL_GPShaderDesc *desc);
 
   // Get the GPU vertex shader associated with a shader. Returns NULL if the
   // shader is invalid.
-  SDL_GPUShader *SDL_GPGetGPUVertexShader(SDL_GPShader shader);
+  SDL_GP_API_DECL SDL_GPUShader *SDL_GPGetGPUVertexShader(SDL_GPShader shader);
 
   // Get the GPU fragment shader associated with a shader. Returns NULL if the
   // shader is invalid.
-  SDL_GPUShader *SDL_GPGetGPUFragmentShader(SDL_GPShader shader);
+  SDL_GP_API_DECL SDL_GPUShader *
+  SDL_GPGetGPUFragmentShader(SDL_GPShader shader);
 
   // Destroy a shader and free its resources.
-  void SDL_GPDestroyShader(SDL_GPShader shader);
+  SDL_GP_API_DECL void SDL_GPDestroyShader(SDL_GPShader shader);
 
   // Pipeline (Public)
   // ----------------------------------------------------------------------------
@@ -372,16 +376,18 @@ extern "C"
   } SDL_GPPipeline;
 
   // Create a graphics pipeline
-  SDL_GPPipeline SDL_GPCreatePipeline(SDL_GPShader shader,
-                                      SDL_GPPrimitiveType primitive_type,
-                                      SDL_GPBlendMode blend_mode);
+  SDL_GP_API_DECL SDL_GPPipeline
+  SDL_GPCreatePipeline(SDL_GPShader shader,
+                       SDL_GPPrimitiveType primitive_type,
+                       SDL_GPBlendMode blend_mode);
 
   // Destroy a graphics pipeline and free its resources.
-  void SDL_GPPipelineDestroy(SDL_GPPipeline pipeline);
+  SDL_GP_API_DECL void SDL_GPPipelineDestroy(SDL_GPPipeline pipeline);
 
   // Get the GPU graphics pipeline associated with a SDL_gp pipeline. Returns
   // NULL if the pipeline is invalid.
-  SDL_GPUGraphicsPipeline *SDL_GPGetGPUPipeline(SDL_GPPipeline pipeline);
+  SDL_GP_API_DECL SDL_GPUGraphicsPipeline *
+  SDL_GPGetGPUPipeline(SDL_GPPipeline pipeline);
 
   // Painter (Public)
   // ----------------------------------------------------------------------------
@@ -501,174 +507,182 @@ extern "C"
   // Update the swapchain texture for the current frame. This should be called
   // after acquiring a new swapchain texture and before issuing any draw calls
   // that use it.
-  void SDL_GPUpdateSwapchainTexture(SDL_GPUTexture *swapchain_texture);
+  SDL_GP_API_DECL void
+  SDL_GPUpdateSwapchainTexture(SDL_GPUTexture *swapchain_texture);
 
   // Update the command buffer for the current frame. This should be called
   // after acquiring a new command buffer and before issuing any draw calls.
-  void SDL_GPUpdateCommandBuffer(SDL_GPUCommandBuffer *cmd_buffer);
+  SDL_GP_API_DECL void
+  SDL_GPUpdateCommandBuffer(SDL_GPUCommandBuffer *cmd_buffer);
 
   // Setup SDL_GP context.
-  void SDL_GPSetup(SDL_GPDesc *desc);
+  SDL_GP_API_DECL void SDL_GPSetup(SDL_GPDesc *desc);
 
   // Shutdown SDL_GP context.
-  void SDL_GPShutdown();
+  SDL_GP_API_DECL void SDL_GPShutdown();
 
   // Begin recoarding draw calls for the current frame. This should be called
   // after setting up SDL_gp and acquiring a swapchain texture and command
   // buffer for the current frame.
-  void SDL_GPBegin(int width, int height);
+  SDL_GP_API_DECL void SDL_GPBegin(int width, int height);
 
   // Flush the recorded draw calls to the GPU.
-  void SDL_GPFlush(SDL_GPUTexture *swapchain_texture);
+  SDL_GP_API_DECL void SDL_GPFlush(SDL_GPUTexture *swapchain_texture);
 
   // End recording draw calls for the current frame.
-  void SDL_GPEnd(void);
+  SDL_GP_API_DECL void SDL_GPEnd(void);
 
   // Set the coordinate space boundaries in the current viewport.
-  void SDL_GPSetProjection(float left, float right, float bottom, float top);
+  SDL_GP_API_DECL void
+  SDL_GPSetProjection(float left, float right, float bottom, float top);
 
   // Reset the projection to the default coordinate space, which is the
   // coordinate of the current viewport.
-  void SDL_GPResetProjection(void);
+  SDL_GP_API_DECL void SDL_GPResetProjection(void);
 
   // Save the current transform matrix on the transform stack. To be pop later
   // with SDL_GPPopTransform.
-  void SDL_GPPushTransform(void);
+  SDL_GP_API_DECL void SDL_GPPushTransform(void);
 
   // Restore the transform matrix from the top of the transform stack.
-  void SDL_GPPopTransform(void);
+  SDL_GP_API_DECL void SDL_GPPopTransform(void);
 
   // Set the current transform matrix to identity (no transformation).
-  void SDL_GPResetTransform(void);
+  SDL_GP_API_DECL void SDL_GPResetTransform(void);
 
   // Translates the 2D coordinates space.
-  void SDL_GPTranslate(float x, float y);
+  SDL_GP_API_DECL void SDL_GPTranslate(float x, float y);
 
   // Rotates the 2D coordinate space around the origin.
-  void SDL_GPRotate(float angle);
+  SDL_GP_API_DECL void SDL_GPRotate(float angle);
 
   // Rotates the 2D coordinate space around a point.
-  void SDL_GPRotateAt(float angle, float ax, float ay);
+  SDL_GP_API_DECL void SDL_GPRotateAt(float angle, float ax, float ay);
 
   // Scales the 2D coordinate space around the origin.
-  void SDL_GPScale(float sx, float sy);
+  SDL_GP_API_DECL void SDL_GPScale(float sx, float sy);
 
   // Scales the 2D coordinate space around a point.
-  void SDL_GPScaleAt(float sx, float sy, float ax, float ay);
+  SDL_GP_API_DECL void SDL_GPScaleAt(float sx, float sy, float ax, float ay);
 
   // Set the current graphics pipeline.
-  void SDL_GPSetPipeline(SDL_GPPipeline pipeline);
+  SDL_GP_API_DECL void SDL_GPSetPipeline(SDL_GPPipeline pipeline);
 
   // Reset the graphics pipeline to the default pipeline builtin pipeline.
-  void SDL_GPResetPipeline(void);
+  SDL_GP_API_DECL void SDL_GPResetPipeline(void);
 
   // Set uniform data for the current pipeline.
-  void SDL_GPSetUniform(const void *vs_data,
-                        size_t vs_size,
-                        const void *fs_data,
-                        size_t fs_size);
+  SDL_GP_API_DECL void SDL_GPSetUniform(const void *vs_data,
+                                        size_t vs_size,
+                                        const void *fs_data,
+                                        size_t fs_size);
 
   // Reset uniform data to the default state (current state color).
-  void SDL_GPResetUniform(void);
+  SDL_GP_API_DECL void SDL_GPResetUniform(void);
 
   // Set the current blend mode.
-  void SDL_GPSetBlendMode(SDL_GPBlendMode blend_mode);
+  SDL_GP_API_DECL void SDL_GPSetBlendMode(SDL_GPBlendMode blend_mode);
 
   // Reset the current blend mode to the default blend mode (no blending).
-  void SDL_GPResetBlendMode(void);
+  SDL_GP_API_DECL void SDL_GPResetBlendMode(void);
 
   // Sets current color.
-  void SDL_GPSetColor(SDL_Color color);
+  SDL_GP_API_DECL void SDL_GPSetColor(SDL_Color color);
 
   // Gets current color.
-  SDL_Color SDL_GPGetColor(void);
+  SDL_GP_API_DECL SDL_Color SDL_GPGetColor(void);
 
   // Reset current color to the default color (white).
-  void SDL_GPResetColor(void);
+  SDL_GP_API_DECL void SDL_GPResetColor(void);
 
   // Sets current bound image in a texture channel.
-  void SDL_GPSetImage(int channel, SDL_GPImage image);
+  SDL_GP_API_DECL void SDL_GPSetImage(int channel, SDL_GPImage image);
 
   // Remove current bound image from a texture channel (no texture).
-  void SDL_GPUnsetImage(int channel);
+  SDL_GP_API_DECL void SDL_GPUnsetImage(int channel);
 
   // Reset current bound image in a texture channel to the default (white
   // texture).
-  void SDL_GPResetImage(int channel);
+  SDL_GP_API_DECL void SDL_GPResetImage(int channel);
 
   // Set current bound sampler in a texture channel.
-  void SDL_GPSetSampler(int channel, SDL_GPUSampler *sampler);
+  SDL_GP_API_DECL void SDL_GPSetSampler(int channel, SDL_GPUSampler *sampler);
 
   // Remove current bound sampler from a texture channel (no sampler).
-  void SDL_GPUnsetSampler(int channel);
+  SDL_GP_API_DECL void SDL_GPUnsetSampler(int channel);
 
   // Reset current bound sampler in a texture channel to default (nearest
   // sampler).
-  void SDL_GPResetSampler(int channel);
+  SDL_GP_API_DECL void SDL_GPResetSampler(int channel);
 
   // Set the screen are to draw to.
-  void SDL_GPViewport(int x, int y, int w, int h);
+  SDL_GP_API_DECL void SDL_GPViewport(int x, int y, int w, int h);
 
   // Reset the viewport to default (0, 0, width, height).
-  void SDL_GPResetViewport(void);
+  SDL_GP_API_DECL void SDL_GPResetViewport(void);
 
   // Set the clipping rectangle in the viewport.
-  void SDL_GPScissor(int x, int y, int w, int h);
+  SDL_GP_API_DECL void SDL_GPScissor(int x, int y, int w, int h);
 
   // Reset the clipping rectangle to default (viewport bounds).
-  void SDL_GPResetScissor(void);
+  SDL_GP_API_DECL void SDL_GPResetScissor(void);
 
   // Reset all state to default.
-  void SDL_GPResetState(void);
+  SDL_GP_API_DECL void SDL_GPResetState(void);
 
   // Clear the current viewport with the current color.
-  void SDL_GPClear(void);
+  SDL_GP_API_DECL void SDL_GPClear(void);
 
   // Draw any primitive.
-  void SDL_GPDraw(SDL_GPPrimitiveType primitive_type,
-                  const SDL_GPVertex *vertices,
-                  Uint32 vertices_count);
+  SDL_GP_API_DECL void SDL_GPDraw(SDL_GPPrimitiveType primitive_type,
+                                  const SDL_GPVertex *vertices,
+                                  Uint32 vertices_count);
 
   // Draw points in batch.
-  void SDL_GPDrawPoints(const SDL_GPVec2 *points, Uint32 count);
+  SDL_GP_API_DECL void SDL_GPDrawPoints(const SDL_GPVec2 *points, Uint32 count);
 
   // Draw a single point.
-  void SDL_GPDrawPoint(SDL_GPVec2 point);
+  SDL_GP_API_DECL void SDL_GPDrawPoint(SDL_GPVec2 point);
 
   // Draw lines in batch.
-  void SDL_GPDrawLines(const SDL_GPLine *lines, Uint32 count);
+  SDL_GP_API_DECL void SDL_GPDrawLines(const SDL_GPLine *lines, Uint32 count);
 
   // Draw a single line.
-  void SDL_GPDrawLine(SDL_GPLine line);
+  SDL_GP_API_DECL void SDL_GPDrawLine(SDL_GPLine line);
 
   // Draw a stip of lines.
-  void SDL_GPDrawLinesStrip(const SDL_GPVec2 *points, Uint32 count);
+  SDL_GP_API_DECL void SDL_GPDrawLinesStrip(const SDL_GPVec2 *points,
+                                            Uint32 count);
 
   // Draw triangles in batch.
-  void SDL_GPDrawFilledTriangles(const SDL_GPTriangle *triangles, Uint32 count);
+  SDL_GP_API_DECL void
+  SDL_GPDrawFilledTriangles(const SDL_GPTriangle *triangles, Uint32 count);
 
   // Draw a single triangle.
-  void SDL_GPDrawFilledTriangle(SDL_GPTriangle triangle);
+  SDL_GP_API_DECL void SDL_GPDrawFilledTriangle(SDL_GPTriangle triangle);
 
   // Draw a strip of triangles.
-  void SDL_GPDrawFilledTrianglesStrip(const SDL_GPVec2 *points, Uint32 count);
+  SDL_GP_API_DECL void SDL_GPDrawFilledTrianglesStrip(const SDL_GPVec2 *points,
+                                                      Uint32 count);
 
   // Draw rectangles in batch.
-  void SDL_GPDrawFilledRects(const SDL_GPRect *rects, Uint32 count);
+  SDL_GP_API_DECL void SDL_GPDrawFilledRects(const SDL_GPRect *rects,
+                                             Uint32 count);
 
   // Draw a single rectangle.
-  void SDL_GPDrawFilledRect(SDL_GPRect rect);
+  SDL_GP_API_DECL void SDL_GPDrawFilledRect(SDL_GPRect rect);
 
   // Draw textured rectangles in batch.
-  void SDL_GPDrawTexturedRects(int channel,
-                               const SDL_GPTexturedRect *rects,
-                               Uint32 count);
+  SDL_GP_API_DECL void SDL_GPDrawTexturedRects(int channel,
+                                               const SDL_GPTexturedRect *rects,
+                                               Uint32 count);
 
   // Draw a single textured rectangle.
-  void SDL_GPDrawTexturedRect(int channel, SDL_GPTexturedRect rect);
+  SDL_GP_API_DECL void SDL_GPDrawTexturedRect(int channel,
+                                              SDL_GPTexturedRect rect);
 
 #ifdef __cplusplus
-}
+} // extern "C"
 #endif
 
 #endif // SDL_GP_H_
@@ -676,8 +690,6 @@ extern "C"
 // ----------------------------------------------------------------------------
 // Implementation and internal API
 // ----------------------------------------------------------------------------
-
-// #define SDL_GP_IMPLEMENTATION
 
 #ifdef SDL_GP_IMPLEMENTATION
 
@@ -2282,6 +2294,10 @@ static const Uint8 _shader_frag_dxil[]    = {
   0X06, 0X68, 0X40, 0X05, 0X08, 0X00, 0X00, 0X00, 0X00
 };
 
+#define _SDL_GP_VERTICES_MAX 65536
+#define _SDL_GP_COMMANDS_MAX 16384
+#define _SDL_GP_MOVE_VERTICES_MAX 96
+
 typedef struct _SDL_GPRegion
 {
   float x1, y1, x2, y2;
@@ -2337,19 +2353,16 @@ typedef struct _SDL_GP
   Uint32 current_transform;
   SDL_GPMat2x3 transforms[SDL_GP_TRANSFORMS_MAX];
 
-  // Vertecies stack TODO should be allocated since max_verticies in
   // configurable in SDL_GPDesc
   Uint32 current_vertex;
   SDL_GPVertex *vertices;
   Uint32 vertices_size;
 
-  // Commands management TODO should be allocated since max_commands in
   // configurable in SDL_GPDesc
   Uint32 current_command;
   _SDL_GPCommand *commands;
   Uint32 commands_size;
 
-  // Commands management TODO should be allocated using max_commands in
   // SDL_GPDesc Uniforms stack
   Uint32 current_uniform;
   SDL_GPUniform *uniforms;
@@ -2445,7 +2458,7 @@ _SDL_GP_FindOrCreatePipeline(SDL_GPPrimitiveType primitive_type,
 SDL_GP_INLINE SDL_GPUniform *
 _SDL_GPNextUniform(void)
 {
-  if (_gp.current_uniform < SDL_GP_COMMANDS_MAX) {
+  if (_gp.current_uniform < _SDL_GP_COMMANDS_MAX) {
     return &_gp.uniforms[_gp.current_uniform++];
   } else {
     _SDL_GPSetError(SDL_GP_ERROR_UNIFORMS_FULL);
@@ -2466,7 +2479,7 @@ _SDL_GPPrevUniform(void)
 SDL_GP_INLINE SDL_GPVertex *
 _SDL_GPNextVertices(Uint32 count)
 {
-  if (_gp.current_vertex + count <= SDL_GP_VERTICES_MAX) {
+  if (_gp.current_vertex + count <= _SDL_GP_VERTICES_MAX) {
     SDL_GPVertex *vertices = &_gp.vertices[_gp.current_vertex];
     _gp.current_vertex += count;
 
@@ -2480,7 +2493,7 @@ _SDL_GPNextVertices(Uint32 count)
 SDL_GP_INLINE _SDL_GPCommand *
 _SDL_GPNextCommand(void)
 {
-  if ((_gp.current_command < SDL_GP_COMMANDS_MAX)) {
+  if ((_gp.current_command < _SDL_GP_COMMANDS_MAX)) {
     return &_gp.commands[_gp.current_command++];
   } else {
     return NULL;
@@ -2568,9 +2581,9 @@ SDL_GPSetup(SDL_GPDesc *desc)
   _gp_initialized = _SDL_GP_INIT_COOKIE;
 
   _gp.desc.max_vertices
-      = SDL_GP_DEFAULT(desc->max_vertices, SDL_GP_VERTICES_MAX);
+      = SDL_GP_DEFAULT(desc->max_vertices, _SDL_GP_VERTICES_MAX);
   _gp.desc.max_commands
-      = SDL_GP_DEFAULT(desc->max_commands, SDL_GP_COMMANDS_MAX);
+      = SDL_GP_DEFAULT(desc->max_commands, _SDL_GP_COMMANDS_MAX);
   _gp.desc.window     = desc->window;
   _gp.desc.gpu_device = desc->gpu_device;
 
@@ -3522,7 +3535,7 @@ _SDL_GPMergeDrawCommands(SDL_GPPipeline pipeline,
       break;
     }
 
-    // command was optimized, continue looking
+    // Command was optimized, continue looking
     if (cmd->cmd == _SDL_GP_COMMAND_NONE) {
       lookup_depht++;
       continue;
@@ -3576,17 +3589,103 @@ _SDL_GPMergeDrawCommands(SDL_GPPipeline pipeline,
     }
   }
 
-  if (!overlaps_next) { // merge with the previous draw command
+  if (!overlaps_next) { // Merge with the previous draw command
     if (inter_cmd_count > 0) {
+      // Can't merge if we don't have enough space for vertices
       if (_gp.current_vertex + vertices_count > _gp.vertices_size) {
-        return false; // Can't merge if we don't have enough space for vertices
+        return false;
+      }
+
+      Uint32 prev_end_vertex     = prev_cmd->args.draw.vertex_index
+                                   + prev_cmd->args.draw.vertices_count;
+      Uint32 prev_vertices_count = _gp.current_vertex - prev_end_vertex;
+
+      // Avoid moving too meny vertices, otherwise it can cause performance
+      // regression
+      if (prev_vertices_count > _SDL_GP_MOVE_VERTICES_MAX) {
+        return false;
+      }
+
+      // Re-organized vertices
+      SDL_memmove(&_gp.vertices[prev_end_vertex + vertices_count],
+                  &_gp.vertices[prev_end_vertex],
+                  prev_vertices_count * sizeof(SDL_GPVertex));
+      SDL_memcpy(&_gp.vertices[prev_end_vertex],
+                 &_gp.vertices[vertex_index + vertices_count],
+                 vertices_count * sizeof(SDL_GPVertex));
+
+      // Offset vertices of inter_cmds
+      for (Uint32 i = 0; i < inter_cmd_count; ++i) {
+        inter_cmds[i]->args.draw.vertex_index += vertices_count;
       }
     }
-  } else { // merge with the next draw command
-  }
 
+    // Update draw region and vertices
+    prev_region.x1 = SDL_min(prev_region.x1, region.x1);
+    prev_region.y1 = SDL_min(prev_region.y1, region.y1);
+    prev_region.x2 = SDL_max(prev_region.x2, region.x2);
+    prev_region.y2 = SDL_max(prev_region.y2, region.y2);
+    prev_cmd->args.draw.vertices_count += vertices_count;
+    prev_cmd->args.draw.region = prev_region;
+  } else { // Merge with the next draw command
+    SDL_assert(inter_cmd_count > 0);
+
+    // Append new draw command
+    _SDL_GPCommand *cmd = _SDL_GPNextCommand();
+    if (!cmd) {
+      return false;
+    }
+
+    Uint32 prev_vertices_count = prev_cmd->args.draw.vertices_count;
+
+    // Can't merge if we don't have enough space for vertices
+    if (_gp.current_vertex + vertices_count > _gp.vertices_size) {
+      return false;
+    }
+
+    // Avoid moving too meny vertices, otherwise it can cause performance
+    // regression
+    if (prev_vertices_count > _SDL_GP_MOVE_VERTICES_MAX) {
+      return false;
+    }
+
+    // Re-organized vertices
+
+    SDL_memmove(&_gp.vertices[vertex_index + prev_vertices_count],
+                &_gp.vertices[vertex_index],
+                vertices_count * sizeof(SDL_GPVertex));
+    SDL_memcpy(&_gp.vertices[vertex_index],
+               &_gp.vertices[prev_cmd->args.draw.vertex_index],
+               prev_vertices_count * sizeof(SDL_GPVertex));
+
+    // Update draw region and vertices
+    prev_region.x1 = SDL_min(prev_region.x1, region.x1);
+    prev_region.y1 = SDL_min(prev_region.y1, region.y1);
+    prev_region.x2 = SDL_max(prev_region.x2, region.x2);
+    prev_region.y2 = SDL_max(prev_region.y2, region.y2);
+    _gp.current_vertex += prev_vertices_count;
+    vertices_count += prev_vertices_count;
+
+    // Configure the new draw command
+    cmd->cmd                      = _SDL_GP_COMMAND_DRAW;
+    cmd->args.draw.pipeline       = pipeline;
+    cmd->args.draw.texture        = texture;
+    cmd->args.draw.region         = prev_region;
+    cmd->args.draw.uniform_index  = prev_cmd->args.draw.uniform_index;
+    cmd->args.draw.vertex_index   = vertex_index;
+    cmd->args.draw.vertices_count = vertices_count;
+
+    // Force skipping the previous draw command
+    prev_cmd->cmd = _SDL_GP_COMMAND_NONE;
+  }
   return true;
 #else
+  SDL_GP_UNUSED(pipeline);
+  SDL_GP_UNUSED(texture);
+  SDL_GP_UNUSED(uniform);
+  SDL_GP_UNUSED(region);
+  SDL_GP_UNUSED(vertex_index);
+  SDL_GP_UNUSED(vertices_count);
   return false;
 #endif // SDL_GP_OPTIMIZER_DEPTH > 0
 }
@@ -3612,7 +3711,6 @@ _SDL_GPQueueDraw(SDL_GPPipeline pipeline,
     return;
   }
 
-  /*
   // Try to merge with previous draw command
   if (primitive_type != SDL_GP_PRIMITIVE_TRIANGLE_STRIP
       && primitive_type != SDL_GP_PRIMITIVE_LINE_STRIP
@@ -3624,7 +3722,6 @@ _SDL_GPQueueDraw(SDL_GPPipeline pipeline,
                                   vertices_count)) {
     return;
   }
-  */
 
   // Try to reuse previous uniform if possible
   Uint32 uniform_index = SDL_GP_IMPOSSIBLE_ID;

@@ -1,3 +1,7 @@
+/*
+ * NOTE: use arrow keys to switch between samples
+ */
+
 #include <SDL3/SDL.h>
 
 #define SDL_MAIN_USE_CALLBACKS
@@ -11,9 +15,11 @@
 #include "sample-blend.h"
 #include "sample-primitive.h"
 #include "sample-rect.h"
+#include "sample-sprite.h"
 
 #define WINDOW_WIDTH 1026
 #define WINDOW_HEIGHT 576
+
 #define DELTA_TIME_MS 16 // ~60 FPS
 
 typedef enum
@@ -21,10 +27,11 @@ typedef enum
   SAMPLE_RECT = 0,
   SAMPLE_PRIMITIVE,
   SAMPLE_BLEND,
+  SAMPLE_SPRITE,
   SAMPLE_COUNT
 } SampleType;
 
-static SampleType _current_test = SAMPLE_RECT;
+static SampleType _current_test = SAMPLE_SPRITE;
 
 static Context _context;
 
@@ -108,10 +115,13 @@ SDL_AppInit(void **appstate, int argc, char **argv)
   sample_rect_setup(&_context);
   sample_primitive_setup(&_context);
   sample_blend_setup(&_context);
+  sample_sprite_setup(&_context);
 
   // Submit for resources uploads during setup
 
   SDL_SubmitGPUCommandBuffer(_context.cmd_buffer);
+
+  SDL_srand(0);
 
   return SDL_APP_CONTINUE;
 }
@@ -147,6 +157,9 @@ SDL_AppIterate(void *appstate)
       break;
     case SAMPLE_PRIMITIVE:
       sample_primitive_render(DELTA_TIME_MS);
+      break;
+    case SAMPLE_SPRITE:
+      sample_sprite_render(DELTA_TIME_MS);
       break;
     case SAMPLE_BLEND:
       sample_blend_render(DELTA_TIME_MS);
@@ -195,6 +208,7 @@ SDL_AppQuit(void *appstate, SDL_AppResult result)
   sample_rect_shutdown();
   sample_primitive_shutdown();
   sample_blend_shutdown();
+  sample_sprite_shutdown();
 
   SDL_GPShutdown();
 

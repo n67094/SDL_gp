@@ -10,15 +10,19 @@ This is a port of [sokol_gp](https://github.com/edubart/sokol_gp) to SDL3, with 
 
 Primitive:
 
-![Screenshot of primite](images/primitive.png)
+![Screenshot of primite](images/sample-primitive.png)
 
 Rectangle:
 
-![Screenshot of rectangles](images/rect.png)
+![Screenshot of rectangles](images/sample-rect.png)
+
+Sprite:
+
+![Screenshot of sprite](images/sample-sprite.png)
 
 Blendmode:
 
-![Screenshot of blendmode](images/blend.png)
+![Screenshot of blendmode](images/sample-blend.png)
 
 # Getting Started
 

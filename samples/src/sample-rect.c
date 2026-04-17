@@ -8,7 +8,7 @@
 
 static Context *_context;
 
-SDL_GPImage image;
+static SDL_GPImage image;
 
 void
 sample_rect_setup(Context *context)
