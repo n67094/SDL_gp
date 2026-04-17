@@ -1,6 +1,4 @@
 /**
- * TODO re-organize structures to take less memory.
- *
  * https://github.com/n67094/SDL_gp
  *
  * # SDL_gp
@@ -52,8 +50,9 @@
  * # Acknowledgements
  *
  * [Edubart](https://github.com/edubart) - Creator of the original `sokol_gp`
- * that encouraged me to create `SDL_gp`. [The SDL
- * team](https://github.com/libsdl-org) - For developing and maintaining `SDL3`.
+ * that encouraged me to create `SDL_gp`.
+ * [The SDL team](https://github.com/libsdl-org) - For developing and
+ * maintaining `SDL3`.
  *
  * # License
  *
@@ -193,9 +192,10 @@ extern "C"
     SDL_GP_ERROR_CREATE_TRANSFER_BUFFER_FAILED,
     SDL_GP_ERROR_CREATE_VERTEX_BUFFER_FAILED,
     SDL_GP_ERROR_CREATE_COMMON_PIPELINE_FAILED,
-    SDL_GP_ERROR_PAINTER_UNIFORMS_FULL,
-    SDL_GP_ERROR_PAINTER_VERTICES_FULL,
-    SDL_GP_ERROR_PAINTER_COMMANDS_FULL,
+    SDL_GP_ERROR_ALLOC_FAILED,
+    SDL_GP_ERROR_UNIFORMS_FULL,
+    SDL_GP_ERROR_VERTICES_FULL,
+    SDL_GP_ERROR_COMMANDS_FULL,
     SDL_GP_ERROR_FLUSH_FAILED
   } SDL_GPError;
 
@@ -677,6 +677,8 @@ extern "C"
 // Implementation and internal API
 // ----------------------------------------------------------------------------
 
+// #define SDL_GP_IMPLEMENTATION
+
 #ifdef SDL_GP_IMPLEMENTATION
 
 #define _SDL_GP_INIT_COOKIE 0xC0DED1ED
@@ -687,24 +689,24 @@ static SDL_GPUCommandBuffer *_cmd_buffer;
 // Error handling (Private)
 // ----------------------------------------------------------------------------
 
-static SDL_GP_Error _last_error = SDL_GP_ERROR_NONE;
+static SDL_GPError _last_error = SDL_GP_ERROR_NONE;
 
 static void
-_SDL_GPSetError(SDL_GP_Error error)
+_SDL_GPSetError(SDL_GPError error)
 {
   SDL_LogError(
       SDL_LOG_CATEGORY_VIDEO, "SDL_gp error: %s", SDL_GPGetErrorMessage(error));
   _last_error = error;
 }
 
-SDL_GP_Error
+SDL_GPError
 SDL_GPGetLastError(void)
 {
   return _last_error;
 }
 
 const char *
-SDL_GPGetErrorMessage(SDL_GP_Error error)
+SDL_GPGetErrorMessage(SDL_GPError error)
 {
   switch (error) {
   case SDL_GP_ERROR_NONE:
@@ -727,11 +729,13 @@ SDL_GPGetErrorMessage(SDL_GP_Error error)
     return "Failed to create vertex buffer";
   case SDL_GP_ERROR_CREATE_COMMON_PIPELINE_FAILED:
     return "Failed to create common pipeline";
-  case SDL_GP_ERROR_PAINTER_UNIFORMS_FULL:
+  case SDL_GP_ERROR_ALLOC_FAILED:
+    return "Failed to allocate memory";
+  case SDL_GP_ERROR_UNIFORMS_FULL:
     return "Painter uniforms are full";
-  case SDL_GP_ERROR_PAINTER_VERTICES_FULL:
+  case SDL_GP_ERROR_VERTICES_FULL:
     return "Painter vertices are full";
-  case SDL_GP_ERROR_PAINTER_COMMANDS_FULL:
+  case SDL_GP_ERROR_COMMANDS_FULL:
     return "Painter commands are full";
   case SDL_GP_ERROR_FLUSH_FAILED:
     return "Failed to flush painter";
@@ -1461,8 +1465,8 @@ void main() {
 }
 */
 
-size_t _shader_vert_spv_len = 1168;
-Uint8 _shader_vert_spv[]    = {
+static const size_t _shader_vert_spv_len = 1168;
+static const Uint8 _shader_vert_spv[]    = {
   0X03, 0X02, 0X23, 0X07, 0X00, 0X00, 0X01, 0X00, 0X0B, 0X00, 0X08, 0X00, 0X26,
   0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X11, 0X00, 0X02, 0X00, 0X01, 0X00,
   0X00, 0X00, 0X0B, 0X00, 0X06, 0X00, 0X01, 0X00, 0X00, 0X00, 0X47, 0X4C, 0X53,
@@ -1555,8 +1559,8 @@ Uint8 _shader_vert_spv[]    = {
   0X00, 0X00, 0X00, 0XFD, 0X00, 0X01, 0X00, 0X38, 0X00, 0X01, 0X00
 };
 
-unsigned int _shader_vert_msl_len = 567;
-unsigned char _shader_vert_msl[]  = {
+static const size_t _shader_vert_msl_len = 567;
+const Uint8 _shader_vert_msl[]           = {
   0X23, 0X69, 0X6E, 0X63, 0X6C, 0X75, 0X64, 0X65, 0X20, 0X3C, 0X6D, 0X65, 0X74,
   0X61, 0X6C, 0X5F, 0X73, 0X74, 0X64, 0X6C, 0X69, 0X62, 0X3E, 0X0A, 0X23, 0X69,
   0X6E, 0X63, 0X6C, 0X75, 0X64, 0X65, 0X20, 0X3C, 0X73, 0X69, 0X6D, 0X64, 0X2F,
@@ -1603,8 +1607,8 @@ unsigned char _shader_vert_msl[]  = {
   0X6F, 0X75, 0X74, 0X3B, 0X0A, 0X7D, 0X0A, 0X0A
 };
 
-unsigned int _shader_vert_dxil_len = 3280;
-unsigned char _shader_vert_dxil[]  = {
+static const size_t _shader_vert_dxil_len = 3280;
+static const Uint8 _shader_vert_dxil[]    = {
   0X44, 0X58, 0X42, 0X43, 0X24, 0X6B, 0X07, 0X1C, 0XEF, 0X19, 0X41, 0XFB, 0XF1,
   0X66, 0XD1, 0XEA, 0X57, 0XB4, 0X9E, 0XED, 0X01, 0X00, 0X00, 0X00, 0XD0, 0X0C,
   0X00, 0X00, 0X07, 0X00, 0X00, 0X00, 0X3C, 0X00, 0X00, 0X00, 0X4C, 0X00, 0X00,
@@ -1875,8 +1879,8 @@ unsigned char _shader_vert_dxil[]  = {
  * }
  */
 
-size_t _shader_farg_spv_len = 668;
-Uint8 _shader_frag_spv[]    = {
+static const size_t _shader_farg_spv_len = 668;
+static const Uint8 _shader_frag_spv[]    = {
   0X03, 0X02, 0X23, 0X07, 0X00, 0X00, 0X01, 0X00, 0X0B, 0X00, 0X08, 0X00, 0X18,
   0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X11, 0X00, 0X02, 0X00, 0X01, 0X00,
   0X00, 0X00, 0X0B, 0X00, 0X06, 0X00, 0X01, 0X00, 0X00, 0X00, 0X47, 0X4C, 0X53,
@@ -1931,8 +1935,8 @@ Uint8 _shader_frag_spv[]    = {
   0X00, 0X38, 0X00, 0X01, 0X00
 };
 
-unsigned int _shader_frag_msl_len = 505;
-unsigned char _shader_frag_msl[]  = {
+static const size_t _shader_frag_msl_len = 505;
+static const Uint8 _shader_frag_msl[]    = {
   0X23, 0X69, 0X6E, 0X63, 0X6C, 0X75, 0X64, 0X65, 0X20, 0X3C, 0X6D, 0X65, 0X74,
   0X61, 0X6C, 0X5F, 0X73, 0X74, 0X64, 0X6C, 0X69, 0X62, 0X3E, 0X0A, 0X23, 0X69,
   0X6E, 0X63, 0X6C, 0X75, 0X64, 0X65, 0X20, 0X3C, 0X73, 0X69, 0X6D, 0X64, 0X2F,
@@ -1974,8 +1978,8 @@ unsigned char _shader_frag_msl[]  = {
   0X72, 0X6E, 0X20, 0X6F, 0X75, 0X74, 0X3B, 0X0A, 0X7D, 0X0A, 0X0A
 };
 
-unsigned int _shader_frag_dxil_len = 3896;
-unsigned char _shader_frag_dxil[]  = {
+static const size_t _shader_frag_dxil_len = 3896;
+static const Uint8 _shader_frag_dxil[]    = {
   0X44, 0X58, 0X42, 0X43, 0X3D, 0XE0, 0X10, 0X51, 0XB5, 0XE1, 0X54, 0X94, 0XA7,
   0XBB, 0XA5, 0X02, 0X68, 0XFC, 0X36, 0X09, 0X01, 0X00, 0X00, 0X00, 0X38, 0X0F,
   0X00, 0X00, 0X07, 0X00, 0X00, 0X00, 0X3C, 0X00, 0X00, 0X00, 0X4C, 0X00, 0X00,
@@ -2333,17 +2337,24 @@ typedef struct _SDL_GP
   Uint32 current_transform;
   SDL_GPMat2x3 transforms[SDL_GP_TRANSFORMS_MAX];
 
-  // Vertecies stack
+  // Vertecies stack TODO should be allocated since max_verticies in
+  // configurable in SDL_GPDesc
   Uint32 current_vertex;
-  SDL_GPVertex vertices[SDL_GP_VERTICES_MAX];
+  SDL_GPVertex *vertices;
+  Uint32 vertices_size;
 
-  // Uniforms stack
-  Uint32 current_uniform;
-  SDL_GPUniform uniforms[SDL_GP_COMMANDS_MAX];
-
-  // Commands management
+  // Commands management TODO should be allocated since max_commands in
+  // configurable in SDL_GPDesc
   Uint32 current_command;
-  _SDL_GPCommand commands[SDL_GP_COMMANDS_MAX];
+  _SDL_GPCommand *commands;
+  Uint32 commands_size;
+
+  // Commands management TODO should be allocated using max_commands in
+  // SDL_GPDesc Uniforms stack
+  Uint32 current_uniform;
+  SDL_GPUniform *uniforms;
+  Uint32 uniforms_size;
+
 } _SDL_GP;
 
 static _SDL_GP _gp            = { 0 };
@@ -2356,11 +2367,11 @@ _SDL_GPCreateCommonShader(SDL_GPUDevice *gpu_device)
   SDL_GPUShaderFormat supported_formats = SDL_GetGPUShaderFormats(gpu_device);
   SDL_GPUShaderFormat format;
 
-  Uint8 *bytecode_vert      = NULL;
-  size_t bytecode_vert_size = 0;
+  const Uint8 *bytecode_vert = NULL;
+  size_t bytecode_vert_size  = 0;
 
-  Uint8 *bytecode_frag      = NULL;
-  size_t bytecode_frag_size = 0;
+  const Uint8 *bytecode_frag = NULL;
+  size_t bytecode_frag_size  = 0;
 
   if (supported_formats & SDL_GPU_SHADERFORMAT_SPIRV) {
     format = SDL_GPU_SHADERFORMAT_SPIRV;
@@ -2437,7 +2448,7 @@ _SDL_GPNextUniform(void)
   if (_gp.current_uniform < SDL_GP_COMMANDS_MAX) {
     return &_gp.uniforms[_gp.current_uniform++];
   } else {
-    _SDL_GPSetError(SDL_GP_ERROR_PAINTER_UNIFORMS_FULL);
+    _SDL_GPSetError(SDL_GP_ERROR_UNIFORMS_FULL);
     return NULL;
   }
 }
@@ -2461,7 +2472,7 @@ _SDL_GPNextVertices(Uint32 count)
 
     return vertices;
   } else {
-    _SDL_GPSetError(SDL_GP_ERROR_PAINTER_VERTICES_FULL);
+    _SDL_GPSetError(SDL_GP_ERROR_VERTICES_FULL);
     return NULL;
   }
 }
@@ -2560,9 +2571,26 @@ SDL_GPSetup(SDL_GPDesc *desc)
       = SDL_GP_DEFAULT(desc->max_vertices, SDL_GP_VERTICES_MAX);
   _gp.desc.max_commands
       = SDL_GP_DEFAULT(desc->max_commands, SDL_GP_COMMANDS_MAX);
-
   _gp.desc.window     = desc->window;
   _gp.desc.gpu_device = desc->gpu_device;
+
+  _gp.vertices_size = _gp.desc.max_vertices;
+  _gp.commands_size = _gp.desc.max_commands;
+  _gp.uniforms_size = _gp.desc.max_commands;
+  _gp.vertices
+      = (SDL_GPVertex *)SDL_malloc(_gp.vertices_size * sizeof(SDL_GPVertex));
+  _gp.commands = (_SDL_GPCommand *)SDL_malloc(_gp.commands_size
+                                              * sizeof(_SDL_GPCommand));
+  _gp.uniforms
+      = (SDL_GPUniform *)SDL_malloc(_gp.uniforms_size * sizeof(SDL_GPUniform));
+  if (!_gp.vertices || !_gp.commands || !_gp.uniforms) {
+    SDL_GPShutdown();
+    _SDL_GPSetError(SDL_GP_ERROR_ALLOC_FAILED);
+    return;
+  }
+  SDL_memset(_gp.vertices, 0, _gp.vertices_size * sizeof(SDL_GPVertex));
+  SDL_memset(_gp.commands, 0, _gp.commands_size * sizeof(_SDL_GPCommand));
+  SDL_memset(_gp.uniforms, 0, _gp.uniforms_size * sizeof(SDL_GPUniform));
 
   // Setup resources management for shaders, pipelines and images
 
@@ -3465,47 +3493,102 @@ SDL_GPResetState()
   SDL_GPResetPipeline();
 }
 
-static bool
-_SDL_GPMergeDrawCommands(SDL_GPUGraphicsPipeline *pipeline,
-                         SDL_GPTextureUniform *texture,
-                         SDL_GPUniform *uniform,
-                         Uint32 vertex_index,
-                         Uint32 vertices_count,
-                         SDL_GPUPrimitiveType primitive_type)
+static inline bool
+_SDL_GPRegionOverlaps(_SDL_GPRegion a, _SDL_GPRegion b)
 {
-#if BXR_PAINTER_OPTIMIZE_DEPTH > 0
-  _bxr_command_t *prev_cmd = NULL;
-  _bxr_command_t *inter_cmds[BXR_PAINTER_OPTIMIZE_DEPTH];
-  Uint32 inter_count = 0;
+  return !(a.x2 <= b.x1 || b.x2 <= a.x1 || a.y2 <= b.y1 || b.y2 <= a.y1);
+}
+
+static bool
+_SDL_GPMergeDrawCommands(SDL_GPPipeline pipeline,
+                         SDL_GPTextureUniform texture,
+                         SDL_GPUniform *uniform,
+                         _SDL_GPRegion region,
+                         Uint32 vertex_index,
+                         Uint32 vertices_count)
+{
+#if SDL_GP_OPTIMIZER_DEPTH > 0
+  _SDL_GPCommand *prev_cmd = NULL;
+  _SDL_GPCommand *inter_cmds[SDL_GP_OPTIMIZER_DEPTH];
+  Uint32 inter_cmd_count = 0;
 
   // Find a command that is mergeable
-  Uint32 lookup_depht = BXR_PAINTER_OPTIMIZE_DEPTH;
-  for (Uint32 depth = 1; depth <= lookup_depht; ++depth) {
-    _bxr_command_t *cmd = _bxr_prev_command(depth + 1);
+  Uint32 lookup_depht = SDL_GP_OPTIMIZER_DEPTH;
+  for (Uint32 depth = 0; depth <= lookup_depht; ++depth) {
+    _SDL_GPCommand *cmd = _SDL_GPPrevCommand(depth + 1);
 
     // Stop on nonexistent command
     if (!cmd) {
       break;
     }
 
-    // command was optimized awaw, continue looking
-    if (cmd->cmd == BXR_COMMAND_NONE) {
+    // command was optimized, continue looking
+    if (cmd->cmd == _SDL_GP_COMMAND_NONE) {
       lookup_depht++;
       continue;
     }
 
     // Stop on scissor or viewport
-    if (cmd->cmd != BXR_COMMAND_DRAW) {
+    if (cmd->cmd != _SDL_GP_COMMAND_DRAW) {
       break;
     }
 
-    // Only command with the same pipeline, bindings and (TODO uniforms) can be
-    // merged
-    // TODO
+    // Only command with the same pipeline, texture and uniform can be merged
+    if (cmd->args.draw.pipeline.id == pipeline.id
+        && SDL_memcmp(
+               &texture, &cmd->args.draw.texture, sizeof(SDL_GPTextureUniform))
+               == 0
+        && (!uniform
+            || SDL_memcmp(uniform,
+                          &_gp.uniforms[cmd->args.draw.uniform_index],
+                          sizeof(SDL_GPUniform))
+                   == 0)) {
+      prev_cmd = cmd;
+      break;
+    } else {
+      inter_cmds[inter_cmd_count] = cmd;
+      inter_cmd_count++;
+    }
+  }
+  if (!prev_cmd) {
+    return false;
   }
 
-#endif
+  // Allow merging only if there are no overlapping regions in between
+  bool overlaps_next        = false;
+  bool overlaps_prev        = false;
+  _SDL_GPRegion prev_region = prev_cmd->args.draw.region;
+  for (Uint32 i = 0; i < inter_cmd_count; ++i) {
+    _SDL_GPRegion inter_region = inter_cmds[i]->args.draw.region;
+    if (_SDL_GPRegionOverlaps(region, inter_region)) {
+      overlaps_next = true;
+      if (overlaps_prev) {
+        return false; // Can't merge if there are overlapping regions in
+                      // between
+      }
+      if (_SDL_GPRegionOverlaps(prev_region, inter_region)) {
+        overlaps_prev = true;
+        if (overlaps_next) {
+          return false; // Can't merge if there are overlapping regions in
+                        // between
+        }
+      }
+    }
+  }
+
+  if (!overlaps_next) { // merge with the previous draw command
+    if (inter_cmd_count > 0) {
+      if (_gp.current_vertex + vertices_count > _gp.vertices_size) {
+        return false; // Can't merge if we don't have enough space for vertices
+      }
+    }
+  } else { // merge with the next draw command
+  }
+
+  return true;
+#else
   return false;
+#endif // SDL_GP_OPTIMIZER_DEPTH > 0
 }
 
 static void
@@ -3515,26 +3598,6 @@ _SDL_GPQueueDraw(SDL_GPPipeline pipeline,
                  Uint32 vertices_count,
                  SDL_GPPrimitiveType primitive_type)
 {
-  /*
-  if (region.x0 > 1.0f || region.y0 > 1.0f || region.x1 < 0.0f
-      || region.y1 < 0.0f) {
-    _cur_vertex -= vertices_count; // rollback allocated vertices
-    return;
-  }
-  */
-
-  /* TODO
-  // Try to merge with previous draw command
-  if (primitive_type != SDL_GPU_PRIMITIVETYPE_TRIANGLESTRIP
-      && primitive_type != SDL_GPU_PRIMITIVETYPE_LINESTRIP
-      && _bxr_painter_merge_draw_commands(pipeline,
-                                         _state.image,
-                                         vertex_index,
-                                         vertices_count,
-                                         primitive_type)) {
-    return;
-  }
-  */
 
   SDL_GPUniform *uniform = NULL;
   if (_gp.state.pipeline.id != SDL_GP_INVALID_ID) {
@@ -3542,8 +3605,29 @@ _SDL_GPQueueDraw(SDL_GPPipeline pipeline,
     uniform  = &_gp.state.uniform;
   }
 
-  Uint32 uniform_index = SDL_GP_IMPOSSIBLE_ID;
+  // If the region is completely outside of the viewport, skip the draw call
+  if (region.x1 > 1.0f || region.y1 > 1.0f || region.x2 < -1.0f
+      || region.y2 < -1.0f) {
+    _gp.current_vertex -= vertices_count; // rollback allocated vertices
+    return;
+  }
 
+  /*
+  // Try to merge with previous draw command
+  if (primitive_type != SDL_GP_PRIMITIVE_TRIANGLE_STRIP
+      && primitive_type != SDL_GP_PRIMITIVE_LINE_STRIP
+      && _SDL_GPMergeDrawCommands(pipeline,
+                                  _gp.state.texture,
+                                  uniform,
+                                  region,
+                                  vertex_index,
+                                  vertices_count)) {
+    return;
+  }
+  */
+
+  // Try to reuse previous uniform if possible
+  Uint32 uniform_index = SDL_GP_IMPOSSIBLE_ID;
   if (uniform) {
     SDL_GPUniform *prev_uniform = _SDL_GPPrevUniform();
 
@@ -3573,10 +3657,10 @@ _SDL_GPQueueDraw(SDL_GPPipeline pipeline,
     return;
   }
 
-  cmd->cmd                = _SDL_GP_COMMAND_DRAW;
-  cmd->args.draw.pipeline = pipeline;
-  cmd->args.draw.texture  = _gp.state.texture;
-  // TODO region for optimization
+  cmd->cmd                      = _SDL_GP_COMMAND_DRAW;
+  cmd->args.draw.pipeline       = pipeline;
+  cmd->args.draw.texture        = _gp.state.texture;
+  cmd->args.draw.region         = region;
   cmd->args.draw.uniform_index  = uniform_index;
   cmd->args.draw.vertex_index   = vertex_index;
   cmd->args.draw.vertices_count = vertices_count;

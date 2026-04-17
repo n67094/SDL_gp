@@ -12,7 +12,7 @@ Primitive:
 
 ![Screenshot of primite](images/primitive.png)
 
-Rectangles:
+Rectangle:
 
 ![Screenshot of rectangles](images/rect.png)
 
@@ -301,7 +301,7 @@ You can also check out my blog at [www.nsix.blog](https://www.nsix.blog) for mor
 
 # Acknowledgements
 
-- [Edubart](https://github.com/edubart) - Creator of the original `sokol_gp` that encouraged me to create `SDL_gp`. [The SDL
+- [Edubart](https://github.com/edubart) - Creator of the original `sokol_gp` that encouraged me to create `SDL_gp`.
 - [The SDL team](https://github.com/libsdl-org) - For developing and maintaining `SDL3`.
 
 # License
