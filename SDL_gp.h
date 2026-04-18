@@ -382,7 +382,7 @@ extern "C"
                        SDL_GPBlendMode blend_mode);
 
   // Destroy a graphics pipeline and free its resources.
-  SDL_GP_API_DECL void SDL_GPPipelineDestroy(SDL_GPPipeline pipeline);
+  SDL_GP_API_DECL void SDL_GPDestroyPipeline(SDL_GPPipeline pipeline);
 
   // Get the GPU graphics pipeline associated with a SDL_gp pipeline. Returns
   // NULL if the pipeline is invalid.
@@ -1426,7 +1426,7 @@ SDL_GPCreatePipeline(SDL_GPShader shader,
 }
 
 void
-SDL_GPPipelineDestroy(SDL_GPPipeline pipeline)
+SDL_GPDestroyPipeline(SDL_GPPipeline pipeline)
 {
   SDL_assert(_pipeline_initialized == _SDL_GP_INIT_COOKIE);
 
@@ -2744,7 +2744,7 @@ SDL_GPShutdown()
 
   for (int i = 0; i < SDL_GP_PRIMITIVE_SIZE * SDL_GP_BLENDMODE_SIZE; ++i) {
     if (_gp.pipelines[i].id != SDL_GP_INVALID_ID) {
-      SDL_GPPipelineDestroy(_gp.pipelines[i]);
+      SDL_GPDestroyPipeline(_gp.pipelines[i]);
       _gp.pipelines[i] = (SDL_GPPipeline){ .id = SDL_GP_INVALID_ID };
     }
   }

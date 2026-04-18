@@ -31,7 +31,7 @@ typedef enum
   SAMPLE_COUNT
 } SampleType;
 
-static SampleType _current_test = SAMPLE_SPRITE;
+static SampleType _current_test = SAMPLE_RECT;
 
 static Context _context;
 
