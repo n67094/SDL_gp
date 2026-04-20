@@ -16,6 +16,7 @@
  *
  * A simple example to draw a red rectangle:
  *
+ * #define SDL_GP_IMPLEMENTATION
  * #include "SDL_gp.h"
  *
  * // Begin a new frame
@@ -32,7 +33,7 @@
  *    }
  *
  *    // Flush the drawing commands to the GPU.
- *    SDL_GPFlush(_context.swapchain_texture);
+ *    SDL_GPFlush();
  * }
  * SDL_GPEnd();
  *
@@ -398,11 +399,6 @@ extern "C"
     SDL_GP_UNIFORM_SLOT_FS = 1
   } SDL_GPUniformSlot;
 
-  typedef struct SDL_GPISize
-  {
-    int w, h;
-  } SDL_GPISize;
-
   typedef struct SDL_GPVec2
   {
     float x, y;
@@ -419,6 +415,11 @@ extern "C"
   {
     SDL_GPPoint a, b, c;
   } SDL_GPTriangle;
+
+  typedef struct SDL_GPISize
+  {
+    int w, h;
+  } SDL_GPISize;
 
   typedef struct SDL_GPIRect
   {
@@ -519,7 +520,7 @@ extern "C"
   SDL_GP_API_DECL void SDL_GPSetup(SDL_GPDesc *desc);
 
   // Shutdown SDL_GP context.
-  SDL_GP_API_DECL void SDL_GPShutdown();
+  SDL_GP_API_DECL void SDL_GPShutdown(void);
 
   // Begin recoarding draw calls for the current frame. This should be called
   // after setting up SDL_gp and acquiring a swapchain texture and command
@@ -527,7 +528,7 @@ extern "C"
   SDL_GP_API_DECL void SDL_GPBegin(int width, int height);
 
   // Flush the recorded draw calls to the GPU.
-  SDL_GP_API_DECL void SDL_GPFlush(SDL_GPUTexture *swapchain_texture);
+  SDL_GP_API_DECL void SDL_GPFlush(void);
 
   // End recording draw calls for the current frame.
   SDL_GP_API_DECL void SDL_GPEnd(void);
@@ -712,7 +713,7 @@ _SDL_GPSetError(SDL_GPError error)
 }
 
 SDL_GPError
-SDL_GPGetLastError(void)
+SDL_GPGetLastError()
 {
   return _last_error;
 }
@@ -2456,7 +2457,7 @@ _SDL_GP_FindOrCreatePipeline(SDL_GPPrimitiveType primitive_type,
 }
 
 SDL_GP_INLINE SDL_GPUniform *
-_SDL_GPNextUniform(void)
+_SDL_GPNextUniform()
 {
   if (_gp.current_uniform < _SDL_GP_COMMANDS_MAX) {
     return &_gp.uniforms[_gp.current_uniform++];
@@ -2467,7 +2468,7 @@ _SDL_GPNextUniform(void)
 }
 
 SDL_GP_INLINE SDL_GPUniform *
-_SDL_GPPrevUniform(void)
+_SDL_GPPrevUniform()
 {
   if (_gp.current_uniform > 0) {
     return &_gp.uniforms[_gp.current_uniform - 1];
@@ -2491,7 +2492,7 @@ _SDL_GPNextVertices(Uint32 count)
 }
 
 SDL_GP_INLINE _SDL_GPCommand *
-_SDL_GPNextCommand(void)
+_SDL_GPNextCommand()
 {
   if ((_gp.current_command < _SDL_GP_COMMANDS_MAX)) {
     return &_gp.commands[_gp.current_command++];
@@ -2832,7 +2833,7 @@ SDL_GPBegin(int width, int height)
 }
 
 void
-SDL_GPFlush(SDL_GPUTexture *swapchain_texture)
+SDL_GPFlush()
 {
   SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
@@ -2897,7 +2898,7 @@ SDL_GPFlush(SDL_GPUTexture *swapchain_texture)
   // Render pass
 
   SDL_GPUColorTargetInfo color_target_info = {
-    .texture     = swapchain_texture, // _gp.desc.target_texture,
+    .texture     = _swapchain_texture,
     .clear_color = { 0, 0, 0, 1 },
     .load_op     = SDL_GPU_LOADOP_CLEAR,
     .store_op    = SDL_GPU_STOREOP_STORE,
@@ -3430,7 +3431,7 @@ SDL_GPViewport(int x, int y, int w, int h)
 }
 
 void
-SDL_GPResetViewport(void)
+SDL_GPResetViewport()
 {
   SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
