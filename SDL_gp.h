@@ -640,10 +640,11 @@ extern "C"
                                   Uint32 vertices_count);
 
   // Draw points in batch.
-  SDL_GP_API_DECL void SDL_GPDrawPoints(const SDL_GPVec2 *points, Uint32 count);
+  SDL_GP_API_DECL void SDL_GPDrawPoints(const SDL_GPPoint *points,
+                                        Uint32 count);
 
   // Draw a single point.
-  SDL_GP_API_DECL void SDL_GPDrawPoint(SDL_GPVec2 point);
+  SDL_GP_API_DECL void SDL_GPDrawPoint(SDL_GPPoint point);
 
   // Draw lines in batch.
   SDL_GP_API_DECL void SDL_GPDrawLines(const SDL_GPLine *lines, Uint32 count);
@@ -3919,13 +3920,13 @@ SDL_GPDraw(SDL_GPPrimitiveType primitive_type,
 }
 
 void
-SDL_GPDrawPoints(const SDL_GPVec2 *points, Uint32 count)
+SDL_GPDrawPoints(const SDL_GPPoint *points, Uint32 count)
 {
   _SDL_GPDrawSolid(SDL_GP_PRIMITIVE_POINTS, points, count);
 }
 
 void
-SDL_GPDrawPoint(SDL_GPVec2 point)
+SDL_GPDrawPoint(SDL_GPPoint point)
 {
   SDL_GPDrawPoints(&point, 1);
 }
