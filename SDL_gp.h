@@ -142,6 +142,10 @@
 #define SDL_GP_OPTIMIZER_DEPTH 8
 #endif
 
+// ----------------------------------------------------------------------------
+// Global Definitions and Utilities
+// ----------------------------------------------------------------------------
+
 #define SDL_GP_INVALID_ID 0
 #define SDL_GP_IMPOSSIBLE_ID 0xFFFFFFFF
 
