@@ -855,38 +855,44 @@ typedef struct _SDL_GPImage
   int height;
 } _SDL_GPImage;
 
-static Uint32 _image_initialized                             = 0;
-static _SDL_GPImage *_images                                 = NULL;
-static SDL_GPPool *_image_pool                               = NULL;
-static SDL_GPUTransferBuffer *_image_texture_transfer_buffer = NULL;
-static SDL_GPUDevice *_image_gpu_device                      = NULL;
-static SDL_Window *_image_window                             = NULL;
+typedef struct _SDL_GIImageContext
+{
+  Uint32 initialized;
+  _SDL_GPImage *images;
+  SDL_GPPool *pool;
+  SDL_GPUTransferBuffer *texture_transfer_buffer;
+  SDL_GPUDevice *gpu_device;
+  SDL_Window *window;
+} _SDL_GPImageContext;
+
+static _SDL_GPImageContext _img_ctx = { 0 };
 
 // Setup image resources management.
 static void
 _SDL_GPImageSetup(SDL_GPUDevice *gpu_device, SDL_Window *window)
 {
-  SDL_assert(_image_initialized == 0);
+  SDL_assert(_img_ctx.initialized == 0);
   SDL_assert(gpu_device);
 
-  _image_initialized = _SDL_GP_INIT_COOKIE;
+  _img_ctx.initialized = _SDL_GP_INIT_COOKIE;
 
-  _image_gpu_device = gpu_device;
-  _image_window     = window;
+  _img_ctx.gpu_device = gpu_device;
+  _img_ctx.window     = window;
 
-  _image_pool = SDL_GPCeatePool(SDL_GP_IMAGE_MAX);
+  _img_ctx.pool = SDL_GPCeatePool(SDL_GP_IMAGE_MAX);
 
-  _images = (_SDL_GPImage *)SDL_malloc(SDL_GP_IMAGE_MAX * sizeof(_SDL_GPImage));
+  _img_ctx.images
+      = (_SDL_GPImage *)SDL_malloc(SDL_GP_IMAGE_MAX * sizeof(_SDL_GPImage));
 
   SDL_GPUTransferBufferCreateInfo transfer_buffer_create_info
       = { .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
           .size
           = 4 * SDL_GP_TEXTURE_DIMENSION_MAX * SDL_GP_TEXTURE_DIMENSION_MAX };
 
-  _image_texture_transfer_buffer
+  _img_ctx.texture_transfer_buffer
       = SDL_CreateGPUTransferBuffer(gpu_device, &transfer_buffer_create_info);
 
-  if (!_image_texture_transfer_buffer) {
+  if (!_img_ctx.texture_transfer_buffer) {
     _SDL_GPSetError(SDL_GP_ERROR_SETUP_IMAGE_FAILED);
     return;
   }
@@ -896,26 +902,26 @@ _SDL_GPImageSetup(SDL_GPUDevice *gpu_device, SDL_Window *window)
 static void
 _SDL_GPImageShutdown()
 {
-  SDL_assert(_image_initialized == _SDL_GP_INIT_COOKIE);
-  _image_initialized = 0;
+  SDL_assert(_img_ctx.initialized == _SDL_GP_INIT_COOKIE);
+  _img_ctx.initialized = 0;
 
-  SDL_GPDestroyPool(_image_pool);
-  SDL_free(_images);
-  SDL_ReleaseGPUTransferBuffer(_image_gpu_device,
-                               _image_texture_transfer_buffer);
+  SDL_GPDestroyPool(_img_ctx.pool);
+  SDL_free(_img_ctx.images);
+  SDL_ReleaseGPUTransferBuffer(_img_ctx.gpu_device,
+                               _img_ctx.texture_transfer_buffer);
 }
 
 SDL_GPImage
 SDL_GPCreateImage(SDL_Surface *surface)
 {
-  SDL_assert(_image_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_img_ctx.initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_cmd_buffer);
   SDL_assert(surface);
 
   SDL_Surface *inner_surface = surface;
 
   SDL_GPUTextureFormat texture_format
-      = SDL_GetGPUSwapchainTextureFormat(_image_gpu_device, _image_window);
+      = SDL_GetGPUSwapchainTextureFormat(_img_ctx.gpu_device, _img_ctx.window);
   SDL_PixelFormat pixel_format
       = SDL_GetPixelFormatFromGPUTextureFormat(texture_format);
 
@@ -942,7 +948,7 @@ SDL_GPCreateImage(SDL_Surface *surface)
   // Transfer surface pixels to the GPU transfer buffer
 
   void *texture_transfer_ptr = SDL_MapGPUTransferBuffer(
-      _image_gpu_device, _image_texture_transfer_buffer, true);
+      _img_ctx.gpu_device, _img_ctx.texture_transfer_buffer, true);
 
   const SDL_PixelFormatDetails *format_details
       = SDL_GetPixelFormatDetails(inner_surface->format);
@@ -957,7 +963,8 @@ SDL_GPCreateImage(SDL_Surface *surface)
              inner_surface->w * inner_surface->h
                  * format_details->bytes_per_pixel);
 
-  SDL_UnmapGPUTransferBuffer(_image_gpu_device, _image_texture_transfer_buffer);
+  SDL_UnmapGPUTransferBuffer(_img_ctx.gpu_device,
+                             _img_ctx.texture_transfer_buffer);
 
   // Create GPU texture and copy the transfer buffer to it
 
@@ -971,7 +978,7 @@ SDL_GPCreateImage(SDL_Surface *surface)
           .usage                = SDL_GPU_TEXTUREUSAGE_SAMPLER };
 
   SDL_GPUTexture *texture
-      = SDL_CreateGPUTexture(_image_gpu_device, &texture_create_info);
+      = SDL_CreateGPUTexture(_img_ctx.gpu_device, &texture_create_info);
 
   if (texture == NULL) {
     _SDL_GPSetError(SDL_GP_ERROR_CREATE_IMAGE_FAILED);
@@ -984,7 +991,7 @@ SDL_GPCreateImage(SDL_Surface *surface)
   SDL_GPUCopyPass *copy_pass = SDL_BeginGPUCopyPass(_cmd_buffer);
 
   SDL_GPUTextureTransferInfo transfer_info = {
-    .transfer_buffer = _image_texture_transfer_buffer,
+    .transfer_buffer = _img_ctx.texture_transfer_buffer,
     .offset          = 0,
   };
 
@@ -999,14 +1006,14 @@ SDL_GPCreateImage(SDL_Surface *surface)
 
   // Allocate image from resource
 
-  int slot = SDL_GPAcquirePoolSlot(_image_pool);
+  int slot = SDL_GPAcquirePoolSlot(_img_ctx.pool);
   if (slot == SDL_GP_POOL_INVALID_SLOT) {
-    SDL_ReleaseGPUTexture(_image_gpu_device, texture);
+    SDL_ReleaseGPUTexture(_img_ctx.gpu_device, texture);
     _SDL_GPSetError(SDL_GP_ERROR_CREATE_IMAGE_FAILED);
     return (SDL_GPImage){ .id = SDL_GP_INVALID_ID };
   }
 
-  _images[slot] = (_SDL_GPImage){
+  _img_ctx.images[slot] = (_SDL_GPImage){
     .texture = texture,
     .width   = inner_surface->w,
     .height  = inner_surface->h,
@@ -1018,13 +1025,13 @@ SDL_GPCreateImage(SDL_Surface *surface)
     SDL_DestroySurface(inner_surface);
   }
 
-  return (SDL_GPImage){ .id = SDL_GPGeneratePoolId(_image_pool, slot) };
+  return (SDL_GPImage){ .id = SDL_GPGeneratePoolId(_img_ctx.pool, slot) };
 }
 
 void
 SDL_GPDestroyImage(SDL_GPImage image)
 {
-  SDL_assert(_image_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_img_ctx.initialized == _SDL_GP_INIT_COOKIE);
 
   if (image.id == SDL_GP_INVALID_ID) {
     return;
@@ -1032,13 +1039,13 @@ SDL_GPDestroyImage(SDL_GPImage image)
 
   int slot = SDL_GPPoolIdToSlot(image.id);
 
-  SDL_GPReleasePoolSlot(_image_pool, slot);
+  SDL_GPReleasePoolSlot(_img_ctx.pool, slot);
 
-  _SDL_GPImage inner_image = _images[slot];
+  _SDL_GPImage inner_image = _img_ctx.images[slot];
 
-  SDL_ReleaseGPUTexture(_image_gpu_device, inner_image.texture);
+  SDL_ReleaseGPUTexture(_img_ctx.gpu_device, inner_image.texture);
 
-  _images[slot] = (_SDL_GPImage){
+  _img_ctx.images[slot] = (_SDL_GPImage){
     .texture = NULL,
     .width   = 0,
     .height  = 0,
@@ -1048,40 +1055,40 @@ SDL_GPDestroyImage(SDL_GPImage image)
 SDL_GPUTexture *
 SDL_GPGetImageGPUTexture(SDL_GPImage image)
 {
-  SDL_assert(_image_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_img_ctx.initialized == _SDL_GP_INIT_COOKIE);
 
   if (image.id == SDL_GP_INVALID_ID) {
     return NULL;
   }
 
   int slot = SDL_GPPoolIdToSlot(image.id);
-  return _images[slot].texture;
+  return _img_ctx.images[slot].texture;
 }
 
 int
 SDL_GPGetImageWidth(SDL_GPImage image)
 {
-  SDL_assert(_image_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_img_ctx.initialized == _SDL_GP_INIT_COOKIE);
 
   if (image.id == SDL_GP_INVALID_ID) {
     return 0;
   }
 
   int slot = SDL_GPPoolIdToSlot(image.id);
-  return _images[slot].width;
+  return _img_ctx.images[slot].width;
 }
 
 int
 SDL_GPGetImageHeight(SDL_GPImage image)
 {
-  SDL_assert(_image_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_img_ctx.initialized == _SDL_GP_INIT_COOKIE);
 
   if (image.id == SDL_GP_INVALID_ID) {
     return 0;
   }
 
   int slot = SDL_GPPoolIdToSlot(image.id);
-  return _images[slot].height;
+  return _img_ctx.images[slot].height;
 };
 
 // Shader (Private)
@@ -1093,23 +1100,28 @@ typedef struct _SDL_GPShader
   SDL_GPUShader *fragment;
 } _SDL_GPShader;
 
-static Uint32 _shader_initialized        = 0;
-static _SDL_GPShader *_shaders           = NULL;
-static SDL_GPPool *_shader_pool          = NULL;
-static SDL_GPUDevice *_shader_gpu_device = NULL;
+typedef struct _SDL_GPShaderContext
+{
+  Uint32 initialized;
+  _SDL_GPShader *shaders;
+  SDL_GPPool *pool;
+  SDL_GPUDevice *gpu_device;
+} _SDL_GPShaderContext;
+
+_SDL_GPShaderContext _shader_ctx = { 0 };
 
 // Setup shader resources management.
 static void
 _SDL_GPShaderSetup(SDL_GPUDevice *gpu_device)
 {
-  SDL_assert(_shader_initialized == 0);
+  SDL_assert(_shader_ctx.initialized == 0);
   SDL_assert(gpu_device);
 
-  _shader_initialized = _SDL_GP_INIT_COOKIE;
-  _shader_gpu_device  = gpu_device;
+  _shader_ctx.initialized = _SDL_GP_INIT_COOKIE;
+  _shader_ctx.gpu_device  = gpu_device;
 
-  _shader_pool = SDL_GPCeatePool(SDL_GP_SHADER_MAX);
-  _shaders
+  _shader_ctx.pool = SDL_GPCeatePool(SDL_GP_SHADER_MAX);
+  _shader_ctx.shaders
       = (_SDL_GPShader *)SDL_malloc(SDL_GP_SHADER_MAX * sizeof(_SDL_GPShader));
 }
 
@@ -1117,17 +1129,17 @@ _SDL_GPShaderSetup(SDL_GPUDevice *gpu_device)
 static void
 _SDL_GPShaderShutdown()
 {
-  SDL_assert(_shader_initialized == _SDL_GP_INIT_COOKIE);
-  _shader_initialized = 0;
+  SDL_assert(_shader_ctx.initialized == _SDL_GP_INIT_COOKIE);
+  _shader_ctx.initialized = 0;
 
-  SDL_GPDestroyPool(_shader_pool);
-  SDL_free(_shaders);
+  SDL_GPDestroyPool(_shader_ctx.pool);
+  SDL_free(_shader_ctx.shaders);
 }
 
 SDL_GPShader
 SDL_GPCreateShader(SDL_GPShaderDesc *desc)
 {
-  SDL_assert(_shader_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_shader_ctx.initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(desc);
 
   SDL_GPUShaderCreateInfo vert_shader_create_info = {
@@ -1144,7 +1156,7 @@ SDL_GPCreateShader(SDL_GPShaderDesc *desc)
 
   // Create the shader from the bytecode
   SDL_GPUShader *vert_shader
-      = SDL_CreateGPUShader(_shader_gpu_device, &vert_shader_create_info);
+      = SDL_CreateGPUShader(_shader_ctx.gpu_device, &vert_shader_create_info);
 
   if (!vert_shader) {
     _SDL_GPSetError(SDL_GP_ERROR_CREATE_SHADER_FAILED);
@@ -1165,34 +1177,34 @@ SDL_GPCreateShader(SDL_GPShaderDesc *desc)
 
   // Create the shader from the bytecode
   SDL_GPUShader *frag_shader
-      = SDL_CreateGPUShader(_shader_gpu_device, &frag_shader_create_info);
+      = SDL_CreateGPUShader(_shader_ctx.gpu_device, &frag_shader_create_info);
 
   if (!frag_shader) {
-    SDL_ReleaseGPUShader(_shader_gpu_device, vert_shader);
+    SDL_ReleaseGPUShader(_shader_ctx.gpu_device, vert_shader);
     _SDL_GPSetError(SDL_GP_ERROR_CREATE_SHADER_FAILED);
     return (SDL_GPShader){ .id = SDL_GP_INVALID_ID };
   }
 
-  int slot = SDL_GPAcquirePoolSlot(_shader_pool);
+  int slot = SDL_GPAcquirePoolSlot(_shader_ctx.pool);
   if (slot == SDL_GP_POOL_INVALID_SLOT) {
-    SDL_ReleaseGPUShader(_shader_gpu_device, vert_shader);
-    SDL_ReleaseGPUShader(_shader_gpu_device, frag_shader);
+    SDL_ReleaseGPUShader(_shader_ctx.gpu_device, vert_shader);
+    SDL_ReleaseGPUShader(_shader_ctx.gpu_device, frag_shader);
     _SDL_GPSetError(SDL_GP_ERROR_CREATE_SHADER_FAILED);
     return (SDL_GPShader){ .id = SDL_GP_INVALID_ID };
   }
 
-  _shaders[slot] = (_SDL_GPShader){
+  _shader_ctx.shaders[slot] = (_SDL_GPShader){
     .vertex   = vert_shader,
     .fragment = frag_shader,
   };
 
-  return (SDL_GPShader){ .id = SDL_GPGeneratePoolId(_shader_pool, slot) };
+  return (SDL_GPShader){ .id = SDL_GPGeneratePoolId(_shader_ctx.pool, slot) };
 }
 
 void
 SDL_GPDestroyShader(SDL_GPShader shader)
 {
-  SDL_assert(_shader_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_shader_ctx.initialized == _SDL_GP_INIT_COOKIE);
 
   if (shader.id == SDL_GP_INVALID_ID) {
     return;
@@ -1200,14 +1212,14 @@ SDL_GPDestroyShader(SDL_GPShader shader)
 
   int slot = SDL_GPPoolIdToSlot(shader.id);
 
-  _SDL_GPShader inner_shader = _shaders[slot];
+  _SDL_GPShader inner_shader = _shader_ctx.shaders[slot];
 
-  SDL_ReleaseGPUShader(_shader_gpu_device, inner_shader.vertex);
-  SDL_ReleaseGPUShader(_shader_gpu_device, inner_shader.fragment);
+  SDL_ReleaseGPUShader(_shader_ctx.gpu_device, inner_shader.vertex);
+  SDL_ReleaseGPUShader(_shader_ctx.gpu_device, inner_shader.fragment);
 
-  SDL_GPReleasePoolSlot(_shader_pool, slot);
+  SDL_GPReleasePoolSlot(_shader_ctx.pool, slot);
 
-  _shaders[slot] = (_SDL_GPShader){
+  _shader_ctx.shaders[slot] = (_SDL_GPShader){
     .vertex   = NULL,
     .fragment = NULL,
   };
@@ -1216,27 +1228,27 @@ SDL_GPDestroyShader(SDL_GPShader shader)
 SDL_GPUShader *
 SDL_GPGetGPUVertexShader(SDL_GPShader shader)
 {
-  SDL_assert(_shader_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_shader_ctx.initialized == _SDL_GP_INIT_COOKIE);
 
   if (shader.id == SDL_GP_INVALID_ID) {
     return NULL;
   }
 
   int slot = SDL_GPPoolIdToSlot(shader.id);
-  return _shaders[slot].vertex;
+  return _shader_ctx.shaders[slot].vertex;
 }
 
 SDL_GPUShader *
 SDL_GPGetGPUFragmentShader(SDL_GPShader shader)
 {
-  SDL_assert(_shader_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_shader_ctx.initialized == _SDL_GP_INIT_COOKIE);
 
   if (shader.id == SDL_GP_INVALID_ID) {
     return NULL;
   }
 
   int slot = SDL_GPPoolIdToSlot(shader.id);
-  return _shaders[slot].fragment;
+  return _shader_ctx.shaders[slot].fragment;
 }
 
 // Pipeline (Private)
@@ -1247,38 +1259,43 @@ typedef struct _SDL_GPPipeline
   SDL_GPUGraphicsPipeline *pipeline;
 } _SDL_GPPipeline;
 
-static Uint32 _pipeline_initialized        = 0;
-static _SDL_GPPipeline *_pipelines         = NULL;
-static SDL_GPPool *_pipeline_pool          = NULL;
-static SDL_GPUDevice *_pipeline_gpu_device = NULL;
-static SDL_Window *_pipeline_window        = NULL;
+typedef struct _SDL_GPPipelineContext
+{
+  Uint32 initialized;
+  _SDL_GPPipeline *pipelines;
+  SDL_GPPool *pool;
+  SDL_GPUDevice *gpu_device;
+  SDL_Window *window;
+} _SDL_GPPipelineContext;
+
+_SDL_GPPipelineContext _pipeline_ctx = { 0 };
 
 // Setup pipeline resources management.
 static void
 _SDL_GPPipelineSetup(SDL_GPUDevice *gpu_device, SDL_Window *window)
 {
-  SDL_assert(_pipeline_initialized == 0);
+  SDL_assert(_pipeline_ctx.initialized == 0);
   SDL_assert(gpu_device);
   SDL_assert(window);
 
-  _pipeline_initialized = _SDL_GP_INIT_COOKIE;
-  _pipeline_gpu_device  = gpu_device;
-  _pipeline_window      = window;
+  _pipeline_ctx.initialized = _SDL_GP_INIT_COOKIE;
+  _pipeline_ctx.gpu_device  = gpu_device;
+  _pipeline_ctx.window      = window;
 
-  _pipeline_pool = SDL_GPCeatePool(SDL_GP_PIPELINE_MAX);
-  _pipelines     = (_SDL_GPPipeline *)SDL_malloc(SDL_GP_PIPELINE_MAX
-                                                 * sizeof(_SDL_GPPipeline));
+  _pipeline_ctx.pool      = SDL_GPCeatePool(SDL_GP_PIPELINE_MAX);
+  _pipeline_ctx.pipelines = (_SDL_GPPipeline *)SDL_malloc(
+      SDL_GP_PIPELINE_MAX * sizeof(_SDL_GPPipeline));
 }
 
 // Shutdown pipeline resources management and free resources.
 static void
 _SDL_GPPipelineShutdown()
 {
-  SDL_assert(_pipeline_initialized == _SDL_GP_INIT_COOKIE);
-  _pipeline_initialized = 0;
+  SDL_assert(_pipeline_ctx.initialized == _SDL_GP_INIT_COOKIE);
+  _pipeline_ctx.initialized = 0;
 
-  SDL_GPDestroyPool(_pipeline_pool);
-  SDL_free(_pipelines);
+  SDL_GPDestroyPool(_pipeline_ctx.pool);
+  SDL_free(_pipeline_ctx.pipelines);
 }
 
 static SDL_GPUColorTargetBlendState
@@ -1362,7 +1379,7 @@ SDL_GPCreatePipeline(SDL_GPShader shader,
                      SDL_GPPrimitiveType primitive_type,
                      SDL_GPBlendMode blend_mode)
 {
-  SDL_assert(_pipeline_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_pipeline_ctx.initialized == _SDL_GP_INIT_COOKIE);
 
   SDL_GPUVertexBufferDescription vertex_buffer_description[1] = { {
       .slot               = 0,
@@ -1392,8 +1409,8 @@ SDL_GPCreatePipeline(SDL_GPShader shader,
       = _SDL_GPPipelineBlendState(blend_mode);
 
   SDL_GPUColorTargetDescription color_target_description[1]
-      = { { .format = SDL_GetGPUSwapchainTextureFormat(_pipeline_gpu_device,
-                                                       _pipeline_window),
+      = { { .format = SDL_GetGPUSwapchainTextureFormat(_pipeline_ctx.gpu_device,
+                                                       _pipeline_ctx.window),
             .blend_state = blend_state } };
 
   SDL_GPUGraphicsPipelineTargetInfo target_info = {
@@ -1410,31 +1427,31 @@ SDL_GPCreatePipeline(SDL_GPShader shader,
   };
 
   SDL_GPUGraphicsPipeline *pipeline = SDL_CreateGPUGraphicsPipeline(
-      _pipeline_gpu_device, &pipeline_create_info);
+      _pipeline_ctx.gpu_device, &pipeline_create_info);
 
   if (pipeline == NULL) {
     _SDL_GPSetError(SDL_GP_ERROR_CREATE_PIPELINE_FAILED);
     return (SDL_GPPipeline){ .id = SDL_GP_INVALID_ID };
   }
 
-  int pipeline_slot = SDL_GPAcquirePoolSlot(_pipeline_pool);
+  int pipeline_slot = SDL_GPAcquirePoolSlot(_pipeline_ctx.pool);
   if (pipeline_slot == SDL_GP_POOL_INVALID_SLOT) {
     _SDL_GPSetError(SDL_GP_ERROR_CREATE_PIPELINE_FAILED);
     return (SDL_GPPipeline){ .id = SDL_GP_INVALID_ID };
   }
 
-  _pipelines[pipeline_slot] = (_SDL_GPPipeline){
+  _pipeline_ctx.pipelines[pipeline_slot] = (_SDL_GPPipeline){
     .pipeline = pipeline,
   };
 
-  return (SDL_GPPipeline){ .id = SDL_GPGeneratePoolId(_pipeline_pool,
+  return (SDL_GPPipeline){ .id = SDL_GPGeneratePoolId(_pipeline_ctx.pool,
                                                       pipeline_slot) };
 }
 
 void
 SDL_GPDestroyPipeline(SDL_GPPipeline pipeline)
 {
-  SDL_assert(_pipeline_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_pipeline_ctx.initialized == _SDL_GP_INIT_COOKIE);
 
   if (pipeline.id == SDL_GP_INVALID_ID) {
     return;
@@ -1442,9 +1459,9 @@ SDL_GPDestroyPipeline(SDL_GPPipeline pipeline)
 
   int slot = SDL_GPPoolIdToSlot(pipeline.id);
 
-  SDL_GPReleasePoolSlot(_pipeline_pool, slot);
+  SDL_GPReleasePoolSlot(_pipeline_ctx.pool, slot);
 
-  _pipelines[slot] = (_SDL_GPPipeline){
+  _pipeline_ctx.pipelines[slot] = (_SDL_GPPipeline){
     .pipeline = NULL,
   };
 }
@@ -1452,14 +1469,14 @@ SDL_GPDestroyPipeline(SDL_GPPipeline pipeline)
 SDL_GPUGraphicsPipeline *
 SDL_GPGetGPUPipeline(SDL_GPPipeline pipeline)
 {
-  SDL_assert(_pipeline_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_pipeline_ctx.initialized == _SDL_GP_INIT_COOKIE);
 
   if (pipeline.id == SDL_GP_INVALID_ID) {
     return NULL;
   }
 
   int slot = SDL_GPPoolIdToSlot(pipeline.id);
-  return _pipelines[slot].pipeline;
+  return _pipeline_ctx.pipelines[slot].pipeline;
 };
 
 // Painter (Private)
@@ -2342,6 +2359,8 @@ typedef struct _SDL_GPCommand
 
 typedef struct _SDL_GP
 {
+  Uint32 initialized;
+
   SDL_GPDesc desc;
   SDL_GPUTransferBuffer *vertex_transfer_buffer;
   SDL_GPUBuffer *vertex_data_buffer;
@@ -2373,11 +2392,9 @@ typedef struct _SDL_GP
   Uint32 current_uniform;
   SDL_GPUniform *uniforms;
   Uint32 uniforms_size;
-
 } _SDL_GP;
 
-static _SDL_GP _gp            = { 0 };
-static Uint32 _gp_initialized = 0;
+static _SDL_GP _gp = { 0 };
 
 // Create painter common shader.
 static SDL_GPShader
@@ -2579,12 +2596,12 @@ SDL_GPUpdateCommandBuffer(SDL_GPUCommandBuffer *cmd_buffer)
 void
 SDL_GPSetup(SDL_GPDesc *desc)
 {
-  SDL_assert(_gp_initialized == 0);
+  SDL_assert(_gp.initialized == 0);
   SDL_assert(desc);
 
   _last_error = SDL_GP_ERROR_NONE;
 
-  _gp_initialized = _SDL_GP_INIT_COOKIE;
+  _gp.initialized = _SDL_GP_INIT_COOKIE;
 
   _gp.desc.max_vertices
       = SDL_GP_DEFAULT(desc->max_vertices, _SDL_GP_VERTICES_MAX);
@@ -2620,7 +2637,7 @@ SDL_GPSetup(SDL_GPDesc *desc)
   // Create a white texture
 
   SDL_GPUTextureFormat texture_format
-      = SDL_GetGPUSwapchainTextureFormat(_image_gpu_device, _image_window);
+      = SDL_GetGPUSwapchainTextureFormat(_img_ctx.gpu_device, _img_ctx.window);
 
   SDL_PixelFormat pixel_format
       = SDL_GetPixelFormatFromGPUTextureFormat(texture_format);
@@ -2742,7 +2759,7 @@ SDL_GPSetup(SDL_GPDesc *desc)
 void
 SDL_GPShutdown()
 {
-  if (_gp_initialized != _SDL_GP_INIT_COOKIE) {
+  if (_gp.initialized != _SDL_GP_INIT_COOKIE) {
     return;
   }
 
@@ -2802,7 +2819,7 @@ SDL_GPShutdown()
 void
 SDL_GPBegin(int width, int height)
 {
-  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.initialized == _SDL_GP_INIT_COOKIE);
 
   _gp.states[_gp.current_state++] = _gp.state;
 
@@ -2840,7 +2857,7 @@ SDL_GPBegin(int width, int height)
 void
 SDL_GPFlush()
 {
-  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
 
   SDL_assert(_cmd_buffer);
@@ -3005,10 +3022,10 @@ SDL_GPFlush()
         }
       }
 
-      SDL_GPUBufferBinding vertex_buffer_binding
-          = { .buffer = _gp.vertex_data_buffer,
-              .offset
-              = (Uint32)(cmd->args.draw.vertex_index * sizeof(SDL_GPVertex)) };
+      SDL_GPUBufferBinding vertex_buffer_binding = {
+        .buffer = _gp.vertex_data_buffer,
+        .offset = (Uint32)(cmd->args.draw.vertex_index * sizeof(SDL_GPVertex)),
+      };
 
       // In every case we need to bind vertex buffers
       SDL_BindGPUVertexBuffers(render_pass, 0, &vertex_buffer_binding, 1);
@@ -3048,7 +3065,7 @@ SDL_GPFlush()
 void
 SDL_GPEnd()
 {
-  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.initialized == _SDL_GP_INIT_COOKIE);
 
   _gp.state = _gp.states[--_gp.current_state];
 }
@@ -3056,7 +3073,7 @@ SDL_GPEnd()
 void
 SDL_GPSetProjection(float left, float right, float bottom, float top)
 {
-  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
 
   float width  = right - left;
@@ -3076,7 +3093,7 @@ SDL_GPSetProjection(float left, float right, float bottom, float top)
 void
 SDL_GPResetProjection()
 {
-  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
 
   _gp.state.projection = _SDL_GPDefaultProjection((int)_gp.state.viewport.w,
@@ -3089,7 +3106,7 @@ SDL_GPResetProjection()
 void
 SDL_GPPushTransform()
 {
-  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
   SDL_assert(_gp.current_transform < SDL_GP_TRANSFORMS_MAX);
 
@@ -3099,7 +3116,7 @@ SDL_GPPushTransform()
 void
 SDL_GPPopTransform()
 {
-  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
   SDL_assert(_gp.current_transform > 0);
 
@@ -3111,7 +3128,7 @@ SDL_GPPopTransform()
 void
 SDL_GPResetTransform()
 {
-  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
 
   _gp.state.transform = SDL_GPCreateMat2x3Identity();
@@ -3122,7 +3139,7 @@ SDL_GPResetTransform()
 void
 SDL_GPTranslate(float x, float y)
 {
-  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
 
   // multiply by translate matrix:
@@ -3141,7 +3158,7 @@ SDL_GPTranslate(float x, float y)
 void
 SDL_GPRotate(float angle)
 {
-  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
 
   float c = SDL_cos(angle);
@@ -3167,7 +3184,7 @@ SDL_GPRotate(float angle)
 void
 SDL_GPRotateAt(float angle, float ax, float ay)
 {
-  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
 
   SDL_GPTranslate(ax, ay);
@@ -3178,7 +3195,7 @@ SDL_GPRotateAt(float angle, float ax, float ay)
 void
 SDL_GPScale(float sx, float sy)
 {
-  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
 
   // Multiply by scale matrix:
@@ -3197,7 +3214,7 @@ SDL_GPScale(float sx, float sy)
 void
 SDL_GPScaleAt(float sx, float sy, float ax, float ay)
 {
-  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
 
   SDL_GPTranslate(ax, ay);
@@ -3208,7 +3225,7 @@ SDL_GPScaleAt(float sx, float sy, float ax, float ay)
 void
 SDL_GPSetPipeline(SDL_GPPipeline pipeline)
 {
-  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.initialized == _SDL_GP_INIT_COOKIE);
 
   _gp.state.pipeline = pipeline;
 
@@ -3219,7 +3236,7 @@ SDL_GPSetPipeline(SDL_GPPipeline pipeline)
 void
 SDL_GPResetPipeline()
 {
-  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.initialized == _SDL_GP_INIT_COOKIE);
 
   SDL_GPPipeline pipeline = { .id = SDL_GP_INVALID_ID };
 
@@ -3232,7 +3249,7 @@ SDL_GPSetUniform(const void *vs_data,
                  const void *fs_data,
                  size_t fs_size)
 {
-  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.state.pipeline.id != SDL_GP_INVALID_ID);
 
   size_t size = vs_size + fs_size;
@@ -3262,7 +3279,7 @@ SDL_GPSetUniform(const void *vs_data,
 void
 SDL_GPResetUniform()
 {
-  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.state.pipeline.id != SDL_GP_INVALID_ID);
 
   SDL_GPSetUniform(NULL, 0, NULL, 0);
@@ -3271,7 +3288,7 @@ SDL_GPResetUniform()
 void
 SDL_GPSetBlendMode(SDL_GPBlendMode blend_mode)
 {
-  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
 
   _gp.state.blend_mode = blend_mode;
@@ -3280,7 +3297,7 @@ SDL_GPSetBlendMode(SDL_GPBlendMode blend_mode)
 void
 SDL_GPResetBlendMode()
 {
-  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
 
   _gp.state.blend_mode = SDL_GP_BLENDMODE_NONE;
@@ -3289,7 +3306,7 @@ SDL_GPResetBlendMode()
 void
 SDL_GPSetColor(SDL_Color color)
 {
-  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
 
   _gp.state.color = color;
@@ -3298,7 +3315,7 @@ SDL_GPSetColor(SDL_Color color)
 SDL_Color
 SDL_GPGetColor()
 {
-  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
 
   return _gp.state.color;
@@ -3307,7 +3324,7 @@ SDL_GPGetColor()
 void
 SDL_GPResetColor()
 {
-  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
 
   _gp.state.color = (SDL_Color){ 255, 255, 255, 255 };
@@ -3316,7 +3333,7 @@ SDL_GPResetColor()
 void
 SDL_GPSetImage(int channel, SDL_GPImage image)
 {
-  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
   SDL_assert(channel >= 0 && channel < SDL_GP_TEXTURE_SLOTS_MAX);
 
@@ -3341,7 +3358,7 @@ SDL_GPSetImage(int channel, SDL_GPImage image)
 void
 SDL_GPResetImage(int channel)
 {
-  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
   SDL_assert(channel >= 0 && channel < SDL_GP_TEXTURE_SLOTS_MAX);
 
@@ -3351,7 +3368,7 @@ SDL_GPResetImage(int channel)
 void
 SDL_GPUnsetImage(int channel)
 {
-  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
   SDL_assert(channel >= 0 && channel < SDL_GP_TEXTURE_SLOTS_MAX);
 
@@ -3361,7 +3378,7 @@ SDL_GPUnsetImage(int channel)
 void
 SDL_GPSetSampler(int channel, SDL_GPUSampler *sampler)
 {
-  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
   SDL_assert(channel >= 0 && channel < SDL_GP_TEXTURE_SLOTS_MAX);
 
@@ -3371,7 +3388,7 @@ SDL_GPSetSampler(int channel, SDL_GPUSampler *sampler)
 void
 SDL_GPUnsetSampler(int channel)
 {
-  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
   SDL_assert(channel >= 0 && channel < SDL_GP_TEXTURE_SLOTS_MAX);
 
@@ -3381,7 +3398,7 @@ SDL_GPUnsetSampler(int channel)
 void
 SDL_GPResetSampler(int channel)
 {
-  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
   SDL_assert(channel >= 0 && channel < SDL_GP_TEXTURE_SLOTS_MAX);
 
@@ -3392,7 +3409,7 @@ SDL_GPResetSampler(int channel)
 void
 SDL_GPViewport(int x, int y, int w, int h)
 {
-  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
 
   // If no change in viewport, skip
@@ -3438,7 +3455,7 @@ SDL_GPViewport(int x, int y, int w, int h)
 void
 SDL_GPResetViewport()
 {
-  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
 
   SDL_GPViewport(0, 0, _gp.state.frame_size.w, _gp.state.frame_size.h);
@@ -3448,7 +3465,7 @@ SDL_GPResetViewport()
 void
 SDL_GPScissor(int x, int y, int w, int h)
 {
-  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
 
   // Skip if scissor is the same
@@ -3490,7 +3507,7 @@ SDL_GPScissor(int x, int y, int w, int h)
 void
 SDL_GPResetScissor()
 {
-  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
 
   _gp.state.scissor = (SDL_GPIRect){ .x = 0, .y = 0, .w = -1, .h = -1 };
@@ -3499,7 +3516,7 @@ SDL_GPResetScissor()
 void
 SDL_GPResetState()
 {
-  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
 
   SDL_GPResetViewport();
@@ -3774,7 +3791,7 @@ _SDL_GPDrawSolid(SDL_GPPrimitiveType primitive_type,
                  const SDL_GPVec2 *vertices,
                  Uint32 vertices_count)
 {
-  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
 
   if (vertices_count == 0) {
@@ -3821,7 +3838,7 @@ _SDL_GPDrawSolid(SDL_GPPrimitiveType primitive_type,
 void
 SDL_GPClear()
 {
-  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
 
   // Setup vertices
@@ -3880,7 +3897,7 @@ SDL_GPDraw(SDL_GPPrimitiveType primitive_type,
            const SDL_GPVertex *vertices,
            Uint32 vertices_count)
 {
-  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
 
   if (vertices_count == 0) {
@@ -3976,7 +3993,7 @@ SDL_GPDrawFilledTrianglesStrip(const SDL_GPVec2 *points, Uint32 count)
 void
 SDL_GPDrawFilledRects(const SDL_GPRect *rects, Uint32 count)
 {
-  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
 
   if (count == 0) {
@@ -4065,7 +4082,7 @@ SDL_GPDrawTexturedRects(int channel,
                         const SDL_GPTexturedRect *rects,
                         Uint32 count)
 {
-  SDL_assert(_gp_initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_gp.initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
 
   if (count == 0) {
