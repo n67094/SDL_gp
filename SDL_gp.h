@@ -1038,11 +1038,9 @@ SDL_GPDestroyImage(SDL_GPImage image)
   }
 
   int slot = SDL_GPPoolIdToSlot(image.id);
-
   SDL_GPReleasePoolSlot(_img_ctx.pool, slot);
 
   _SDL_GPImage inner_image = _img_ctx.images[slot];
-
   SDL_ReleaseGPUTexture(_img_ctx.gpu_device, inner_image.texture);
 
   _img_ctx.images[slot] = (_SDL_GPImage){
@@ -1458,6 +1456,10 @@ SDL_GPDestroyPipeline(SDL_GPPipeline pipeline)
   }
 
   int slot = SDL_GPPoolIdToSlot(pipeline.id);
+
+  SDL_GPUGraphicsPipeline *inner_pipeline
+      = _pipeline_ctx.pipelines[slot].pipeline;
+  SDL_ReleaseGPUGraphicsPipeline(_pipeline_ctx.gpu_device, inner_pipeline);
 
   SDL_GPReleasePoolSlot(_pipeline_ctx.pool, slot);
 
@@ -2812,6 +2814,10 @@ SDL_GPShutdown()
   _SDL_GPImageShutdown();
   _SDL_GPPipelineShutdown();
   _SDL_GPShaderShutdown();
+
+  SDL_free(_gp.uniforms);
+  SDL_free(_gp.commands);
+  SDL_free(_gp.vertices);
 
   SDL_memset(&_gp, 0, sizeof(_SDL_GP));
 }
