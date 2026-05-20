@@ -125,17 +125,8 @@ SDL_GPUGraphicsPipeline *SDL_GPGetGPUPipeline(SDL_GPPipeline pipeline);
 Painter API:
 
 ```c
-// Update the swapchain texture for the current frame. This should be called
-// after acquiring a new swapchain texture and before issuing any draw calls
-// that use it.
-void SDL_GPUpdateSwapchainTexture(SDL_GPUTexture *swapchain_texture);
-
-// Update the command buffer for the current frame. This should be called
-// after acquiring a new command buffer and before issuing any draw calls.
-void SDL_GPUpdateCommandBuffer(SDL_GPUCommandBuffer *cmd_buffer);
-
 // Setup SDL_GP context.
-void SDL_GPSetup(SDL_GPDesc *desc);
+bool SDL_GPSetup(SDL_GPDesc *desc);
 
 // Shutdown SDL_GP context.
 void SDL_GPShutdown();
@@ -143,10 +134,10 @@ void SDL_GPShutdown();
 // Begin recoarding draw calls for the current frame. This should be called
 // after setting up SDL_gp and acquiring a swapchain texture and command
 // buffer for the current frame.
-void SDL_GPBegin(int width, int height);
+bool SDL_GPBegin(int width, int height);
 
 // Flush the recorded draw calls to the GPU.
-void SDL_GPFlush(SDL_GPUTexture *swapchain_texture);
+bool SDL_GPFlush(SDL_GPUTexture *swapchain_texture);
 
 // End recording draw calls for the current frame.
 void SDL_GPEnd(void);
