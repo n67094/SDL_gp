@@ -70,4 +70,4 @@ $(BUILD_DIR):
 	mkdir -p $@
 
 clean:
-	rm -rf $(BUILD_DIR) $(TARGET)
+	rm -rf $(BUILD_DIR) $(TARGET) core.*

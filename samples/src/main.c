@@ -108,10 +108,6 @@ SDL_AppInit(void **appstate, int argc, char **argv)
   sample_blend_setup(&_context);
   sample_sprite_setup(&_context);
 
-  // Submit for resources uploads during setup
-
-  SDL_SubmitGPUCommandBuffer(_context.cmd_buffer);
-
   SDL_srand(0);
 
   return SDL_APP_CONTINUE;
@@ -120,6 +116,10 @@ SDL_AppInit(void **appstate, int argc, char **argv)
 SDL_AppResult
 SDL_AppIterate(void *appstate)
 {
+  // Acquire a command buffer for the current frame
+  SDL_GPUCommandBuffer *cmd_buffer
+      = SDL_AcquireGPUCommandBuffer(_gp.desc.gpu_device);
+
   SDL_GPBegin(WINDOW_WIDTH, WINDOW_HEIGHT);
   {
     SDL_GPSetColor((SDL_Color){ 0, 0, 0, 255 });
@@ -142,11 +142,30 @@ SDL_AppIterate(void *appstate)
       break;
     }
 
-    SDL_GPFlush();
+    SDL_GPUpload(cmd_buffer);
+
+    SDL_GPUTexture *swapchain_texture = NULL;
+
+    SDL_WaitAndAcquireGPUSwapchainTexture(
+        cmd_buffer, _gp.desc.window, &swapchain_texture, NULL, NULL);
+
+    SDL_GPUColorTargetInfo color_target_info = {
+      .texture     = swapchain_texture,
+      .clear_color = { 0, 0, 0, 1 },
+      .load_op     = SDL_GPU_LOADOP_CLEAR,
+      .store_op    = SDL_GPU_STOREOP_STORE,
+      .cycle       = false,
+    };
+
+    SDL_GPURenderPass *render_pass
+        = SDL_BeginGPURenderPass(cmd_buffer, &color_target_info, 1, NULL);
+
+    SDL_GPFlush(render_pass);
+
+    SDL_EndGPURenderPass(render_pass);
   }
   SDL_GPEnd();
-
-  SDL_SubmitGPUCommandBuffer(_context.cmd_buffer);
+  SDL_SubmitGPUCommandBuffer(cmd_buffer);
 
   SDL_Delay(DELTA_TIME_MS);
 
