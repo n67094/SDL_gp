@@ -46,10 +46,34 @@ SDL_GPBegin(WINDOW_WIDTH, WINDOW_HEIGHT);
         SDL_GPDrawRectFilled((SDL_GPRect){ 10, 10, 100, 100 });
     }
 
-    // Flush the drawing commands to the GPU.
-    SDL_GPFlush(_context.swapchain_texture);
-}
-SDL_GPEnd();
+    // Upload the recorded draw calls to the GPU.
+    SDL_GPUpload(cmd_buffer);
+
+    // The caller can render to a swapchain or to a texture. Here we render to the swapchain.
+    SDL_GPUTexture *swapchain_texture = NULL;
+
+    SDL_WaitAndAcquireGPUSwapchainTexture(
+        cmd_buffer, _gp.desc.window, &swapchain_texture, NULL, NULL);
+
+    // The caller has the controller on the render pass
+    SDL_GPUColorTargetInfo color_target_info = {
+      .texture     = swapchain_texture,
+      .clear_color = { 0, 0, 0, 1 },
+      .load_op     = SDL_GPU_LOADOP_CLEAR,
+      .store_op    = SDL_GPU_STOREOP_STORE,
+      .cycle       = false,
+    };
+
+    SDL_GPURenderPass *render_pass
+        = SDL_BeginGPURenderPass(cmd_buffer, &color_target_info, 1, NULL);
+
+    // Flush the recorded draw calls to the GPU and execute them in the current render pass.
+    SDL_GPFlush(render_pass);
+
+    SDL_EndGPURenderPass(render_pass);
+  }
+  SDL_GPEnd();
+  SDL_SubmitGPUCommandBuffer(cmd_buffer);
 ```
 
 # Quick Reference
