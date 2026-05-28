@@ -136,8 +136,11 @@ void SDL_GPShutdown();
 // buffer for the current frame.
 bool SDL_GPBegin(int width, int height);
 
+// Upload the recorded draw calls to the GPU.
+bool SDL_GPUpload(SDL_GPUCommandBuffer *cmd_buffer);
+
 // Flush the recorded draw calls to the GPU.
-bool SDL_GPFlush(SDL_GPUTexture *swapchain_texture);
+bool SDL_GPFlush(SDL_GPURenderPass *render_pass);
 
 // End recording draw calls for the current frame.
 void SDL_GPEnd(void);

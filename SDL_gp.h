@@ -528,6 +528,8 @@ extern "C"
   // use SDL_GPGetLastError() to get more information about the error.
   SDL_GP_API_DECL bool SDL_GPBegin(int width, int height);
 
+  // Upload the recorded draw calls to the GPU. Returns false if an error
+  // occurred, use SDL_GPGetLastError() to get more information about the error.
   SDL_GP_API_DECL bool SDL_GPUpload(SDL_GPUCommandBuffer *cmd_buffer);
 
   // Flush the recorded draw calls to the GPU. Returns false if an error
