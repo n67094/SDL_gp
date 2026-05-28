@@ -55,7 +55,7 @@ SDL_GPBegin(WINDOW_WIDTH, WINDOW_HEIGHT);
     SDL_WaitAndAcquireGPUSwapchainTexture(
         cmd_buffer, _gp.desc.window, &swapchain_texture, NULL, NULL);
 
-    // The caller has the controller on the render pass
+    // The caller has control on the render pass.
     SDL_GPUColorTargetInfo color_target_info = {
       .texture     = swapchain_texture,
       .clear_color = { 0, 0, 0, 1 },
