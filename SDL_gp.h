@@ -699,6 +699,8 @@ extern "C"
 // Implementation and internal API
 // ----------------------------------------------------------------------------
 
+// #define SDL_GP_IMPLEMENTATION
+
 #ifdef SDL_GP_IMPLEMENTATION
 
 #define _SDL_GP_INIT_COOKIE 0xC0DED1ED
@@ -3674,25 +3676,22 @@ _SDL_GPMergeDrawCommands(SDL_GPPipeline pipeline,
   _SDL_GPCommand *inter_cmds[SDL_GP_OPTIMIZER_DEPTH];
   Uint32 inter_cmd_count = 0;
 
-  // Find a command that is mergeable
+  // Find commands that are mergable
   Uint32 lookup_depht = SDL_GP_OPTIMIZER_DEPTH;
   for (Uint32 depth = 0; depth <= lookup_depht; ++depth) {
     _SDL_GPCommand *cmd = _SDL_GPPrevCommand(depth + 1);
 
-    // Stop on nonexistent command
     if (!cmd) {
-      break;
+      break; // Stop on nonexistent command
     }
 
-    // Command was optimized, continue looking
     if (cmd->cmd == _SDL_GP_COMMAND_NONE) {
       lookup_depht++;
-      continue;
+      continue; // Command was optimized, continue looking
     }
 
-    // Stop on scissor or viewport
     if (cmd->cmd != _SDL_GP_COMMAND_DRAW) {
-      break;
+      break; // Stop on scissor or viewport
     }
 
     // Only command with the same pipeline, texture and uniform can be merged
@@ -3705,13 +3704,15 @@ _SDL_GPMergeDrawCommands(SDL_GPPipeline pipeline,
                           &_gp.uniforms[cmd->args.draw.uniform_index],
                           sizeof(SDL_GPUniform))
                    == 0)) {
-      prev_cmd = cmd;
+      prev_cmd = cmd; // Found a command to merge with, stop looking
       break;
     } else {
       inter_cmds[inter_cmd_count] = cmd;
       inter_cmd_count++;
     }
   }
+
+  // Can't merge if there is no previous command to merge with
   if (!prev_cmd) {
     return false;
   }
@@ -3722,18 +3723,20 @@ _SDL_GPMergeDrawCommands(SDL_GPPipeline pipeline,
   _SDL_GPRegion prev_region = prev_cmd->args.draw.region;
   for (Uint32 i = 0; i < inter_cmd_count; ++i) {
     _SDL_GPRegion inter_region = inter_cmds[i]->args.draw.region;
+
     if (_SDL_GPRegionOverlaps(region, inter_region)) {
       overlaps_next = true;
       if (overlaps_prev) {
         return false; // Can't merge if there are overlapping regions in
                       // between
       }
-      if (_SDL_GPRegionOverlaps(prev_region, inter_region)) {
-        overlaps_prev = true;
-        if (overlaps_next) {
-          return false; // Can't merge if there are overlapping regions in
-                        // between
-        }
+    }
+
+    if (_SDL_GPRegionOverlaps(prev_region, inter_region)) {
+      overlaps_prev = true;
+      if (overlaps_next) {
+        return false; // Can't merge if there are overlapping regions in
+                      // between
       }
     }
   }
