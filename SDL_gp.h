@@ -316,24 +316,15 @@ extern "C"
   typedef struct SDL_GPShaderDesc
   {
     // Vertex shader description
-    size_t vert_code_size;
-    const Uint8 *vert_code;
-    const char *vert_entrypoint;
-    SDL_GPUShaderFormat vert_format;
-    Uint32 vert_num_samplers;
-    Uint32 vert_num_storage_textures;
-    Uint32 vert_num_storage_buffers;
-    Uint32 vert_num_uniform_buffers;
-
-    // Fragment shader description
-    size_t frag_code_size;
-    const Uint8 *frag_code;
-    const char *frag_entrypoint;
-    SDL_GPUShaderFormat frag_format;
-    Uint32 frag_num_samplers;
-    Uint32 frag_num_storage_textures;
-    Uint32 frag_num_storage_buffers;
-    Uint32 frag_num_uniform_buffers;
+    size_t code_size;
+    const Uint8 *code;
+    const char *entrypoint;
+    SDL_GPUShaderStage stage;
+    SDL_GPUShaderFormat format;
+    Uint32 num_samplers;
+    Uint32 num_storage_textures;
+    Uint32 num_storage_buffers;
+    Uint32 num_uniform_buffers;
   } SDL_GPShaderDesc;
 
   // Create a shader from vertex and fragment shader descriptions. Returns an
@@ -341,14 +332,9 @@ extern "C"
   // information about the error.
   SDL_GP_API_DECL SDL_GPShader SDL_GPCreateShader(SDL_GPShaderDesc *desc);
 
-  // Get the GPU vertex shader associated with a shader. Returns NULL if the
+  // Get the SDL shader associated with a SDL_gp shader. Returns NULL if the
   // shader is invalid.
-  SDL_GP_API_DECL SDL_GPUShader *SDL_GPGetGPUVertexShader(SDL_GPShader shader);
-
-  // Get the GPU fragment shader associated with a shader. Returns NULL if the
-  // shader is invalid.
-  SDL_GP_API_DECL SDL_GPUShader *
-  SDL_GPGetGPUFragmentShader(SDL_GPShader shader);
+  SDL_GP_API_DECL SDL_GPUShader *SDL_GPGetGPUShader(SDL_GPShader shader);
 
   // Destroy a shader and free its resources.
   SDL_GP_API_DECL void SDL_GPDestroyShader(SDL_GPShader shader);
@@ -386,7 +372,8 @@ extern "C"
   // Create a graphics pipeline, Returns an invalid pipeline if creation failed,
   // Use SDL_GPGetLastError() to get more information about the error.
   SDL_GP_API_DECL SDL_GPPipeline
-  SDL_GPCreatePipeline(SDL_GPShader shader,
+  SDL_GPCreatePipeline(SDL_GPShader shader_vert,
+                       SDL_GPShader shader_frag,
                        SDL_GPPrimitiveType primitive_type,
                        SDL_GPBlendMode blend_mode);
 
@@ -699,6 +686,7 @@ extern "C"
 // Implementation and internal API
 // ----------------------------------------------------------------------------
 
+// TODO
 // #define SDL_GP_IMPLEMENTATION
 
 #ifdef SDL_GP_IMPLEMENTATION
@@ -935,7 +923,7 @@ _SDL_GPImageFlush(SDL_GPUCommandBuffer *cmd_buffer)
     return;
   SDL_assert(cmd_buffer);
 
-  Uint8 *texture_transfer_ptr = SDL_MapGPUTransferBuffer(
+  Uint8 *texture_transfer_ptr = (Uint8 *)SDL_MapGPUTransferBuffer(
       _img_ctx.gpu_device, _img_ctx.texture_transfer_buffer, true); // cycle
   SDL_GPUCopyPass *copy_pass = SDL_BeginGPUCopyPass(cmd_buffer);
   size_t offset              = 0;
@@ -957,7 +945,7 @@ _SDL_GPImageFlush(SDL_GPUCommandBuffer *cmd_buffer)
     if (offset + size > SDL_GP_TEXTURE_SIZE_MAX) {
       SDL_UnmapGPUTransferBuffer(_img_ctx.gpu_device,
                                  _img_ctx.texture_transfer_buffer);
-      texture_transfer_ptr = SDL_MapGPUTransferBuffer(
+      texture_transfer_ptr = (Uint8 *)SDL_MapGPUTransferBuffer(
           _img_ctx.gpu_device, _img_ctx.texture_transfer_buffer, true);
       offset = 0;
     }
@@ -1055,8 +1043,8 @@ SDL_GPCreateImage(SDL_Surface *surface)
 
   _img_ctx.images[slot] = (_SDL_GPImage){
     .texture = texture,
-    .width   = inner_surface->w,
-    .height  = inner_surface->h,
+    .width   = (Uint32)inner_surface->w,
+    .height  = (Uint32)inner_surface->h,
   };
 
   // Create a pending image to be flushed later
@@ -1161,14 +1149,13 @@ SDL_GPGetImageHeight(SDL_GPImage image)
 
 typedef struct _SDL_GPShader
 {
-  SDL_GPUShader *vertex;
-  SDL_GPUShader *fragment;
+  SDL_GPUShader *sdl_shader;
 } _SDL_GPShader;
 
 typedef struct _SDL_GPShaderContext
 {
   Uint32 initialized;
-  _SDL_GPShader *shaders;
+  _SDL_GPShader *shader;
   SDL_GPPool *pool;
   SDL_GPUDevice *gpu_device;
 } _SDL_GPShaderContext;
@@ -1186,7 +1173,7 @@ _SDL_GPShaderSetup(SDL_GPUDevice *gpu_device)
   _shader_ctx.gpu_device  = gpu_device;
 
   _shader_ctx.pool = SDL_GPCreatePool(SDL_GP_SHADER_MAX);
-  _shader_ctx.shaders
+  _shader_ctx.shader
       = (_SDL_GPShader *)SDL_malloc(SDL_GP_SHADER_MAX * sizeof(_SDL_GPShader));
 }
 
@@ -1198,7 +1185,7 @@ _SDL_GPShaderShutdown()
   _shader_ctx.initialized = 0;
 
   SDL_GPDestroyPool(_shader_ctx.pool);
-  SDL_free(_shader_ctx.shaders);
+  SDL_free(_shader_ctx.shader);
 }
 
 SDL_GPShader
@@ -1208,59 +1195,35 @@ SDL_GPCreateShader(SDL_GPShaderDesc *desc)
   SDL_assert(desc);
 
   SDL_GPUShaderCreateInfo vert_shader_create_info = {
-    .code_size            = desc->vert_code_size,
-    .code                 = desc->vert_code,
-    .entrypoint           = desc->vert_entrypoint,
-    .format               = desc->vert_format,
-    .stage                = SDL_GPU_SHADERSTAGE_VERTEX,
-    .num_samplers         = desc->vert_num_samplers,
-    .num_storage_textures = desc->vert_num_storage_textures,
-    .num_storage_buffers  = desc->vert_num_storage_buffers,
-    .num_uniform_buffers  = desc->vert_num_uniform_buffers,
+    .code_size            = desc->code_size,
+    .code                 = desc->code,
+    .entrypoint           = desc->entrypoint,
+    .format               = desc->format,
+    .stage                = desc->stage,
+    .num_samplers         = desc->num_samplers,
+    .num_storage_textures = desc->num_storage_textures,
+    .num_storage_buffers  = desc->num_storage_buffers,
+    .num_uniform_buffers  = desc->num_uniform_buffers,
   };
 
   // Create the shader from the bytecode
-  SDL_GPUShader *vert_shader
+  SDL_GPUShader *sdl_shader
       = SDL_CreateGPUShader(_shader_ctx.gpu_device, &vert_shader_create_info);
 
-  if (!vert_shader) {
-    _SDL_GPSetError(SDL_GP_ERROR_CREATE_SHADER_FAILED);
-    return (SDL_GPShader){ .id = SDL_GP_INVALID_ID };
-  }
-
-  SDL_GPUShaderCreateInfo frag_shader_create_info = {
-    .code_size            = desc->frag_code_size,
-    .code                 = desc->frag_code,
-    .entrypoint           = desc->frag_entrypoint,
-    .format               = desc->frag_format,
-    .stage                = SDL_GPU_SHADERSTAGE_FRAGMENT,
-    .num_samplers         = desc->frag_num_samplers,
-    .num_storage_textures = desc->frag_num_storage_textures,
-    .num_storage_buffers  = desc->frag_num_storage_buffers,
-    .num_uniform_buffers  = desc->frag_num_uniform_buffers,
-  };
-
-  // Create the shader from the bytecode
-  SDL_GPUShader *frag_shader
-      = SDL_CreateGPUShader(_shader_ctx.gpu_device, &frag_shader_create_info);
-
-  if (!frag_shader) {
-    SDL_ReleaseGPUShader(_shader_ctx.gpu_device, vert_shader);
+  if (!sdl_shader) {
     _SDL_GPSetError(SDL_GP_ERROR_CREATE_SHADER_FAILED);
     return (SDL_GPShader){ .id = SDL_GP_INVALID_ID };
   }
 
   int slot = SDL_GPAcquirePoolSlot(_shader_ctx.pool);
   if (slot == SDL_GP_POOL_INVALID_SLOT) {
-    SDL_ReleaseGPUShader(_shader_ctx.gpu_device, vert_shader);
-    SDL_ReleaseGPUShader(_shader_ctx.gpu_device, frag_shader);
+    SDL_ReleaseGPUShader(_shader_ctx.gpu_device, sdl_shader);
     _SDL_GPSetError(SDL_GP_ERROR_CREATE_SHADER_FAILED);
     return (SDL_GPShader){ .id = SDL_GP_INVALID_ID };
   }
 
-  _shader_ctx.shaders[slot] = (_SDL_GPShader){
-    .vertex   = vert_shader,
-    .fragment = frag_shader,
+  _shader_ctx.shader[slot] = (_SDL_GPShader){
+    .sdl_shader = sdl_shader,
   };
 
   return (SDL_GPShader){ .id = SDL_GPGeneratePoolId(_shader_ctx.pool, slot) };
@@ -1277,21 +1240,19 @@ SDL_GPDestroyShader(SDL_GPShader shader)
 
   int slot = SDL_GPPoolIdToSlot(shader.id);
 
-  _SDL_GPShader inner_shader = _shader_ctx.shaders[slot];
+  _SDL_GPShader inner_shader = _shader_ctx.shader[slot];
 
-  SDL_ReleaseGPUShader(_shader_ctx.gpu_device, inner_shader.vertex);
-  SDL_ReleaseGPUShader(_shader_ctx.gpu_device, inner_shader.fragment);
+  SDL_ReleaseGPUShader(_shader_ctx.gpu_device, inner_shader.sdl_shader);
 
   SDL_GPReleasePoolSlot(_shader_ctx.pool, slot);
 
-  _shader_ctx.shaders[slot] = (_SDL_GPShader){
-    .vertex   = NULL,
-    .fragment = NULL,
+  _shader_ctx.shader[slot] = (_SDL_GPShader){
+    .sdl_shader = NULL,
   };
 }
 
 SDL_GPUShader *
-SDL_GPGetGPUVertexShader(SDL_GPShader shader)
+SDL_GPGetGPUShader(SDL_GPShader shader)
 {
   SDL_assert(_shader_ctx.initialized == _SDL_GP_INIT_COOKIE);
 
@@ -1300,20 +1261,7 @@ SDL_GPGetGPUVertexShader(SDL_GPShader shader)
   }
 
   int slot = SDL_GPPoolIdToSlot(shader.id);
-  return _shader_ctx.shaders[slot].vertex;
-}
-
-SDL_GPUShader *
-SDL_GPGetGPUFragmentShader(SDL_GPShader shader)
-{
-  SDL_assert(_shader_ctx.initialized == _SDL_GP_INIT_COOKIE);
-
-  if (shader.id == SDL_GP_INVALID_ID) {
-    return NULL;
-  }
-
-  int slot = SDL_GPPoolIdToSlot(shader.id);
-  return _shader_ctx.shaders[slot].fragment;
+  return _shader_ctx.shader[slot].sdl_shader;
 }
 
 // Pipeline (Private)
@@ -1440,7 +1388,8 @@ _SDL_GPPipelineBlendState(SDL_GPBlendMode blend_mode)
 }
 
 SDL_GPPipeline
-SDL_GPCreatePipeline(SDL_GPShader shader,
+SDL_GPCreatePipeline(SDL_GPShader shader_vert,
+                     SDL_GPShader shader_frag,
                      SDL_GPPrimitiveType primitive_type,
                      SDL_GPBlendMode blend_mode)
 {
@@ -1484,8 +1433,8 @@ SDL_GPCreatePipeline(SDL_GPShader shader,
   };
 
   SDL_GPUGraphicsPipelineCreateInfo pipeline_create_info = {
-    .vertex_shader      = SDL_GPGetGPUVertexShader(shader),
-    .fragment_shader    = SDL_GPGetGPUFragmentShader(shader),
+    .vertex_shader      = SDL_GPGetGPUShader(shader_vert),
+    .fragment_shader    = SDL_GPGetGPUShader(shader_frag),
     .vertex_input_state = vertex_input_state,
     .primitive_type     = (SDL_GPUPrimitiveType)primitive_type,
     .target_info        = target_info,
@@ -1983,7 +1932,7 @@ static const Uint8 _shader_vert_dxil[]    = {
  * }
  */
 
-static const size_t _shader_farg_spv_len = 668;
+static const size_t _shader_frag_spv_len = 668;
 static const Uint8 _shader_frag_spv[]    = {
   0X03, 0X02, 0X23, 0X07, 0X00, 0X00, 0X01, 0X00, 0X0B, 0X00, 0X08, 0X00, 0X18,
   0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X11, 0X00, 0X02, 0X00, 0X01, 0X00,
@@ -2433,7 +2382,8 @@ typedef struct _SDL_GP
   SDL_GPDesc desc;
   SDL_GPUTransferBuffer *vertex_transfer_buffer;
   SDL_GPUBuffer *vertex_data_buffer;
-  SDL_GPShader shader;
+  SDL_GPShader shader_vert;
+  SDL_GPShader shader_frag;
   SDL_GPPipeline pipelines[SDL_GP_PRIMITIVE_SIZE * SDL_GP_BLENDMODE_SIZE];
   SDL_GPUSampler *nearest_samplers;
   SDL_GPImage white_image;
@@ -2465,72 +2415,6 @@ typedef struct _SDL_GP
 
 static _SDL_GP _gp = { 0 };
 
-// Create painter common shader.
-static SDL_GPShader
-_SDL_GPCreateCommonShader(SDL_GPUDevice *gpu_device)
-{
-  SDL_GPUShaderFormat supported_formats = SDL_GetGPUShaderFormats(gpu_device);
-  SDL_GPUShaderFormat format;
-
-  const Uint8 *bytecode_vert = NULL;
-  size_t bytecode_vert_size  = 0;
-
-  const Uint8 *bytecode_frag = NULL;
-  size_t bytecode_frag_size  = 0;
-
-  if (supported_formats & SDL_GPU_SHADERFORMAT_SPIRV) {
-    format = SDL_GPU_SHADERFORMAT_SPIRV;
-
-    bytecode_vert      = _shader_vert_spv;
-    bytecode_vert_size = _shader_vert_spv_len;
-
-    bytecode_frag      = _shader_frag_spv;
-    bytecode_frag_size = _shader_farg_spv_len;
-  } else if (supported_formats & SDL_GPU_SHADERFORMAT_MSL) {
-    format = SDL_GPU_SHADERFORMAT_MSL;
-
-    bytecode_vert      = _shader_vert_msl;
-    bytecode_vert_size = _shader_vert_msl_len;
-
-    bytecode_frag      = _shader_frag_msl;
-    bytecode_frag_size = _shader_frag_msl_len;
-  } else if (supported_formats & SDL_GPU_SHADERFORMAT_DXIL) {
-    format             = SDL_GPU_SHADERFORMAT_DXIL;
-    bytecode_vert      = _shader_vert_dxil;
-    bytecode_vert_size = _shader_vert_dxil_len;
-
-    bytecode_frag      = _shader_frag_dxil;
-    bytecode_frag_size = _shader_frag_dxil_len;
-  } else {
-    _SDL_GPSetError(SDL_GP_ERROR_CREATE_COMMON_SHADER_FAILED);
-    return (SDL_GPShader){ .id = SDL_GP_INVALID_ID };
-  }
-
-  SDL_GPShaderDesc shader_desc = {
-    // Vertex shader description
-    .vert_code_size            = bytecode_vert_size,
-    .vert_code                 = bytecode_vert,
-    .vert_entrypoint           = "main",
-    .vert_format               = format,
-    .vert_num_samplers         = 0,
-    .vert_num_storage_textures = 0,
-    .vert_num_storage_buffers  = 0,
-    .vert_num_uniform_buffers  = 0,
-
-    // Fragment shader description
-    .frag_code_size            = bytecode_frag_size,
-    .frag_code                 = bytecode_frag,
-    .frag_entrypoint           = "main",
-    .frag_format               = format,
-    .frag_num_samplers         = SDL_GP_TEXTURE_SLOTS_MAX,
-    .frag_num_storage_textures = 0,
-    .frag_num_storage_buffers  = 0,
-    .frag_num_uniform_buffers  = 0,
-  };
-
-  return SDL_GPCreateShader(&shader_desc);
-}
-
 static SDL_GPPipeline
 _SDL_GP_FindOrCreatePipeline(SDL_GPPrimitiveType primitive_type,
                              SDL_GPBlendMode blend_mode)
@@ -2539,7 +2423,8 @@ _SDL_GP_FindOrCreatePipeline(SDL_GPPrimitiveType primitive_type,
       = _gp.pipelines[primitive_type * SDL_GP_BLENDMODE_SIZE + blend_mode];
 
   if (pipeline.id == SDL_GP_INVALID_ID) {
-    pipeline = SDL_GPCreatePipeline(_gp.shader, primitive_type, blend_mode);
+    pipeline = SDL_GPCreatePipeline(
+        _gp.shader_vert, _gp.shader_frag, primitive_type, blend_mode);
     _gp.pipelines[primitive_type * SDL_GP_BLENDMODE_SIZE + blend_mode]
         = pipeline;
   }
@@ -2774,8 +2659,81 @@ SDL_GPSetup(SDL_GPDesc *desc)
 
   // Create common shader
 
-  _gp.shader = _SDL_GPCreateCommonShader(desc->gpu_device);
-  if (_gp.shader.id == SDL_GP_INVALID_ID) {
+  SDL_GPUShaderFormat supported_formats
+      = SDL_GetGPUShaderFormats(desc->gpu_device);
+  SDL_GPUShaderFormat format;
+
+  const Uint8 *bytecode_vert = NULL;
+  size_t bytecode_vert_size  = 0;
+
+  const Uint8 *bytecode_frag = NULL;
+  size_t bytecode_frag_size  = 0;
+
+  if (supported_formats & SDL_GPU_SHADERFORMAT_SPIRV) {
+    format = SDL_GPU_SHADERFORMAT_SPIRV;
+
+    bytecode_vert      = _shader_vert_spv;
+    bytecode_vert_size = _shader_vert_spv_len;
+
+    bytecode_frag      = _shader_frag_spv;
+    bytecode_frag_size = _shader_frag_spv_len;
+  } else if (supported_formats & SDL_GPU_SHADERFORMAT_MSL) {
+    format = SDL_GPU_SHADERFORMAT_MSL;
+
+    bytecode_vert      = _shader_vert_msl;
+    bytecode_vert_size = _shader_vert_msl_len;
+
+    bytecode_frag      = _shader_frag_msl;
+    bytecode_frag_size = _shader_frag_msl_len;
+
+  } else if (supported_formats & SDL_GPU_SHADERFORMAT_DXIL) {
+    format = SDL_GPU_SHADERFORMAT_DXIL;
+
+    bytecode_vert      = _shader_vert_dxil;
+    bytecode_vert_size = _shader_vert_dxil_len;
+
+    bytecode_frag      = _shader_frag_dxil;
+    bytecode_frag_size = _shader_frag_dxil_len;
+  } else {
+    _SDL_GPSetError(SDL_GP_ERROR_CREATE_COMMON_SHADER_FAILED);
+    SDL_GPShutdown();
+    return false;
+  }
+
+  SDL_GPShaderDesc shader_vert_desc = {
+    .code_size            = bytecode_vert_size,
+    .code                 = bytecode_vert,
+    .entrypoint           = "main",
+    .format               = format,
+    .stage                = SDL_GPU_SHADERSTAGE_VERTEX,
+    .num_samplers         = 0,
+    .num_storage_textures = 0,
+    .num_storage_buffers  = 0,
+    .num_uniform_buffers  = 0,
+  };
+
+  _gp.shader_vert = SDL_GPCreateShader(&shader_vert_desc);
+
+  if (_gp.shader_vert.id == SDL_GP_INVALID_ID) {
+    SDL_GPShutdown();
+    return false;
+  }
+
+  SDL_GPShaderDesc shader_frag_desc = {
+    .code_size            = bytecode_frag_size,
+    .code                 = bytecode_frag,
+    .entrypoint           = "main",
+    .format               = format,
+    .stage                = SDL_GPU_SHADERSTAGE_FRAGMENT,
+    .num_samplers         = SDL_GP_TEXTURE_SLOTS_MAX,
+    .num_storage_textures = 0,
+    .num_storage_buffers  = 0,
+    .num_uniform_buffers  = 0,
+  };
+
+  _gp.shader_frag = SDL_GPCreateShader(&shader_frag_desc);
+
+  if (_gp.shader_frag.id == SDL_GP_INVALID_ID) {
     SDL_GPShutdown();
     return false;
   }
@@ -2843,9 +2801,14 @@ SDL_GPShutdown()
 
   // Destroy common shader
 
-  if (_gp.shader.id != SDL_GP_INVALID_ID) {
-    SDL_GPDestroyShader(_gp.shader);
-    _gp.shader = (SDL_GPShader){ .id = SDL_GP_INVALID_ID };
+  if (_gp.shader_vert.id != SDL_GP_INVALID_ID) {
+    SDL_GPDestroyShader(_gp.shader_vert);
+    _gp.shader_vert = (SDL_GPShader){ .id = SDL_GP_INVALID_ID };
+  }
+
+  if (_gp.shader_frag.id != SDL_GP_INVALID_ID) {
+    SDL_GPDestroyShader(_gp.shader_frag);
+    _gp.shader_frag = (SDL_GPShader){ .id = SDL_GP_INVALID_ID };
   }
 
   // Destroy nearest sampler
@@ -2941,7 +2904,7 @@ SDL_GPUpload(SDL_GPUCommandBuffer *cmd_buffer)
   // Upload pending images to GPU
 
   if (_img_ctx.pending_count > 0) {
-    Uint8 *texture_transfer_ptr = SDL_MapGPUTransferBuffer(
+    Uint8 *texture_transfer_ptr = (Uint8 *)SDL_MapGPUTransferBuffer(
         _img_ctx.gpu_device, _img_ctx.texture_transfer_buffer, true); // cycle
 
     size_t offset = 0;
@@ -2963,7 +2926,7 @@ SDL_GPUpload(SDL_GPUCommandBuffer *cmd_buffer)
       if (offset + size > SDL_GP_TEXTURE_SIZE_MAX) {
         SDL_UnmapGPUTransferBuffer(_img_ctx.gpu_device,
                                    _img_ctx.texture_transfer_buffer);
-        texture_transfer_ptr = SDL_MapGPUTransferBuffer(
+        texture_transfer_ptr = (Uint8 *)SDL_MapGPUTransferBuffer(
             _img_ctx.gpu_device, _img_ctx.texture_transfer_buffer, true);
         offset = 0;
       }
