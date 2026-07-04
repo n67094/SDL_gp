@@ -118,13 +118,9 @@ Shader API:
 // invalid shader if creation failed.
 SDL_GPShader SDL_GPCreateShader(SDL_GPShaderDesc *desc);
 
-// Get the GPU vertex shader associated with a shader. Returns NULL if the
+// Get the SDL shader associated with a SDL_gp shader. Returns NULL if the
 // shader is invalid.
-SDL_GPUShader *SDL_GPGetGPUVertexShader(SDL_GPShader shader);
-
-// Get the GPU fragment shader associated with a shader. Returns NULL if the
-// shader is invalid.
-SDL_GPUShader *SDL_GPGetGPUFragmentShader(SDL_GPShader shader);
+SDL_GP_API_DECL SDL_GPUShader *SDL_GPGetGPUShader(SDL_GPShader shader);
 
 // Destroy a shader and free its resources.
 void SDL_GPDestroyShader(SDL_GPShader shader);
@@ -134,7 +130,8 @@ Pipeline API:
 
 ```c
 // Create a graphics pipeline
-SDL_GPPipeline SDL_GPCreatePipeline(SDL_GPShader shader,
+SDL_GPPipeline SDL_GPCreatePipeline(SDL_GPShader shader_vert,
+                                    SDL_GPShader shader_frag,
                                     SDL_GPPrimitiveType primitive_type,
                                     SDL_GPBlendMode blend_mode);
 

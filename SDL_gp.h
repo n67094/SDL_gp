@@ -1,60 +1,6 @@
 /**
  * https://github.com/n67094/SDL_gp
  *
- * # SDL_gp
- *
- * A minimal, high-performance 2D (g)raphics (p)ainter for `SDL3`.
- *
- * This is a port of [sokol_gp](https://github.com/edubart/sokol_gp) to `SDL3`,
- * with one main difference:
- *
- * `sokol_gp` relies on sokol, which manages resources internally. `SDL_gpu` is
- * lower-level and does not; So `SDL_gp` provides a simple resource management
- * system very similar to sokol's.
- *
- * # Getting Started
- *
- * A simple example to draw a red rectangle:
- *
- * #define SDL_GP_IMPLEMENTATION
- * #include "SDL_gp.h"
- *
- * // Begin a new frame
- * SDL_GPBegin(WINDOW_WIDTH, WINDOW_HEIGHT);
- * {
- *    // Clear the screen to black.
- *    SDL_GPSetColor((SDL_Color){ 0, 0, 0, 255 });
- *    SDL_GPClear();
- *
- *    // Draw a red filled rectangle.
- *    SDL_GPSetColor((SDL_Color){ 255, 0, 0, 255 });
- *    {
- *        SDL_GPDrawRectFilled((SDL_GPRect){ 10, 10, 100, 100 });
- *    }
- *
- *    // Flush the drawing commands to the GPU.
- *    SDL_GPFlush();
- * }
- * SDL_GPEnd();
- *
- * # Sponsors
- *
- * Hi everyone, I'm nsix, an indie game developer and open source contributor
- * trying to make a living from my work.
- *
- * If you enjoy what I create and want to support me, consider becoming a
- * sponsor on [GitHub Sponsors](https://github.com/sponsors/n67094). Every bit
- * of support means a lot and is greatly appreciated!
- *
- * You can also check out my blog at www.nsix.blog.
- *
- * # Acknowledgements
- *
- * [Edubart](https://github.com/edubart) - Creator of the original `sokol_gp`
- * that encouraged me to create `SDL_gp`.
- * [The SDL team](https://github.com/libsdl-org) - For developing and
- * maintaining `SDL3`.
- *
  * # License
  *
  * Copyright (c) 2026 nsix. All rights reserved. (n67094@proton.me)
@@ -686,7 +632,6 @@ extern "C"
 // Implementation and internal API
 // ----------------------------------------------------------------------------
 
-// TODO
 // #define SDL_GP_IMPLEMENTATION
 
 #ifdef SDL_GP_IMPLEMENTATION
