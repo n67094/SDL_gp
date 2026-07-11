@@ -467,10 +467,6 @@ extern "C"
   // use SDL_GPGetLastError() to get more information about the error.
   SDL_GP_API_DECL bool SDL_GPBegin(int width, int height);
 
-  // Upload the recorded draw calls to the GPU. Returns false if an error
-  // occurred, use SDL_GPGetLastError() to get more information about the error.
-  SDL_GP_API_DECL bool SDL_GPUpload(SDL_GPUCommandBuffer *cmd_buffer);
-
   // Flush the recorded draw calls to the GPU. Returns false if an error
   // occurred, use SDL_GPGetLastError() to get more information about the error.
   SDL_GP_API_DECL bool SDL_GPFlush(SDL_GPUCommandBuffer *cmd_buffer,
@@ -909,7 +905,8 @@ SDL_GPImageFlush()
                                  _img_ctx.texture_transfer_buffer);
 
     SDL_GPUTransferBufferCreateInfo transfer_buffer_create_info
-        = { .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, .size = new_size };
+        = { .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
+            .size  = (Uint32)new_size };
 
     _img_ctx.texture_transfer_buffer = SDL_CreateGPUTransferBuffer(
         _img_ctx.gpu_device, &transfer_buffer_create_info);
@@ -918,7 +915,7 @@ SDL_GPImageFlush()
       _img_ctx.texture_transfer_buffer_size = 0;
       return;
     }
-    _img_ctx.texture_transfer_buffer_size = SDL_GP_TEXTURE_SIZE_MAX;
+    _img_ctx.texture_transfer_buffer_size = new_size;
   }
 
   Uint8 *texture_transfer_ptr = (Uint8 *)SDL_MapGPUTransferBuffer(
@@ -929,7 +926,7 @@ SDL_GPImageFlush()
 
   for (size_t i = 0; i < _img_ctx.pending_count; ++i) {
     _SDL_GPImagePending *pending = &_img_ctx.pending[i];
-    size_t size = pending->width * pending->height * pending->bpp;
+    Uint32 size = pending->width * pending->height * pending->bpp;
 
     SDL_memcpy(texture_transfer_ptr + offset, pending->pixels, size);
 
@@ -2688,8 +2685,8 @@ SDL_GPSetup(SDL_GPDesc *desc)
     .code_size            = bytecode_vert_size,
     .code                 = bytecode_vert,
     .entrypoint           = "main",
-    .format               = format,
     .stage                = SDL_GPU_SHADERSTAGE_VERTEX,
+    .format               = format,
     .num_samplers         = 0,
     .num_storage_textures = 0,
     .num_storage_buffers  = 0,
@@ -2707,8 +2704,8 @@ SDL_GPSetup(SDL_GPDesc *desc)
     .code_size            = bytecode_frag_size,
     .code                 = bytecode_frag,
     .entrypoint           = "main",
-    .format               = format,
     .stage                = SDL_GPU_SHADERSTAGE_FRAGMENT,
+    .format               = format,
     .num_samplers         = SDL_GP_TEXTURE_SLOTS_MAX,
     .num_storage_textures = 0,
     .num_storage_buffers  = 0,
@@ -2872,110 +2869,6 @@ SDL_GPBegin(int width, int height)
   _gp.state.base_vertex  = _gp.current_vertex;
   _gp.state.base_uniform = _gp.current_uniform;
   _gp.state.base_command = _gp.current_command;
-
-  return true;
-}
-
-bool
-SDL_GPUpload(SDL_GPUCommandBuffer *cmd_buffer)
-{
-  // SDL_assert(cmd_buffer);
-
-  // SDL_GPUCopyPass *copy_pass = SDL_BeginGPUCopyPass(cmd_buffer);
-
-  // Upload pending images to GPU
-
-  // TODO remove done in SDL_GPImageUpload();
-  /*
-  if (_img_ctx.pending_count > 0) {
-    Uint8 *texture_transfer_ptr = (Uint8 *)SDL_MapGPUTransferBuffer(
-        _img_ctx.gpu_device, _img_ctx.texture_transfer_buffer, true); // cycle
-
-    size_t offset = 0;
-
-    for (size_t i = 0; i < _img_ctx.pending_count; ++i) {
-      _SDL_GPImagePending *pending = &_img_ctx.pending[i];
-      size_t size = pending->width * pending->height * pending->bpp;
-
-      if (size > SDL_GP_TEXTURE_SIZE_MAX) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
-                     "Image too large for transfer buffer (%zu > %u), skipping",
-                     size,
-                     SDL_GP_TEXTURE_SIZE_MAX);
-        SDL_free(pending->pixels);
-        continue;
-      }
-
-      // Overflow, cycle the transfer buffer to get fresh memory
-      if (offset + size > SDL_GP_TEXTURE_SIZE_MAX) {
-        SDL_UnmapGPUTransferBuffer(_img_ctx.gpu_device,
-                                   _img_ctx.texture_transfer_buffer);
-        texture_transfer_ptr = (Uint8 *)SDL_MapGPUTransferBuffer(
-            _img_ctx.gpu_device, _img_ctx.texture_transfer_buffer, true);
-        offset = 0;
-      }
-
-      SDL_memcpy(texture_transfer_ptr + offset, pending->pixels, size);
-
-      SDL_GPUTextureTransferInfo transfer_info = {
-        .transfer_buffer = _img_ctx.texture_transfer_buffer,
-        .offset          = (Uint32)offset,
-      };
-
-      SDL_UnmapGPUTransferBuffer(_img_ctx.gpu_device,
-                                 _img_ctx.texture_transfer_buffer);
-
-      SDL_GPUTextureRegion region = {
-        .texture = _img_ctx.images[pending->slot].texture,
-        .w       = pending->width,
-        .h       = pending->height,
-        .d       = 1,
-      };
-
-      SDL_UploadToGPUTexture(copy_pass, &transfer_info, &region, false);
-
-      offset += size;
-      SDL_free(pending->pixels);
-      pending->pixels = NULL;
-    }
-  }
-
-  _img_ctx.pending_count = 0;
-*/
-
-  /* TODO remove done in SDL_GPFlush()
-  Uint32 end_vertex = _gp.current_vertex;
-
-  Uint32 vertices_count
-      = end_vertex - _gp.state.base_vertex; // Number of vertices to draw
-
-  SDL_GPVertex *vertex_data = (SDL_GPVertex *)SDL_MapGPUTransferBuffer(
-      _gp.desc.gpu_device, _gp.vertex_transfer_buffer, true);
-
-  if (vertex_data == NULL) {
-    _SDL_GPSetError(SDL_GP_ERROR_FLUSH_FAILED);
-    return false;
-  }
-
-  SDL_memcpy(vertex_data,
-             &_gp.vertices[_gp.state.base_vertex],
-             vertices_count * sizeof(SDL_GPVertex));
-
-  SDL_UnmapGPUTransferBuffer(_gp.desc.gpu_device, _gp.vertex_transfer_buffer);
-
-  SDL_GPUTransferBufferLocation vertex_transfer_location
-      = { .transfer_buffer = _gp.vertex_transfer_buffer, .offset = 0 };
-
-  SDL_GPUBufferRegion vertex_buffer_region
-      = { .buffer = _gp.vertex_data_buffer,
-          .offset = (Uint32)(_gp.state.base_vertex * sizeof(SDL_GPVertex)),
-          .size   = (Uint32)((vertices_count) * sizeof(SDL_GPVertex)) };
-
-  SDL_UploadToGPUBuffer(
-      copy_pass, &vertex_transfer_location, &vertex_buffer_region, true);
-
-  SDL_EndGPUCopyPass(copy_pass);
-  */
 
   return true;
 }
