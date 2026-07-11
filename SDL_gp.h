@@ -136,6 +136,7 @@ extern "C"
   {
     SDL_GP_ERROR_NONE = 0,
     SDL_GP_ERROR_SETUP_IMAGE_FAILED,
+    SDL_GP_ERROR_FLUSH_IMAGE_FAILED,
     SDL_GP_ERROR_CREATE_IMAGE_FAILED,
     SDL_GP_ERROR_CREATE_SHADER_FAILED,
     SDL_GP_ERROR_CREATE_PIPELINE_FAILED,
@@ -240,6 +241,12 @@ extern "C"
 
   // Destroy an image and free its resources.
   SDL_GP_API_DECL void SDL_GPDestroyImage(SDL_GPImage image);
+
+  // Flush the image to the GPU. This will upload any pending images to the GPU.
+  // The texture transfer buffer will automatically be resized if needed.
+  // Returns false if an error occurred, use SDL_GPGetLastError() to get more
+  // information about the error.
+  SDL_GP_API_DECL void SDL_GPImageFlush(void);
 
   // Get the GPU texture associated with an image. Returns NULL if the image is
   // invalid.
@@ -436,7 +443,6 @@ extern "C"
     Uint32 base_uniform;
     Uint32 base_vertex;
     Uint32 base_command;
-    SDL_GPUCommandBuffer *cmd_buffer;
   } SDL_GPState;
 
   typedef struct SDL_GPDesc
@@ -467,7 +473,8 @@ extern "C"
 
   // Flush the recorded draw calls to the GPU. Returns false if an error
   // occurred, use SDL_GPGetLastError() to get more information about the error.
-  SDL_GP_API_DECL bool SDL_GPFlush(SDL_GPURenderPass *render_pass);
+  SDL_GP_API_DECL bool SDL_GPFlush(SDL_GPUCommandBuffer *cmd_buffer,
+                                   SDL_GPUTexture *texture);
 
   // End recording draw calls for the current frame.
   SDL_GP_API_DECL void SDL_GPEnd(void);
@@ -632,8 +639,6 @@ extern "C"
 // Implementation and internal API
 // ----------------------------------------------------------------------------
 
-// #define SDL_GP_IMPLEMENTATION
-
 #ifdef SDL_GP_IMPLEMENTATION
 
 #define _SDL_GP_INIT_COOKIE 0xC0DED1ED
@@ -665,6 +670,8 @@ SDL_GPGetErrorMessage(SDL_GPError error)
     return "No error";
   case SDL_GP_ERROR_SETUP_IMAGE_FAILED:
     return "Failed to setup image resources";
+  case SDL_GP_ERROR_FLUSH_IMAGE_FAILED:
+    return "Failed to flush image resources";
   case SDL_GP_ERROR_CREATE_IMAGE_FAILED:
     return "Failed to create image";
   case SDL_GP_ERROR_CREATE_SHADER_FAILED:
@@ -809,6 +816,7 @@ typedef struct _SDL_GIImageContext
   size_t pending_count;
   SDL_GPPool *pool;
   SDL_GPUTransferBuffer *texture_transfer_buffer;
+  size_t texture_transfer_buffer_size;
   SDL_GPUDevice *gpu_device;
   SDL_Window *window;
 } _SDL_GPImageContext;
@@ -839,6 +847,7 @@ _SDL_GPImageSetup(SDL_GPUDevice *gpu_device, SDL_Window *window)
 
   _img_ctx.texture_transfer_buffer
       = SDL_CreateGPUTransferBuffer(gpu_device, &transfer_buffer_create_info);
+  _img_ctx.texture_transfer_buffer_size = SDL_GP_TEXTURE_SIZE_MAX;
 
   if (!_img_ctx.texture_transfer_buffer) {
     _SDL_GPSetError(SDL_GP_ERROR_SETUP_IMAGE_FAILED);
@@ -861,39 +870,66 @@ _SDL_GPImageShutdown()
                                _img_ctx.texture_transfer_buffer);
 }
 
-static void
-_SDL_GPImageFlush(SDL_GPUCommandBuffer *cmd_buffer)
+void
+SDL_GPImageFlush()
 {
   if (_img_ctx.pending_count == 0)
     return;
-  SDL_assert(cmd_buffer);
+
+  SDL_GPUCommandBuffer *cmd_buffer
+      = SDL_AcquireGPUCommandBuffer(_img_ctx.gpu_device);
+
+  size_t total_size = 0;
+  for (size_t i = 0; i < _img_ctx.pending_count; ++i) {
+    _SDL_GPImagePending *pending = &_img_ctx.pending[i];
+    total_size += pending->width * pending->height * pending->bpp;
+  }
+
+  // If the total size of pending images exceeds the transfer buffer size, we
+  // need to cycle the transfer buffer to a larger size. We will double the size
+  // of the transfer buffer until it is large enough to hold all pending images
+  if (total_size > _img_ctx.texture_transfer_buffer_size) {
+    size_t new_size = _img_ctx.texture_transfer_buffer_size * 2;
+
+    if (new_size == 0) {
+      new_size = SDL_GP_TEXTURE_SIZE_MAX;
+    }
+
+    while (new_size < total_size) {
+      new_size <<= 1;
+    }
+
+    SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
+                "Total size of pending images (%zu) exceeds transfer buffer "
+                "size (%zu), cycling transfer buffer",
+                total_size,
+                _img_ctx.texture_transfer_buffer_size);
+
+    SDL_ReleaseGPUTransferBuffer(_img_ctx.gpu_device,
+                                 _img_ctx.texture_transfer_buffer);
+
+    SDL_GPUTransferBufferCreateInfo transfer_buffer_create_info
+        = { .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, .size = new_size };
+
+    _img_ctx.texture_transfer_buffer = SDL_CreateGPUTransferBuffer(
+        _img_ctx.gpu_device, &transfer_buffer_create_info);
+    if (!_img_ctx.texture_transfer_buffer) {
+      _SDL_GPSetError(SDL_GP_ERROR_FLUSH_IMAGE_FAILED);
+      _img_ctx.texture_transfer_buffer_size = 0;
+      return;
+    }
+    _img_ctx.texture_transfer_buffer_size = SDL_GP_TEXTURE_SIZE_MAX;
+  }
 
   Uint8 *texture_transfer_ptr = (Uint8 *)SDL_MapGPUTransferBuffer(
       _img_ctx.gpu_device, _img_ctx.texture_transfer_buffer, true); // cycle
+
   SDL_GPUCopyPass *copy_pass = SDL_BeginGPUCopyPass(cmd_buffer);
   size_t offset              = 0;
 
   for (size_t i = 0; i < _img_ctx.pending_count; ++i) {
     _SDL_GPImagePending *pending = &_img_ctx.pending[i];
     size_t size = pending->width * pending->height * pending->bpp;
-
-    if (size > SDL_GP_TEXTURE_SIZE_MAX) {
-      SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
-                   "Image too large for transfer buffer (%zu > %u), skipping",
-                   size,
-                   SDL_GP_TEXTURE_SIZE_MAX);
-      SDL_free(pending->pixels);
-      continue;
-    }
-
-    // Overflow, cycle the transfer buffer to get fresh memory
-    if (offset + size > SDL_GP_TEXTURE_SIZE_MAX) {
-      SDL_UnmapGPUTransferBuffer(_img_ctx.gpu_device,
-                                 _img_ctx.texture_transfer_buffer);
-      texture_transfer_ptr = (Uint8 *)SDL_MapGPUTransferBuffer(
-          _img_ctx.gpu_device, _img_ctx.texture_transfer_buffer, true);
-      offset = 0;
-    }
 
     SDL_memcpy(texture_transfer_ptr + offset, pending->pixels, size);
 
@@ -919,7 +955,10 @@ _SDL_GPImageFlush(SDL_GPUCommandBuffer *cmd_buffer)
   SDL_EndGPUCopyPass(copy_pass);
   SDL_UnmapGPUTransferBuffer(_img_ctx.gpu_device,
                              _img_ctx.texture_transfer_buffer);
+
   _img_ctx.pending_count = 0;
+
+  SDL_SubmitGPUCommandBuffer(cmd_buffer);
 }
 
 SDL_GPImage
@@ -2840,14 +2879,14 @@ SDL_GPBegin(int width, int height)
 bool
 SDL_GPUpload(SDL_GPUCommandBuffer *cmd_buffer)
 {
-  SDL_assert(cmd_buffer);
+  // SDL_assert(cmd_buffer);
 
-  _gp.state.cmd_buffer = cmd_buffer;
-
-  SDL_GPUCopyPass *copy_pass = SDL_BeginGPUCopyPass(cmd_buffer);
+  // SDL_GPUCopyPass *copy_pass = SDL_BeginGPUCopyPass(cmd_buffer);
 
   // Upload pending images to GPU
 
+  // TODO remove done in SDL_GPImageUpload();
+  /*
   if (_img_ctx.pending_count > 0) {
     Uint8 *texture_transfer_ptr = (Uint8 *)SDL_MapGPUTransferBuffer(
         _img_ctx.gpu_device, _img_ctx.texture_transfer_buffer, true); // cycle
@@ -2902,9 +2941,9 @@ SDL_GPUpload(SDL_GPUCommandBuffer *cmd_buffer)
   }
 
   _img_ctx.pending_count = 0;
+*/
 
-  // Upload vertex data to GPU
-
+  /* TODO remove done in SDL_GPFlush()
   Uint32 end_vertex = _gp.current_vertex;
 
   Uint32 vertices_count
@@ -2936,16 +2975,16 @@ SDL_GPUpload(SDL_GPUCommandBuffer *cmd_buffer)
       copy_pass, &vertex_transfer_location, &vertex_buffer_region, true);
 
   SDL_EndGPUCopyPass(copy_pass);
+  */
 
   return true;
 }
 
 bool
-SDL_GPFlush(SDL_GPURenderPass *render_pass)
+SDL_GPFlush(SDL_GPUCommandBuffer *cmd_buffer, SDL_GPUTexture *texture)
 {
   SDL_assert(_gp.initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
-  SDL_assert(_gp.state.cmd_buffer);
 
   Uint32 end_command = _gp.current_command;
   Uint32 end_vertex  = _gp.current_vertex;
@@ -2968,6 +3007,52 @@ SDL_GPFlush(SDL_GPURenderPass *render_pass)
     return true;
   }
 
+  SDL_GPVertex *vertex_data = (SDL_GPVertex *)SDL_MapGPUTransferBuffer(
+      _gp.desc.gpu_device, _gp.vertex_transfer_buffer, true);
+
+  if (vertex_data == NULL) {
+    _SDL_GPSetError(SDL_GP_ERROR_FLUSH_FAILED);
+    return false;
+  }
+
+  SDL_memcpy(vertex_data,
+             &_gp.vertices[_gp.state.base_vertex],
+             vertices_count * sizeof(SDL_GPVertex));
+
+  SDL_UnmapGPUTransferBuffer(_gp.desc.gpu_device, _gp.vertex_transfer_buffer);
+
+  // Copy pass
+  // ------------------------------
+
+  SDL_GPUCopyPass *copy_pass = SDL_BeginGPUCopyPass(cmd_buffer);
+
+  SDL_GPUTransferBufferLocation vertex_transfer_location
+      = { .transfer_buffer = _gp.vertex_transfer_buffer, .offset = 0 };
+
+  SDL_GPUBufferRegion vertex_buffer_region
+      = { .buffer = _gp.vertex_data_buffer,
+          .offset = (Uint32)(_gp.state.base_vertex * sizeof(SDL_GPVertex)),
+          .size   = (Uint32)((vertices_count) * sizeof(SDL_GPVertex)) };
+
+  SDL_UploadToGPUBuffer(
+      copy_pass, &vertex_transfer_location, &vertex_buffer_region, true);
+
+  SDL_EndGPUCopyPass(copy_pass);
+
+  // Render pass
+  // ------------------------------
+
+  SDL_GPUColorTargetInfo color_target_info = {
+    .texture     = texture,
+    .clear_color = { 0, 0, 0, 1 },
+    .load_op     = SDL_GPU_LOADOP_DONT_CARE,
+    .store_op    = SDL_GPU_STOREOP_STORE,
+    .cycle       = false,
+  };
+
+  SDL_GPURenderPass *render_pass
+      = SDL_BeginGPURenderPass(cmd_buffer, &color_target_info, 1, NULL);
+
   Uint32 cur_pipeline_id   = SDL_GP_IMPOSSIBLE_ID;
   Uint32 cur_uniform_index = SDL_GP_IMPOSSIBLE_ID;
   Uint32 cur_image_ids[SDL_GP_TEXTURE_SLOTS_MAX];
@@ -2976,7 +3061,6 @@ SDL_GPFlush(SDL_GPURenderPass *render_pass)
   }
 
   // Flush commands
-
   for (Uint32 i = _gp.state.base_command; i < end_command; ++i) {
     _SDL_GPCommand *cmd = &_gp.commands[i];
 
@@ -3047,13 +3131,13 @@ SDL_GPFlush(SDL_GPURenderPass *render_pass)
         SDL_GPUniform *uniform = &_gp.uniforms[cmd->args.draw.uniform_index];
 
         if (uniform->vs_size > 0) {
-          SDL_PushGPUVertexUniformData(_gp.state.cmd_buffer,
+          SDL_PushGPUVertexUniformData(cmd_buffer,
                                        SDL_GP_UNIFORM_SLOT_VS,
                                        &uniform->data.bytes[0],
                                        uniform->vs_size);
         }
         if (uniform->fs_size > 0) {
-          SDL_PushGPUFragmentUniformData(_gp.state.cmd_buffer,
+          SDL_PushGPUFragmentUniformData(cmd_buffer,
                                          SDL_GP_UNIFORM_SLOT_FS,
                                          &uniform->data.bytes[0],
                                          uniform->fs_size);
@@ -3094,6 +3178,8 @@ SDL_GPFlush(SDL_GPURenderPass *render_pass)
       break;
     }
   }
+
+  SDL_EndGPURenderPass(render_pass);
 
   return true;
 }
@@ -3757,7 +3843,6 @@ _SDL_GPQueueDraw(SDL_GPPipeline pipeline,
                  Uint32 vertices_count,
                  SDL_GPPrimitiveType primitive_type)
 {
-
   SDL_GPUniform *uniform = NULL;
   if (_gp.state.pipeline.id != SDL_GP_INVALID_ID) {
     pipeline = _gp.state.pipeline;

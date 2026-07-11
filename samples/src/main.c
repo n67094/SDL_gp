@@ -118,7 +118,7 @@ SDL_AppIterate(void *appstate)
 {
   // Acquire a command buffer for the current frame
   SDL_GPUCommandBuffer *cmd_buffer
-      = SDL_AcquireGPUCommandBuffer(_gp.desc.gpu_device);
+      = SDL_AcquireGPUCommandBuffer(_context.gpu_device);
 
   SDL_GPBegin(WINDOW_WIDTH, WINDOW_HEIGHT);
   {
@@ -142,27 +142,14 @@ SDL_AppIterate(void *appstate)
       break;
     }
 
-    SDL_GPUpload(cmd_buffer);
+    SDL_GPImageFlush();
 
+    // Acquire the swapchain texture for the current frame
     SDL_GPUTexture *swapchain_texture = NULL;
-
     SDL_WaitAndAcquireGPUSwapchainTexture(
         cmd_buffer, _gp.desc.window, &swapchain_texture, NULL, NULL);
 
-    SDL_GPUColorTargetInfo color_target_info = {
-      .texture     = swapchain_texture,
-      .clear_color = { 0, 0, 0, 1 },
-      .load_op     = SDL_GPU_LOADOP_CLEAR,
-      .store_op    = SDL_GPU_STOREOP_STORE,
-      .cycle       = false,
-    };
-
-    SDL_GPURenderPass *render_pass
-        = SDL_BeginGPURenderPass(cmd_buffer, &color_target_info, 1, NULL);
-
-    SDL_GPFlush(render_pass);
-
-    SDL_EndGPURenderPass(render_pass);
+    SDL_GPFlush(cmd_buffer, swapchain_texture);
   }
   SDL_GPEnd();
   SDL_SubmitGPUCommandBuffer(cmd_buffer);
