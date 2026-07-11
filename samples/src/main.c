@@ -142,8 +142,6 @@ SDL_AppIterate(void *appstate)
       break;
     }
 
-    SDL_GPImageFlush();
-
     // Acquire the swapchain texture for the current frame
     SDL_GPUTexture *swapchain_texture = NULL;
     SDL_WaitAndAcquireGPUSwapchainTexture(

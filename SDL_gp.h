@@ -242,12 +242,6 @@ extern "C"
   // Destroy an image and free its resources.
   SDL_GP_API_DECL void SDL_GPDestroyImage(SDL_GPImage image);
 
-  // Flush the image to the GPU. This will upload any pending images to the GPU.
-  // The texture transfer buffer will automatically be resized if needed.
-  // Returns false if an error occurred, use SDL_GPGetLastError() to get more
-  // information about the error.
-  SDL_GP_API_DECL void SDL_GPImageFlush(void);
-
   // Get the GPU texture associated with an image. Returns NULL if the image is
   // invalid.
   SDL_GP_API_DECL SDL_GPUTexture *SDL_GPGetImageGPUTexture(SDL_GPImage image);
@@ -843,12 +837,11 @@ _SDL_GPImageSetup(SDL_GPUDevice *gpu_device, SDL_Window *window)
 
   _img_ctx.texture_transfer_buffer
       = SDL_CreateGPUTransferBuffer(gpu_device, &transfer_buffer_create_info);
-  _img_ctx.texture_transfer_buffer_size = SDL_GP_TEXTURE_SIZE_MAX;
-
   if (!_img_ctx.texture_transfer_buffer) {
     _SDL_GPSetError(SDL_GP_ERROR_SETUP_IMAGE_FAILED);
     return false;
   }
+  _img_ctx.texture_transfer_buffer_size = SDL_GP_TEXTURE_SIZE_MAX;
 
   return true;
 }
@@ -866,14 +859,15 @@ _SDL_GPImageShutdown()
                                _img_ctx.texture_transfer_buffer);
 }
 
+// Flush the image to the GPU. This will upload any pending images to the GPU.
+// The texture transfer buffer will automatically be resized if needed.
+// Returns false if an error occurred, use SDL_GPGetLastError() to get more
+// information about the error.
 void
-SDL_GPImageFlush()
+_SDL_GPImageFlush(SDL_GPUCommandBuffer *cmd_buffer)
 {
   if (_img_ctx.pending_count == 0)
     return;
-
-  SDL_GPUCommandBuffer *cmd_buffer
-      = SDL_AcquireGPUCommandBuffer(_img_ctx.gpu_device);
 
   size_t total_size = 0;
   for (size_t i = 0; i < _img_ctx.pending_count; ++i) {
@@ -919,7 +913,7 @@ SDL_GPImageFlush()
   }
 
   Uint8 *texture_transfer_ptr = (Uint8 *)SDL_MapGPUTransferBuffer(
-      _img_ctx.gpu_device, _img_ctx.texture_transfer_buffer, true); // cycle
+      _img_ctx.gpu_device, _img_ctx.texture_transfer_buffer, false);
 
   SDL_GPUCopyPass *copy_pass = SDL_BeginGPUCopyPass(cmd_buffer);
   size_t offset              = 0;
@@ -945,6 +939,7 @@ SDL_GPImageFlush()
     SDL_UploadToGPUTexture(copy_pass, &transfer_info, &region, false);
 
     offset += size;
+
     SDL_free(pending->pixels);
     pending->pixels = NULL;
   }
@@ -954,8 +949,6 @@ SDL_GPImageFlush()
                              _img_ctx.texture_transfer_buffer);
 
   _img_ctx.pending_count = 0;
-
-  SDL_SubmitGPUCommandBuffer(cmd_buffer);
 }
 
 SDL_GPImage
@@ -2878,6 +2871,10 @@ SDL_GPFlush(SDL_GPUCommandBuffer *cmd_buffer, SDL_GPUTexture *texture)
 {
   SDL_assert(_gp.initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
+  SDL_assert(cmd_buffer);
+  SDL_assert(texture);
+
+  _SDL_GPImageFlush(cmd_buffer);
 
   Uint32 end_command = _gp.current_command;
   Uint32 end_vertex  = _gp.current_vertex;
@@ -2982,8 +2979,15 @@ SDL_GPFlush(SDL_GPUCommandBuffer *cmd_buffer, SDL_GPUTexture *texture)
         rebind_texture  = true;
       }
 
+      // Check if uniform needs to be changed
+      if (cmd->args.draw.uniform_index != cur_uniform_index) {
+        cur_uniform_index = cmd->args.draw.uniform_index;
+        rebind_uniforms   = true;
+      }
+
       // Check if texture needs to be changed
-      SDL_GPUTextureSamplerBinding image_bindings[SDL_GP_TEXTURE_SLOTS_MAX];
+      SDL_GPUTextureSamplerBinding image_bindings[SDL_GP_TEXTURE_SLOTS_MAX]
+          = { 0 };
 
       for (int j = 0; j < SDL_GP_TEXTURE_SLOTS_MAX; ++j) {
         Uint32 image_id = SDL_GP_INVALID_ID;
@@ -2994,22 +2998,20 @@ SDL_GPFlush(SDL_GPUCommandBuffer *cmd_buffer, SDL_GPUTexture *texture)
 
         if (image_id != cur_image_ids[j]) {
           cur_image_ids[j] = image_id;
+          rebind_texture   = true;
+        }
 
-          if (image_id != SDL_GP_INVALID_ID) {
-            image_bindings[j] = (SDL_GPUTextureSamplerBinding){
-              .texture
-              = SDL_GPGetImageGPUTexture(cmd->args.draw.texture.images[j]),
-              .sampler = cmd->args.draw.texture.samplers[j]
-            };
-          } else {
-            image_bindings[j] = (SDL_GPUTextureSamplerBinding){
-              .texture = SDL_GPGetImageGPUTexture(_gp.white_image),
-              .sampler = _gp.nearest_samplers,
-            };
-          }
-
-          // When image changes we need to rebind textures
-          rebind_texture = true;
+        if (image_id != SDL_GP_INVALID_ID) {
+          image_bindings[j] = (SDL_GPUTextureSamplerBinding){
+            .texture
+            = SDL_GPGetImageGPUTexture(cmd->args.draw.texture.images[j]),
+            .sampler = cmd->args.draw.texture.samplers[j]
+          };
+        } else {
+          image_bindings[j] = (SDL_GPUTextureSamplerBinding){
+            .texture = SDL_GPGetImageGPUTexture(_gp.white_image),
+            .sampler = _gp.nearest_samplers,
+          };
         }
       }
 
