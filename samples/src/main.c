@@ -13,6 +13,7 @@
 #include "context.h"
 
 #include "sample-blend.h"
+#include "sample-load-images.h"
 #include "sample-primitive.h"
 #include "sample-rect.h"
 #include "sample-sprite.h"
@@ -28,6 +29,7 @@ typedef enum
   SAMPLE_PRIMITIVE,
   SAMPLE_BLEND,
   SAMPLE_SPRITE,
+  SAMPLE_LOAD_IMAGES,
   SAMPLE_COUNT
 } SampleType;
 
@@ -107,6 +109,7 @@ SDL_AppInit(void **appstate, int argc, char **argv)
   sample_primitive_setup(&_context);
   sample_blend_setup(&_context);
   sample_sprite_setup(&_context);
+  sample_load_images_setup(&_context);
 
   SDL_srand(0);
 
@@ -137,6 +140,9 @@ SDL_AppIterate(void *appstate)
       break;
     case SAMPLE_BLEND:
       sample_blend_render(DELTA_TIME_MS);
+      break;
+    case SAMPLE_LOAD_IMAGES:
+      sample_load_images_render(DELTA_TIME_MS);
       break;
     default:
       break;
@@ -187,6 +193,7 @@ SDL_AppQuit(void *appstate, SDL_AppResult result)
   sample_primitive_shutdown();
   sample_blend_shutdown();
   sample_sprite_shutdown();
+  sample_load_images_shutdown();
 
   SDL_GPShutdown();
 

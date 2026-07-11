@@ -629,6 +629,9 @@ extern "C"
 // Implementation and internal API
 // ----------------------------------------------------------------------------
 
+// TODO
+// #define SDL_GP_IMPLEMENTATION
+
 #ifdef SDL_GP_IMPLEMENTATION
 
 #define _SDL_GP_INIT_COOKIE 0xC0DED1ED
@@ -809,6 +812,7 @@ typedef struct _SDL_GIImageContext
   size_t texture_transfer_buffer_size;
   SDL_GPUDevice *gpu_device;
   SDL_Window *window;
+  size_t images_count;
 } _SDL_GPImageContext;
 
 static _SDL_GPImageContext _img_ctx = { 0 };
@@ -955,6 +959,9 @@ SDL_GPImage
 SDL_GPCreateImage(SDL_Surface *surface)
 {
   SDL_assert(_img_ctx.initialized == _SDL_GP_INIT_COOKIE);
+  SDL_assert(_img_ctx.pool);
+  SDL_assert(_img_ctx.images_count < SDL_GP_IMAGE_MAX
+             && "Increase SDL_GP_IMAGE_MAX to create more images");
   SDL_assert(surface);
 
   SDL_Surface *inner_surface = surface;
@@ -1053,6 +1060,8 @@ SDL_GPCreateImage(SDL_Surface *surface)
   if (converted) {
     SDL_DestroySurface(inner_surface);
   }
+
+  _img_ctx.images_count++;
 
   return (SDL_GPImage){ .id = SDL_GPGeneratePoolId(_img_ctx.pool, slot) };
 }
