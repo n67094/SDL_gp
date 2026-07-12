@@ -629,9 +629,6 @@ extern "C"
 // Implementation and internal API
 // ----------------------------------------------------------------------------
 
-// TODO
-// #define SDL_GP_IMPLEMENTATION
-
 #ifdef SDL_GP_IMPLEMENTATION
 
 #define _SDL_GP_INIT_COOKIE 0xC0DED1ED
@@ -1070,6 +1067,8 @@ void
 SDL_GPDestroyImage(SDL_GPImage image)
 {
   SDL_assert(_img_ctx.initialized == _SDL_GP_INIT_COOKIE);
+
+  // TODO find a way to know if the image was already destroyed
 
   if (image.id == SDL_GP_INVALID_ID) {
     return;
