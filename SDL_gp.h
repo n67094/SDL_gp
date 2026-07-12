@@ -923,6 +923,9 @@ _SDL_GPImageFlush(SDL_GPUCommandBuffer *cmd_buffer)
     _SDL_GPImagePending *pending = &_img_ctx.pending[i];
     Uint32 size = pending->width * pending->height * pending->bpp;
 
+    if (offset + size > _img_ctx.texture_transfer_buffer_size) {
+      break;
+    }
     SDL_memcpy(texture_transfer_ptr + offset, pending->pixels, size);
 
     SDL_GPUTextureTransferInfo transfer_info = {
