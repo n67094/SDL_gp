@@ -295,6 +295,10 @@ Painter API:
   void SDL_GPDrawTexturedRect(int channel, SDL_GPTexturedRect rect);
 ```
 
+# How does this differ from SDL_Renderer?
+
+Unlike **SDL_Renderer**, which is a general-purpose rendering API with limited shader support, SDL_gp is built exclusively on [SDL_gpu.h](https://github.com/libsdl-org/SDL/blob/main/include/SDL3/SDL_gpu.h) (a graphics API wrapper supporting Vulkan, Metal, OpenGL, and DirectX), making it a lower-level, more efficient solution for high-performance sprite batching, while natively supporting custom shaders and rendering pipelines.
+
 # Sponsors
 
 Hi everyone, I'm nsix, an indie game developer and open source contributor trying to make a living from my work.
