@@ -314,4 +314,4 @@ You can also check out my blog at [www.nsix.blog](https://www.nsix.blog) for mor
 
 # License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License - see the [LICENSE](./LICENSE) file for details.
