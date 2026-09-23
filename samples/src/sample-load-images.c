@@ -37,8 +37,6 @@ static size_t frame_count = 0;
 void
 sample_load_images_render(Uint64 delta_time_ms)
 {
-  SDL_Log("Frame count: %zu", frame_count);
-
   int window_width, window_height;
   SDL_GetWindowSize(_context->window, &window_width, &window_height);
 

@@ -101,7 +101,11 @@ SDL_AppInit(void **appstate, int argc, char **argv)
     .gpu_device = _context.gpu_device,
   };
 
-  SDL_GPSetup(&sdl_gp_desc);
+  if (!SDL_GPSetup(&sdl_gp_desc)) {
+    SDL_Log("SDL_GPSetup failed: %s",
+            SDL_GPGetErrorMessage(SDL_GPGetLastError()));
+    return 1;
+  }
 
   // Setup samples
 

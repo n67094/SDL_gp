@@ -44,16 +44,19 @@
 #endif
 
 // Max number of images that can be loaded at the same time
+// (SDL_gp use 1 image internally for common operations).
 #ifndef SDL_GP_IMAGE_MAX
 #define SDL_GP_IMAGE_MAX 64
 #endif
 
 // Max number of shaders that can be loaded at the same time
+// (SDL_gp use 2 shaders internally for common operations).
 #ifndef SDL_GP_SHADER_MAX
 #define SDL_GP_SHADER_MAX 8
 #endif
 
 // Max number of pipelines that can be created at the same time
+// (SDL_gp use 8 pipelines internally for common operations).
 #ifndef SDL_GP_PIPELINE_MAX
 #define SDL_GP_PIPELINE_MAX 16
 #endif
@@ -174,7 +177,7 @@ extern "C"
   // ids generated from that slot will be invalid until the slot is acquired
   // again.
 
-#define SDL_GP_POOL_INVALID_SLOT 0
+#define SDL_GP_POOL_INVALID_SLOT 0xFFFFFFFF
 #define SDL_GP_POOL_SLOT_SHIFT 16
 #define SDL_GP_POOL_SLOT_MASK ((1 << SDL_GP_POOL_SLOT_SHIFT) - 1)
 
@@ -705,13 +708,12 @@ SDL_GPCreatePool(size_t number_of_slots)
 {
   SDL_GPPool *pool = (SDL_GPPool *)SDL_malloc(sizeof(SDL_GPPool));
 
-  // +1 since slot 0 is reserved for invalid slot
-  pool->size           = number_of_slots + 1;
+  pool->size           = number_of_slots;
   pool->free_stack_top = 0;
   pool->counters       = (Uint32 *)SDL_malloc(pool->size * sizeof(Uint32));
-  pool->free_stack     = (int *)SDL_malloc(number_of_slots * sizeof(int));
+  pool->free_stack     = (int *)SDL_malloc(pool->size * sizeof(int));
 
-  for (int i = (int)pool->size - 1; i > 0; --i) {
+  for (int i = (int)pool->size - 1; i >= 0; --i) {
     pool->free_stack[pool->free_stack_top++] = i;
     pool->counters[i]                        = 0;
   }
@@ -737,6 +739,7 @@ SDL_GPAcquirePoolSlot(SDL_GPPool *pool)
     return pool
         ->free_stack[--pool->free_stack_top]; // Get a slot from the free queue
   } else {
+    SDL_Log("No more slots available in the pool");
     return SDL_GP_POOL_INVALID_SLOT; // No more slots available
   }
 }
@@ -744,7 +747,7 @@ SDL_GPAcquirePoolSlot(SDL_GPPool *pool)
 void
 SDL_GPReleasePoolSlot(SDL_GPPool *pool, int slot)
 {
-  SDL_assert(slot > SDL_GP_POOL_INVALID_SLOT && slot < pool->size);
+  SDL_assert(slot < pool->size);
   SDL_assert(pool);
   SDL_assert(pool->free_stack);
   SDL_assert(pool->free_stack_top < (int)pool->size);
@@ -758,7 +761,7 @@ Uint32
 SDL_GPGeneratePoolId(SDL_GPPool *pool, int slot)
 {
   SDL_assert(pool);
-  SDL_assert(slot > SDL_GP_POOL_INVALID_SLOT && slot < pool->size);
+  SDL_assert(slot < pool->size);
   SDL_assert(pool->counters);
 
   uint32_t counter = ++pool->counters[slot]; // increment generation

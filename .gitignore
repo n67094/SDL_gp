@@ -1,3 +1,6 @@
 samples/build/
 samples/samples
 samples/compile_commands.json
+tests/build/
+tests/tests
+tests/compile_commands.json
