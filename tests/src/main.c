@@ -91,7 +91,8 @@ main(int argc, char **argv)
 
   SDL_GPShutdown();
   SDL_DestroyWindow(window);
-  SDL_DestroyGPUDevice(gpu_device) SDL_Quit();
+  SDL_DestroyGPUDevice(gpu_device);
+  SDL_Quit();
 
   return 0;
 }
