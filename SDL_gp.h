@@ -294,14 +294,14 @@ extern "C"
 
   typedef enum
   {
-    SDL_GP_BLENDMODE_NONE                = SDL_BLENDMODE_NONE,
-    SDL_GP_BLENDMODE_BLEND               = SDL_BLENDMODE_BLEND,
-    SDL_GP_BLENDMODE_BLEND_PREMULTIPLIED = SDL_BLENDMODE_BLEND_PREMULTIPLIED,
-    SDL_GP_BLENDMODE_ADD                 = SDL_BLENDMODE_ADD,
-    SDL_GP_BLENDMODE_ADD_PREMULTIPLIED   = SDL_BLENDMODE_ADD_PREMULTIPLIED,
-    SDL_GP_BLENDMODE_MOD                 = SDL_BLENDMODE_MOD,
-    SDL_GP_BLENDMODE_MUL                 = SDL_BLENDMODE_MUL,
-    SDL_GP_BLENDMODE_SIZE                = 7,
+    SDL_GP_BLENDMODE_NONE = 0,
+    SDL_GP_BLENDMODE_BLEND,
+    SDL_GP_BLENDMODE_BLEND_PREMULTIPLIED,
+    SDL_GP_BLENDMODE_ADD,
+    SDL_GP_BLENDMODE_ADD_PREMULTIPLIED,
+    SDL_GP_BLENDMODE_MOD,
+    SDL_GP_BLENDMODE_MUL,
+    SDL_GP_BLENDMODE_SIZE,
   } SDL_GPBlendMode;
 
   typedef enum
@@ -857,8 +857,14 @@ _SDL_GPImageShutdown()
   SDL_assert(_img_ctx.initialized == _SDL_GP_INIT_COOKIE);
   _img_ctx.initialized = 0;
 
-  SDL_GPDestroyPool(_img_ctx.pool);
-  SDL_free(_img_ctx.images);
+  if (_img_ctx.pool != NULL) {
+    SDL_GPDestroyPool(_img_ctx.pool);
+  }
+
+  if (_img_ctx.images != NULL) {
+    SDL_free(_img_ctx.images);
+  }
+
   SDL_ReleaseGPUTransferBuffer(_img_ctx.gpu_device,
                                _img_ctx.texture_transfer_buffer);
 }
@@ -2420,7 +2426,7 @@ _SDL_GP_FindOrCreatePipeline(SDL_GPPrimitiveType primitive_type,
 SDL_GP_INLINE SDL_GPUniform *
 _SDL_GPNextUniform()
 {
-  if (_gp.current_uniform < _SDL_GP_COMMANDS_MAX) {
+  if (_gp.current_uniform < _gp.uniforms_size) {
     return &_gp.uniforms[_gp.current_uniform++];
   } else {
     _SDL_GPSetError(SDL_GP_ERROR_UNIFORMS_FULL);
@@ -2441,7 +2447,7 @@ _SDL_GPPrevUniform()
 SDL_GP_INLINE SDL_GPVertex *
 _SDL_GPNextVertices(Uint32 count)
 {
-  if (_gp.current_vertex + count <= _SDL_GP_VERTICES_MAX) {
+  if (_gp.current_vertex + count <= _gp.vertices_size) {
     SDL_GPVertex *vertices = &_gp.vertices[_gp.current_vertex];
     _gp.current_vertex += count;
 
@@ -2455,7 +2461,7 @@ _SDL_GPNextVertices(Uint32 count)
 SDL_GP_INLINE _SDL_GPCommand *
 _SDL_GPNextCommand()
 {
-  if ((_gp.current_command < _SDL_GP_COMMANDS_MAX)) {
+  if (_gp.current_command < _gp.commands_size) {
     return &_gp.commands[_gp.current_command++];
   } else {
     return NULL;
@@ -3295,8 +3301,9 @@ SDL_GPSetUniform(const void *vs_data,
 
   size_t old_size = _gp.state.uniform.vs_size + _gp.state.uniform.fs_size;
 
-  if (size != old_size) {
-    // Zero out the rest of the uniform data
+  // If the new uniform size is smaller than the old size, zero out the rest of
+  // the uniform data to avoid using stale data.
+  if (size < old_size) {
     SDL_memset((Uint8 *)(&_gp.state.uniform) + size, 0, old_size - size);
   }
 
@@ -3578,7 +3585,7 @@ _SDL_GPMergeDrawCommands(SDL_GPPipeline pipeline,
 
   // Find commands that are mergable
   Uint32 lookup_depht = SDL_GP_OPTIMIZER_DEPTH;
-  for (Uint32 depth = 0; depth <= lookup_depht; ++depth) {
+  for (Uint32 depth = 0; depth < lookup_depht; ++depth) {
     _SDL_GPCommand *cmd = _SDL_GPPrevCommand(depth + 1);
 
     if (!cmd) {
@@ -3682,16 +3689,10 @@ _SDL_GPMergeDrawCommands(SDL_GPPipeline pipeline,
   } else { // Merge with the next draw command
     SDL_assert(inter_cmd_count > 0);
 
-    // Append new draw command
-    _SDL_GPCommand *cmd = _SDL_GPNextCommand();
-    if (!cmd) {
-      return false;
-    }
-
     Uint32 prev_vertices_count = prev_cmd->args.draw.vertices_count;
 
     // Can't merge if we don't have enough space for vertices
-    if (_gp.current_vertex + vertices_count > _gp.vertices_size) {
+    if (_gp.current_vertex + prev_vertices_count > _gp.vertices_size) {
       return false;
     }
 
@@ -3717,6 +3718,12 @@ _SDL_GPMergeDrawCommands(SDL_GPPipeline pipeline,
     prev_region.y2 = SDL_max(prev_region.y2, region.y2);
     _gp.current_vertex += prev_vertices_count;
     vertices_count += prev_vertices_count;
+
+    // Append new draw command
+    _SDL_GPCommand *cmd = _SDL_GPNextCommand();
+    if (!cmd) {
+      return false;
+    }
 
     // Configure the new draw command
     cmd->cmd                      = _SDL_GP_COMMAND_DRAW;
