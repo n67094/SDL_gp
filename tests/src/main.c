@@ -21,7 +21,9 @@ test_pool_overflow(void)
     if (pipeline.id == SDL_GP_INVALID_ID) {
       break;
     }
-    SDL_Log("pipeline #%d -> slot %d", count, SDL_GPPoolIdToSlot(pipeline.id));
+    SDL_Log("pipeline #%d -> slot %d",
+            count,
+            (int)(pipeline.id & SDL_GP_POOL_SLOT_MASK));
     pipelines[count++] = pipeline;
   }
 
