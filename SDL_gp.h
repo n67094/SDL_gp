@@ -209,11 +209,14 @@ extern "C"
 
   // Generate a unique id for a slot in the pool using its index and generation
   // counter.
-  SDL_GP_API_DECL Uint32 SDL_GPGeneratePoolId(SDL_GPPool *resource,
+  SDL_GP_API_DECL Uint32 SDL_GPGeneratePoolID(SDL_GPPool *resource,
                                               int slot_index);
 
   // Extract the slot index from a generated id.
-  SDL_GP_API_DECL int SDL_GPPoolIdToSlot(Uint32 id);
+  SDL_GP_API_DECL int SDL_GPPoolIDToSlot(SDL_GPPool *pool, Uint32 id);
+
+  // Check if a generated id is valid for the current state of the pool.
+  SDL_GP_API_DECL bool SDL_GPPoolIsValidID(SDL_GPPool *pool, Uint32 id);
 
   // Image (Public)
   // ----------------------------------------------------------------------------
@@ -705,17 +708,6 @@ SDL_GPGetErrorMessage(SDL_GPError error)
 // Pool (Private)
 // ----------------------------------------------------------------------------
 
-// Check if the id is not invalid, the slot is within bounds, and the
-// generation counter matches.
-static bool
-_SDL_GPPoolIsValid(SDL_GPPool *pool, Uint32 id)
-{
-  int slot = (int)(id & SDL_GP_POOL_SLOT_MASK);
-
-  return id != SDL_GP_INVALID_ID && slot < (int)pool->size
-         && (id >> SDL_GP_POOL_SLOT_SHIFT) == (pool->counters[slot] & 0xFFFF);
-}
-
 SDL_GPPool *
 SDL_GPCreatePool(size_t number_of_slots)
 {
@@ -788,7 +780,7 @@ SDL_GPReleasePoolSlot(SDL_GPPool *pool, int slot)
 }
 
 Uint32
-SDL_GPGeneratePoolId(SDL_GPPool *pool, int slot)
+SDL_GPGeneratePoolID(SDL_GPPool *pool, int slot)
 {
   SDL_assert(pool);
   SDL_assert(slot < pool->size);
@@ -802,9 +794,21 @@ SDL_GPGeneratePoolId(SDL_GPPool *pool, int slot)
   return id;
 }
 
-int
-SDL_GPPoolIdToSlot(Uint32 id)
+bool
+SDL_GPPoolIsValidID(SDL_GPPool *pool, Uint32 id)
 {
+  int slot = (int)(id & SDL_GP_POOL_SLOT_MASK);
+
+  return id != SDL_GP_INVALID_ID && slot < (int)pool->size
+         && (id >> SDL_GP_POOL_SLOT_SHIFT) == (pool->counters[slot] & 0xFFFF);
+}
+
+int
+SDL_GPPoolIDToSlot(SDL_GPPool *pool, Uint32 id)
+{
+  SDL_assert(id != SDL_GP_INVALID_ID);
+  SDL_assert(SDL_GPPoolIsValidID(pool, id));
+
   int slot_index = (int)(id & SDL_GP_POOL_SLOT_MASK);
   return slot_index;
 }
@@ -1095,7 +1099,7 @@ SDL_GPCreateImage(SDL_Surface *surface)
     SDL_DestroySurface(inner_surface);
   }
 
-  return (SDL_GPImage){ .id = SDL_GPGeneratePoolId(_img_ctx.pool, slot) };
+  return (SDL_GPImage){ .id = SDL_GPGeneratePoolID(_img_ctx.pool, slot) };
 }
 
 void
@@ -1104,7 +1108,7 @@ SDL_GPDestroyImage(SDL_GPImage image)
   SDL_assert(_img_ctx.initialized == _SDL_GP_INIT_COOKIE);
 
   // Check if the image is valid before destroying it (avoid double free)
-  if (_SDL_GPPoolIsValid(_img_ctx.pool, image.id) == false) {
+  if (SDL_GPPoolIsValidID(_img_ctx.pool, image.id) == false) {
     return;
   }
 
@@ -1115,7 +1119,7 @@ SDL_GPDestroyImage(SDL_GPImage image)
     return;
   }
 
-  int slot = SDL_GPPoolIdToSlot(image.id);
+  int slot = SDL_GPPoolIDToSlot(_img_ctx.pool, image.id);
   SDL_GPReleasePoolSlot(_img_ctx.pool, slot);
 
   _SDL_GPImage inner_image = _img_ctx.images[slot];
@@ -1137,7 +1141,7 @@ SDL_GPGetImageGPUTexture(SDL_GPImage image)
     return NULL;
   }
 
-  int slot = SDL_GPPoolIdToSlot(image.id);
+  int slot = SDL_GPPoolIDToSlot(_img_ctx.pool, image.id);
   return _img_ctx.images[slot].texture;
 }
 
@@ -1150,7 +1154,7 @@ SDL_GPGetImageWidth(SDL_GPImage image)
     return 0;
   }
 
-  int slot = SDL_GPPoolIdToSlot(image.id);
+  int slot = SDL_GPPoolIDToSlot(_img_ctx.pool, image.id);
   return _img_ctx.images[slot].width;
 }
 
@@ -1163,7 +1167,7 @@ SDL_GPGetImageHeight(SDL_GPImage image)
     return 0;
   }
 
-  int slot = SDL_GPPoolIdToSlot(image.id);
+  int slot = SDL_GPPoolIDToSlot(_img_ctx.pool, image.id);
   return _img_ctx.images[slot].height;
 };
 
@@ -1252,7 +1256,7 @@ SDL_GPCreateShader(SDL_GPShaderDesc *desc)
     .sdl_shader = sdl_shader,
   };
 
-  return (SDL_GPShader){ .id = SDL_GPGeneratePoolId(_shader_ctx.pool, slot) };
+  return (SDL_GPShader){ .id = SDL_GPGeneratePoolID(_shader_ctx.pool, slot) };
 }
 
 void
@@ -1261,7 +1265,7 @@ SDL_GPDestroyShader(SDL_GPShader shader)
   SDL_assert(_shader_ctx.initialized == _SDL_GP_INIT_COOKIE);
 
   // Check if the shader is valid before destroying it (avoid double free)
-  if (_SDL_GPPoolIsValid(_shader_ctx.pool, shader.id) == false) {
+  if (SDL_GPPoolIsValidID(_shader_ctx.pool, shader.id) == false) {
     return;
   }
 
@@ -1269,7 +1273,7 @@ SDL_GPDestroyShader(SDL_GPShader shader)
     return;
   }
 
-  int slot = SDL_GPPoolIdToSlot(shader.id);
+  int slot = SDL_GPPoolIDToSlot(_shader_ctx.pool, shader.id);
 
   _SDL_GPShader inner_shader = _shader_ctx.shader[slot];
 
@@ -1291,7 +1295,7 @@ SDL_GPGetGPUShader(SDL_GPShader shader)
     return NULL;
   }
 
-  int slot = SDL_GPPoolIdToSlot(shader.id);
+  int slot = SDL_GPPoolIDToSlot(_shader_ctx.pool, shader.id);
   return _shader_ctx.shader[slot].sdl_shader;
 }
 
@@ -1493,7 +1497,7 @@ SDL_GPCreatePipeline(SDL_GPShader shader_vert,
     .pipeline = pipeline,
   };
 
-  return (SDL_GPPipeline){ .id = SDL_GPGeneratePoolId(_pipeline_ctx.pool,
+  return (SDL_GPPipeline){ .id = SDL_GPGeneratePoolID(_pipeline_ctx.pool,
                                                       pipeline_slot) };
 }
 
@@ -1503,7 +1507,7 @@ SDL_GPDestroyPipeline(SDL_GPPipeline pipeline)
   SDL_assert(_pipeline_ctx.initialized == _SDL_GP_INIT_COOKIE);
 
   // Check if the pipeline is valid before destroying it (avoid double free)
-  if (_SDL_GPPoolIsValid(_pipeline_ctx.pool, pipeline.id) == false) {
+  if (SDL_GPPoolIsValidID(_pipeline_ctx.pool, pipeline.id) == false) {
     return;
   }
 
@@ -1511,7 +1515,7 @@ SDL_GPDestroyPipeline(SDL_GPPipeline pipeline)
     return;
   }
 
-  int slot = SDL_GPPoolIdToSlot(pipeline.id);
+  int slot = SDL_GPPoolIDToSlot(_pipeline_ctx.pool, pipeline.id);
 
   SDL_GPUGraphicsPipeline *inner_pipeline
       = _pipeline_ctx.pipelines[slot].pipeline;
@@ -1533,7 +1537,7 @@ SDL_GPGetGPUPipeline(SDL_GPPipeline pipeline)
     return NULL;
   }
 
-  int slot = SDL_GPPoolIdToSlot(pipeline.id);
+  int slot = SDL_GPPoolIDToSlot(_pipeline_ctx.pool, pipeline.id);
   return _pipeline_ctx.pipelines[slot].pipeline;
 };
 
