@@ -284,7 +284,7 @@ extern "C"
   // Create a shader from vertex and fragment shader descriptions. Returns an
   // invalid shader if creation failed, Use SDL_GPGetLastError() to get more
   // information about the error.
-  SDL_GP_API_DECL SDL_GPShader SDL_GPCreateShader(SDL_GPShaderDesc *desc);
+  SDL_GP_API_DECL SDL_GPShader SDL_GPCreateShader(const SDL_GPShaderDesc *desc);
 
   // Get the SDL shader associated with a SDL_gp shader. Returns NULL if the
   // shader is invalid.
@@ -456,7 +456,7 @@ extern "C"
 
   // Setup SDL_GP context. Returns false if setup failed, use
   // SDL_GPGetLastError() to get more information about the error.
-  SDL_GP_API_DECL bool SDL_GPSetup(SDL_GPDesc *desc);
+  SDL_GP_API_DECL bool SDL_GPSetup(const SDL_GPDesc *desc);
 
   // Shutdown SDL_GP context.
   SDL_GP_API_DECL void SDL_GPShutdown(void);
@@ -1219,7 +1219,7 @@ _SDL_GPShaderShutdown()
 }
 
 SDL_GPShader
-SDL_GPCreateShader(SDL_GPShaderDesc *desc)
+SDL_GPCreateShader(const SDL_GPShaderDesc *desc)
 {
   SDL_assert(_shader_ctx.initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(desc);
@@ -2578,7 +2578,7 @@ _SDL_GPTransform(SDL_GPMat2x3 *matrix,
 }
 
 bool
-SDL_GPSetup(SDL_GPDesc *desc)
+SDL_GPSetup(const SDL_GPDesc *desc)
 {
   SDL_assert(_gp.initialized == 0);
   SDL_assert(desc);
