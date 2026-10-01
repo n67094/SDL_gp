@@ -1,6 +1,6 @@
 # SDL_gp 🏁🏎️
 
-> A minimal, high-performance 2D (g)raphics (p)ainter for `SDL3`.
+> A minimal, high-performance 2D (g)raphic (p)ainter for `SDL3`.
 
 This is a port of [sokol_gp](https://github.com/edubart/sokol_gp) to SDL3, with one main difference:
 
