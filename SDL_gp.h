@@ -44,19 +44,16 @@
 #endif
 
 // Max number of images that can be loaded at the same time
-// (SDL_gp use 1 image internally for common operations).
 #ifndef SDL_GP_IMAGE_MAX
 #define SDL_GP_IMAGE_MAX 64
 #endif
 
 // Max number of shaders that can be loaded at the same time
-// (SDL_gp use 2 shaders internally for common operations).
 #ifndef SDL_GP_SHADER_MAX
 #define SDL_GP_SHADER_MAX 8
 #endif
 
 // Max number of pipelines that can be created at the same time
-// (SDL_gp use 8 pipelines internally for common operations).
 #ifndef SDL_GP_PIPELINE_MAX
 #define SDL_GP_PIPELINE_MAX 16
 #endif
@@ -816,6 +813,9 @@ SDL_GPPoolIDToSlot(SDL_GPPool *pool, Uint32 id)
 // Image (Private)
 // ----------------------------------------------------------------------------
 
+// Reserved image slot for the default texture (white texture).
+#define _SDL_GP_RESERVED_IMAGE 1
+
 typedef struct _SDL_GPImage
 {
   SDL_GPUTexture *texture;
@@ -838,8 +838,8 @@ typedef struct _SDL_GIImageContext
   _SDL_GPImage *images;
   _SDL_GPImagePending
       pending[SDL_GP_IMAGE_MAX
-              + 1]; // Images that are pending to be uploaded to the GPU + 1 for
-                    // the white texture for upload done during setup phase
+              + _SDL_GP_RESERVED_IMAGE]; // Images that are pending to be
+                                         // uploaded to the GPU
   size_t pending_count;
   SDL_GPPool *pool;
   SDL_GPUTransferBuffer *texture_transfer_buffer;
@@ -863,10 +863,10 @@ _SDL_GPImageSetup(SDL_GPUDevice *gpu_device, SDL_Window *window)
   _img_ctx.window     = window;
 
   // + 1 for the white image
-  _img_ctx.pool = SDL_GPCreatePool(SDL_GP_IMAGE_MAX + 1);
+  _img_ctx.pool = SDL_GPCreatePool(SDL_GP_IMAGE_MAX + _SDL_GP_RESERVED_IMAGE);
 
-  _img_ctx.images = (_SDL_GPImage *)SDL_malloc((SDL_GP_IMAGE_MAX + 1)
-                                               * sizeof(_SDL_GPImage));
+  _img_ctx.images = (_SDL_GPImage *)SDL_malloc(
+      (SDL_GP_IMAGE_MAX + _SDL_GP_RESERVED_IMAGE) * sizeof(_SDL_GPImage));
   if (!_img_ctx.images) {
     _SDL_GPSetError(SDL_GP_ERROR_ALLOC_FAILED);
     return false;
@@ -1174,6 +1174,9 @@ SDL_GPGetImageHeight(SDL_GPImage image)
 // Shader (Private)
 // ----------------------------------------------------------------------------
 
+// Reserved shader slot for the default fragment and vertex shaders.
+#define _SDL_GP_RESERVED_SHADER 2
+
 typedef struct _SDL_GPShader
 {
   SDL_GPUShader *sdl_shader;
@@ -1199,9 +1202,10 @@ _SDL_GPShaderSetup(SDL_GPUDevice *gpu_device)
   _shader_ctx.initialized = _SDL_GP_INIT_COOKIE;
   _shader_ctx.gpu_device  = gpu_device;
 
-  _shader_ctx.pool = SDL_GPCreatePool(SDL_GP_SHADER_MAX);
-  _shader_ctx.shader
-      = (_SDL_GPShader *)SDL_malloc(SDL_GP_SHADER_MAX * sizeof(_SDL_GPShader));
+  _shader_ctx.pool
+      = SDL_GPCreatePool(SDL_GP_SHADER_MAX + _SDL_GP_RESERVED_SHADER);
+  _shader_ctx.shader = (_SDL_GPShader *)SDL_malloc(
+      (SDL_GP_SHADER_MAX + _SDL_GP_RESERVED_SHADER) * sizeof(_SDL_GPShader));
   if (!_shader_ctx.shader) {
     _SDL_GPSetError(SDL_GP_ERROR_ALLOC_FAILED);
   }
@@ -1302,6 +1306,9 @@ SDL_GPGetGPUShader(SDL_GPShader shader)
 // Pipeline (Private)
 // ----------------------------------------------------------------------------
 
+// Reserved pipeline slot for the default pipeline.
+#define _SDL_GP_RESERVED_PIPELINE 8
+
 typedef struct _SDL_GPPipeline
 {
   SDL_GPUGraphicsPipeline *pipeline;
@@ -1330,9 +1337,11 @@ _SDL_GPPipelineSetup(SDL_GPUDevice *gpu_device, SDL_Window *window)
   _pipeline_ctx.gpu_device  = gpu_device;
   _pipeline_ctx.window      = window;
 
-  _pipeline_ctx.pool      = SDL_GPCreatePool(SDL_GP_PIPELINE_MAX);
+  _pipeline_ctx.pool
+      = SDL_GPCreatePool(SDL_GP_PIPELINE_MAX + _SDL_GP_RESERVED_PIPELINE);
   _pipeline_ctx.pipelines = (_SDL_GPPipeline *)SDL_malloc(
-      SDL_GP_PIPELINE_MAX * sizeof(_SDL_GPPipeline));
+      (SDL_GP_PIPELINE_MAX + _SDL_GP_RESERVED_PIPELINE)
+      * sizeof(_SDL_GPPipeline));
   if (!_pipeline_ctx.pipelines) {
     _SDL_GPSetError(SDL_GP_ERROR_ALLOC_FAILED);
   }
