@@ -1137,6 +1137,10 @@ SDL_GPGetImageGPUTexture(SDL_GPImage image)
 {
   SDL_assert(_img_ctx.initialized == _SDL_GP_INIT_COOKIE);
 
+  if (SDL_GPPoolIsValidID(_img_ctx.pool, image.id) == false) {
+    return NULL;
+  }
+
   if (image.id == SDL_GP_INVALID_ID) {
     return NULL;
   }
@@ -1149,6 +1153,10 @@ int
 SDL_GPGetImageWidth(SDL_GPImage image)
 {
   SDL_assert(_img_ctx.initialized == _SDL_GP_INIT_COOKIE);
+
+  if (SDL_GPPoolIsValidID(_img_ctx.pool, image.id) == false) {
+    return 0;
+  }
 
   if (image.id == SDL_GP_INVALID_ID) {
     return 0;
@@ -1163,6 +1171,9 @@ SDL_GPGetImageHeight(SDL_GPImage image)
 {
   SDL_assert(_img_ctx.initialized == _SDL_GP_INIT_COOKIE);
 
+  if (SDL_GPPoolIsValidID(_img_ctx.pool, image.id) == false) {
+    return 0;
+  }
   if (image.id == SDL_GP_INVALID_ID) {
     return 0;
   }
