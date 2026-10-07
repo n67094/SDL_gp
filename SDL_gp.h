@@ -821,6 +821,7 @@ typedef struct _SDL_GPImage
   SDL_GPUTexture *texture;
   Uint32 width;
   Uint32 height;
+  bool is_destroyed;
 } _SDL_GPImage;
 
 typedef struct _SDL_GPImagePending
@@ -837,10 +838,12 @@ typedef struct _SDL_GIImageContext
   Uint32 initialized;
   _SDL_GPImage *images;
   _SDL_GPImagePending
-      pending[SDL_GP_IMAGE_MAX
-              + _SDL_GP_RESERVED_IMAGE]; // Images that are pending to be
-                                         // uploaded to the GPU
-  size_t pending_count;
+      upload_pending[SDL_GP_IMAGE_MAX
+                     + _SDL_GP_RESERVED_IMAGE]; // Images to be uploaded
+  size_t upload_pending_count;
+  Uint32 destroy_pending[SDL_GP_IMAGE_MAX
+                         + _SDL_GP_RESERVED_IMAGE]; // Images to be destroyed
+  size_t destroy_pending_count;
   SDL_GPPool *pool;
   SDL_GPUTransferBuffer *texture_transfer_buffer;
   size_t texture_transfer_buffer_size;
@@ -887,38 +890,19 @@ _SDL_GPImageSetup(SDL_GPUDevice *gpu_device, SDL_Window *window)
   return true;
 }
 
-// Shutdown image resources management and free resources.
-static void
-_SDL_GPImageShutdown()
-{
-  SDL_assert(_img_ctx.initialized == _SDL_GP_INIT_COOKIE);
-  _img_ctx.initialized = 0;
-
-  if (_img_ctx.pool != NULL) {
-    SDL_GPDestroyPool(_img_ctx.pool);
-  }
-
-  if (_img_ctx.images != NULL) {
-    SDL_free(_img_ctx.images);
-  }
-
-  SDL_ReleaseGPUTransferBuffer(_img_ctx.gpu_device,
-                               _img_ctx.texture_transfer_buffer);
-}
-
 // Flush the image to the GPU. This will upload any pending images to the GPU.
 // The texture transfer buffer will automatically be resized if needed.
 // Returns false if an error occurred, use SDL_GPGetLastError() to get more
 // information about the error.
-void
+static void
 _SDL_GPImageFlush(SDL_GPUCommandBuffer *cmd_buffer)
 {
-  if (_img_ctx.pending_count == 0)
+  if (_img_ctx.upload_pending_count == 0)
     return;
 
   size_t total_size = 0;
-  for (size_t i = 0; i < _img_ctx.pending_count; ++i) {
-    _SDL_GPImagePending *pending = &_img_ctx.pending[i];
+  for (size_t i = 0; i < _img_ctx.upload_pending_count; ++i) {
+    _SDL_GPImagePending *pending = &_img_ctx.upload_pending[i];
     total_size += pending->pitch * pending->height;
   }
 
@@ -965,8 +949,8 @@ _SDL_GPImageFlush(SDL_GPUCommandBuffer *cmd_buffer)
   SDL_GPUCopyPass *copy_pass = SDL_BeginGPUCopyPass(cmd_buffer);
   size_t offset              = 0;
 
-  for (size_t i = 0; i < _img_ctx.pending_count; ++i) {
-    _SDL_GPImagePending *pending = &_img_ctx.pending[i];
+  for (size_t i = 0; i < _img_ctx.upload_pending_count; ++i) {
+    _SDL_GPImagePending *pending = &_img_ctx.upload_pending[i];
     size_t size                  = pending->pitch * pending->height;
 
     SDL_memcpy(texture_transfer_ptr + offset, pending->pixels, size);
@@ -995,7 +979,57 @@ _SDL_GPImageFlush(SDL_GPUCommandBuffer *cmd_buffer)
   SDL_UnmapGPUTransferBuffer(_img_ctx.gpu_device,
                              _img_ctx.texture_transfer_buffer);
 
-  _img_ctx.pending_count = 0;
+  _img_ctx.upload_pending_count = 0;
+}
+
+static void
+_SDL_GPImageFlushPendingDestroys()
+{
+  for (size_t i = 0; i < _img_ctx.destroy_pending_count; ++i) {
+    int slot = _img_ctx.destroy_pending[i];
+
+    // Remove the image from upload_pending if it exists
+    for (size_t p = 0; p < _img_ctx.upload_pending_count; ++p) {
+      if (_img_ctx.upload_pending[p].slot == slot) {
+        SDL_free(_img_ctx.upload_pending[p].pixels);
+        _img_ctx.upload_pending[p]
+            = _img_ctx.upload_pending[--_img_ctx.upload_pending_count];
+        --p;
+      }
+    }
+
+    // Destroy the image
+    SDL_ReleaseGPUTexture(_img_ctx.gpu_device, _img_ctx.images[slot].texture);
+    _img_ctx.images[slot] = (_SDL_GPImage){ 0 };
+    SDL_GPReleasePoolSlot(_img_ctx.pool, slot);
+  }
+
+  _img_ctx.destroy_pending_count = 0;
+}
+
+// Shutdown image resources management and free resources.
+static void
+_SDL_GPImageShutdown()
+{
+  SDL_assert(_img_ctx.initialized == _SDL_GP_INIT_COOKIE);
+  _img_ctx.initialized = 0;
+
+  _SDL_GPImageFlushPendingDestroys();
+
+  // Free pixels of images that were never uploaded
+  for (size_t i = 0; i < _img_ctx.upload_pending_count; ++i) {
+    SDL_free(_img_ctx.upload_pending[i].pixels);
+  }
+  _img_ctx.upload_pending_count = 0;
+
+  if (_img_ctx.pool != NULL) {
+    SDL_GPDestroyPool(_img_ctx.pool);
+  }
+
+  SDL_free(_img_ctx.images);
+
+  SDL_ReleaseGPUTransferBuffer(_img_ctx.gpu_device,
+                               _img_ctx.texture_transfer_buffer);
 }
 
 SDL_GPImage
@@ -1085,13 +1119,14 @@ SDL_GPCreateImage(SDL_Surface *surface)
   }
   SDL_memcpy(pixels_copy, inner_surface->pixels, size);
 
-  _img_ctx.pending[_img_ctx.pending_count++] = (_SDL_GPImagePending){
-    .pixels = pixels_copy,
-    .pitch  = (Uint32)inner_surface->pitch,
-    .width  = (Uint32)inner_surface->w,
-    .height = (Uint32)inner_surface->h,
-    .slot   = slot,
-  };
+  _img_ctx.upload_pending[_img_ctx.upload_pending_count++]
+      = (_SDL_GPImagePending){
+          .pixels = pixels_copy,
+          .pitch  = (Uint32)inner_surface->pitch,
+          .width  = (Uint32)inner_surface->w,
+          .height = (Uint32)inner_surface->h,
+          .slot   = slot,
+        };
 
   // Destroy the converted surface if we created one
 
@@ -1112,24 +1147,17 @@ SDL_GPDestroyImage(SDL_GPImage image)
     return;
   }
 
-  // FIXME images should be queued for destruction and destroyed after pending
-  // images are flushed (don't forget the clear the queue in SDL_GPShutdown)
+  int slot = SDL_GPPoolIDToSlot(_img_ctx.pool, image.id);
 
-  if (image.id == SDL_GP_INVALID_ID) {
+  // Already queued (double destroy before the flush)
+  if (_img_ctx.images[slot].is_destroyed) {
     return;
   }
 
-  int slot = SDL_GPPoolIDToSlot(_img_ctx.pool, image.id);
-  SDL_GPReleasePoolSlot(_img_ctx.pool, slot);
-
-  _SDL_GPImage inner_image = _img_ctx.images[slot];
-  SDL_ReleaseGPUTexture(_img_ctx.gpu_device, inner_image.texture);
-
-  _img_ctx.images[slot] = (_SDL_GPImage){
-    .texture = NULL,
-    .width   = 0,
-    .height  = 0,
-  };
+  // Destroying an image add it to the pending destroy queue that will be
+  // flushed later
+  _img_ctx.images[slot].is_destroyed                         = true;
+  _img_ctx.destroy_pending[_img_ctx.destroy_pending_count++] = slot;
 }
 
 SDL_GPUTexture *
@@ -1138,10 +1166,6 @@ SDL_GPGetImageGPUTexture(SDL_GPImage image)
   SDL_assert(_img_ctx.initialized == _SDL_GP_INIT_COOKIE);
 
   if (SDL_GPPoolIsValidID(_img_ctx.pool, image.id) == false) {
-    return NULL;
-  }
-
-  if (image.id == SDL_GP_INVALID_ID) {
     return NULL;
   }
 
@@ -1158,10 +1182,6 @@ SDL_GPGetImageWidth(SDL_GPImage image)
     return 0;
   }
 
-  if (image.id == SDL_GP_INVALID_ID) {
-    return 0;
-  }
-
   int slot = SDL_GPPoolIDToSlot(_img_ctx.pool, image.id);
   return _img_ctx.images[slot].width;
 }
@@ -1172,9 +1192,6 @@ SDL_GPGetImageHeight(SDL_GPImage image)
   SDL_assert(_img_ctx.initialized == _SDL_GP_INIT_COOKIE);
 
   if (SDL_GPPoolIsValidID(_img_ctx.pool, image.id) == false) {
-    return 0;
-  }
-  if (image.id == SDL_GP_INVALID_ID) {
     return 0;
   }
 
@@ -1229,7 +1246,10 @@ _SDL_GPShaderShutdown()
   SDL_assert(_shader_ctx.initialized == _SDL_GP_INIT_COOKIE);
   _shader_ctx.initialized = 0;
 
-  SDL_GPDestroyPool(_shader_ctx.pool);
+  if (_shader_ctx.pool != NULL) {
+    SDL_GPDestroyPool(_shader_ctx.pool);
+  }
+
   SDL_free(_shader_ctx.shader);
 }
 
@@ -1365,7 +1385,10 @@ _SDL_GPPipelineShutdown()
   SDL_assert(_pipeline_ctx.initialized == _SDL_GP_INIT_COOKIE);
   _pipeline_ctx.initialized = 0;
 
-  SDL_GPDestroyPool(_pipeline_ctx.pool);
+  if (_pipeline_ctx.pool != NULL) {
+    SDL_GPDestroyPool(_pipeline_ctx.pool);
+  }
+
   SDL_free(_pipeline_ctx.pipelines);
 }
 
@@ -3163,6 +3186,10 @@ SDL_GPEnd()
   SDL_assert(_gp.initialized == _SDL_GP_INIT_COOKIE);
 
   _gp.state = _gp.states[--_gp.current_state];
+
+  if (_gp.current_state == 0) {
+    _SDL_GPImageFlushPendingDestroys();
+  }
 }
 
 void
