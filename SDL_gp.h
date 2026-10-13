@@ -4210,6 +4210,18 @@ SDL_GPDrawTexturedRects(int channel,
   SDL_assert(_gp.initialized == _SDL_GP_INIT_COOKIE);
   SDL_assert(_gp.current_state > 0);
 
+  // Get image info
+  SDL_GPImage image = _gp.state.texture.images[channel];
+
+  int width  = SDL_GPGetImageWidth(image);
+  int height = SDL_GPGetImageHeight(image);
+  if (width <= 0 || height <= 0) {
+    SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
+                "Invalid image dimensions for channel %d",
+                channel);
+    return;
+  }
+
   if (count == 0) {
     return;
   }
@@ -4221,14 +4233,6 @@ SDL_GPDrawTexturedRects(int channel,
   if (!vertices) {
     return;
   }
-
-  // Get image info
-  SDL_GPImage image = _gp.state.texture.images[channel];
-
-  int width  = SDL_GPGetImageWidth(image);
-  int height = SDL_GPGetImageHeight(image);
-
-  // Check image dimension with unlikely
 
   float iw = 1.0f / (float)width;
   float ih = 1.0f / (float)height;
