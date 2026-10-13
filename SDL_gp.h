@@ -153,6 +153,7 @@ extern "C"
     SDL_GP_ERROR_ACQUIRE_COMMAND_BUFFER_FAILED,
     SDL_GP_ERROR_ACQUIRE_SWAPCHAIN_TEXTURE_FAILED,
     SDL_GP_ERROR_POOL_FULL,
+    SDL_GP_ERROR_POOL_INVALID_SLOT,
   } SDL_GPError;
 
   // Get the last error that occurred in SDL_gp. Returns SDL_GP_ERROR_NONE if no
@@ -186,6 +187,7 @@ extern "C"
     Uint32 *counters;   // incrementing generation counters for each slot
     int *free_stack;    // stack of free slots
     int free_stack_top; // index of the top of the free queue
+    bool *acquired;     // acquired[i] is true while slot i is in use
   } SDL_GPPool;
 
   // Create a pool with the specified number of slots (not counting the invalid
@@ -200,8 +202,8 @@ extern "C"
   SDL_GP_API_DECL int SDL_GPAcquirePoolSlot(SDL_GPPool *resource);
 
   // Release a slot back to the pool, making it available for future
-  // acquisitions.
-  SDL_GP_API_DECL void SDL_GPReleasePoolSlot(SDL_GPPool *resource,
+  // acquisitions. Returns false if the slot is out of range or not acquired.
+  SDL_GP_API_DECL bool SDL_GPReleasePoolSlot(SDL_GPPool *resource,
                                              int slot_index);
 
   // Generate a unique id for a slot in the pool using its index and generation
@@ -697,6 +699,8 @@ SDL_GPGetErrorMessage(SDL_GPError error)
     return "Failed to acquire swapchain texture";
   case SDL_GP_ERROR_POOL_FULL:
     return "Resource pool is full";
+  case SDL_GP_ERROR_POOL_INVALID_SLOT:
+    return "Pool slot is out of range or not acquired";
   default:
     return "Unknown error";
   }
@@ -708,6 +712,11 @@ SDL_GPGetErrorMessage(SDL_GPError error)
 SDL_GPPool *
 SDL_GPCreatePool(size_t number_of_slots)
 {
+  if (number_of_slots > SDL_GP_POOL_SLOT_MASK + 1) {
+    _SDL_GPSetError(SDL_GP_ERROR_POOL_FULL);
+    return NULL;
+  }
+
   SDL_GPPool *pool = (SDL_GPPool *)SDL_malloc(sizeof(SDL_GPPool));
   if (!pool) {
     _SDL_GPSetError(SDL_GP_ERROR_ALLOC_FAILED);
@@ -729,6 +738,14 @@ SDL_GPCreatePool(size_t number_of_slots)
     SDL_free(pool);
     return NULL;
   }
+  pool->acquired = (bool *)SDL_calloc(pool->size, sizeof(bool));
+  if (!pool->acquired) {
+    _SDL_GPSetError(SDL_GP_ERROR_ALLOC_FAILED);
+    SDL_free(pool->free_stack);
+    SDL_free(pool->counters);
+    SDL_free(pool);
+    return NULL;
+  }
 
   for (int i = (int)pool->size - 1; i >= 0; --i) {
     pool->free_stack[pool->free_stack_top++] = i;
@@ -743,6 +760,7 @@ SDL_GPDestroyPool(SDL_GPPool *pool)
 {
   SDL_free(pool->counters);
   SDL_free(pool->free_stack);
+  SDL_free(pool->acquired);
   SDL_free(pool);
 }
 
@@ -753,27 +771,34 @@ SDL_GPAcquirePoolSlot(SDL_GPPool *pool)
   SDL_assert(pool->free_stack);
 
   if (pool->free_stack_top > 0) {
-    return pool
-        ->free_stack[--pool->free_stack_top]; // Get a slot from the free queue
+    int slot = pool->free_stack[--pool->free_stack_top]; // Get a slot from the
+                                                         // free queue
+    pool->acquired[slot] = true;
+    return slot;
   } else {
     _SDL_GPSetError(SDL_GP_ERROR_POOL_FULL);
     return SDL_GP_POOL_INVALID_SLOT; // No more slots available
   }
 }
 
-void
+bool
 SDL_GPReleasePoolSlot(SDL_GPPool *pool, int slot)
 {
-  SDL_assert(slot < pool->size);
   SDL_assert(pool);
   SDL_assert(pool->free_stack);
-  SDL_assert(pool->free_stack_top < (int)pool->size);
 
+  if (slot < 0 || (size_t)slot >= pool->size || !pool->acquired[slot]) {
+    _SDL_GPSetError(SDL_GP_ERROR_POOL_INVALID_SLOT);
+    return false;
+  }
+
+  pool->acquired[slot]                     = false;
   pool->free_stack[pool->free_stack_top++] = slot;
   pool->counters[slot]++; // Increment the generation counter for the released
                           // slot
 
   SDL_assert(pool->free_stack_top <= (int)pool->size);
+  return true;
 }
 
 Uint32
