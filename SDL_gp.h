@@ -805,10 +805,17 @@ Uint32
 SDL_GPGeneratePoolID(SDL_GPPool *pool, int slot)
 {
   SDL_assert(pool);
-  SDL_assert(slot < pool->size);
   SDL_assert(pool->counters);
 
-  uint32_t counter = ++pool->counters[slot]; // increment generation
+  if (slot < 0 || (size_t)slot >= pool->size || !pool->acquired[slot]) {
+    _SDL_GPSetError(SDL_GP_ERROR_POOL_INVALID_SLOT);
+    return SDL_GP_INVALID_ID;
+  }
+
+  Uint32 counter = ++pool->counters[slot]; // increment generation
+  if ((counter & 0xFFFF) == 0) {
+    counter = ++pool->counters[slot]; // skip generation 0 on wrap
+  }
 
   Uint32 id
       = (counter << SDL_GP_POOL_SLOT_SHIFT) | (slot & SDL_GP_POOL_SLOT_MASK);
@@ -828,8 +835,12 @@ SDL_GPPoolIsValidID(SDL_GPPool *pool, Uint32 id)
 int
 SDL_GPPoolIDToSlot(SDL_GPPool *pool, Uint32 id)
 {
+  SDL_assert(pool);
   SDL_assert(id != SDL_GP_INVALID_ID);
-  SDL_assert(SDL_GPPoolIsValidID(pool, id));
+  if (!SDL_GPPoolIsValidID(pool, id)) {
+    _SDL_GPSetError(SDL_GP_ERROR_POOL_INVALID_SLOT);
+    return SDL_GP_POOL_INVALID_SLOT;
+  }
 
   int slot_index = (int)(id & SDL_GP_POOL_SLOT_MASK);
   return slot_index;
