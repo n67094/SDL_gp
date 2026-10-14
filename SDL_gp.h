@@ -1326,6 +1326,10 @@ SDL_GPGetGPUShader(SDL_GPShader shader)
 {
   SDL_assert(_shader_ctx.initialized == _SDL_GP_INIT_COOKIE);
 
+  if (SDL_GPPoolIsValidID(_shader_ctx.pool, shader.id) == false) {
+    return NULL;
+  }
+
   if (shader.id == SDL_GP_INVALID_ID) {
     return NULL;
   }
@@ -1575,6 +1579,10 @@ SDL_GPUGraphicsPipeline *
 SDL_GPGetGPUPipeline(SDL_GPPipeline pipeline)
 {
   SDL_assert(_pipeline_ctx.initialized == _SDL_GP_INIT_COOKIE);
+
+  if (SDL_GPPoolIsValidID(_pipeline_ctx.pool, pipeline.id) == false) {
+    return NULL;
+  }
 
   if (pipeline.id == SDL_GP_INVALID_ID) {
     return NULL;
