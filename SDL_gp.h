@@ -2787,7 +2787,7 @@ SDL_GPSetup(const SDL_GPDesc *desc)
   const Uint8 *bytecode_frag = NULL;
   size_t bytecode_frag_size  = 0;
 
-  const char **entrypoint = "main";
+  const char *entrypoint = "main";
 
   if (supported_formats & SDL_GPU_SHADERFORMAT_SPIRV) {
     format = SDL_GPU_SHADERFORMAT_SPIRV;
