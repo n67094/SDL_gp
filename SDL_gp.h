@@ -2787,6 +2787,8 @@ SDL_GPSetup(const SDL_GPDesc *desc)
   const Uint8 *bytecode_frag = NULL;
   size_t bytecode_frag_size  = 0;
 
+  const char **entrypoint = "main";
+
   if (supported_formats & SDL_GPU_SHADERFORMAT_SPIRV) {
     format = SDL_GPU_SHADERFORMAT_SPIRV;
 
@@ -2797,6 +2799,9 @@ SDL_GPSetup(const SDL_GPDesc *desc)
     bytecode_frag_size = _shader_frag_spv_len;
   } else if (supported_formats & SDL_GPU_SHADERFORMAT_MSL) {
     format = SDL_GPU_SHADERFORMAT_MSL;
+
+    // Follow SDL_shadercross convention for MSL entrypoint names
+    entrypoint = "main0";
 
     bytecode_vert      = _shader_vert_msl;
     bytecode_vert_size = _shader_vert_msl_len;
@@ -2821,7 +2826,7 @@ SDL_GPSetup(const SDL_GPDesc *desc)
   SDL_GPShaderDesc shader_vert_desc = {
     .code_size            = bytecode_vert_size,
     .code                 = bytecode_vert,
-    .entrypoint           = "main",
+    .entrypoint           = entrypoint,
     .stage                = SDL_GPU_SHADERSTAGE_VERTEX,
     .format               = format,
     .num_samplers         = 0,
