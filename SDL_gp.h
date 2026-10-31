@@ -2787,6 +2787,8 @@ SDL_GPSetup(const SDL_GPDesc *desc)
   const Uint8 *bytecode_frag = NULL;
   size_t bytecode_frag_size  = 0;
 
+  const char *entrypoint = "main";
+
   if (supported_formats & SDL_GPU_SHADERFORMAT_SPIRV) {
     format = SDL_GPU_SHADERFORMAT_SPIRV;
 
@@ -2797,6 +2799,9 @@ SDL_GPSetup(const SDL_GPDesc *desc)
     bytecode_frag_size = _shader_frag_spv_len;
   } else if (supported_formats & SDL_GPU_SHADERFORMAT_MSL) {
     format = SDL_GPU_SHADERFORMAT_MSL;
+
+    // Follow SDL_shadercross convention for MSL entrypoint names
+    entrypoint = "main0";
 
     bytecode_vert      = _shader_vert_msl;
     bytecode_vert_size = _shader_vert_msl_len;
@@ -2821,7 +2826,7 @@ SDL_GPSetup(const SDL_GPDesc *desc)
   SDL_GPShaderDesc shader_vert_desc = {
     .code_size            = bytecode_vert_size,
     .code                 = bytecode_vert,
-    .entrypoint           = "main",
+    .entrypoint           = entrypoint,
     .stage                = SDL_GPU_SHADERSTAGE_VERTEX,
     .format               = format,
     .num_samplers         = 0,
@@ -2840,7 +2845,7 @@ SDL_GPSetup(const SDL_GPDesc *desc)
   SDL_GPShaderDesc shader_frag_desc = {
     .code_size            = bytecode_frag_size,
     .code                 = bytecode_frag,
-    .entrypoint           = "main",
+    .entrypoint           = entrypoint,
     .stage                = SDL_GPU_SHADERSTAGE_FRAGMENT,
     .format               = format,
     .num_samplers         = SDL_GP_TEXTURE_SLOTS_MAX,
@@ -3088,6 +3093,22 @@ SDL_GPFlush(SDL_GPUCommandBuffer *cmd_buffer, SDL_GPUTexture *texture)
   SDL_GPURenderPass *render_pass
       = SDL_BeginGPURenderPass(cmd_buffer, &color_target_info, 1, NULL);
 
+  // Viewport/scissor are expressed in frame coordinates (the size given to
+  // SDL_GPBegin), but SDL_SetGPUViewport/SDL_SetGPUScissor expect render
+  // target pixels. On high pixel density displays (e.g. macOS Retina) the
+  // swapchain is larger than the window size, so scale accordingly.
+  float scale_x = 1.0f;
+  float scale_y = 1.0f;
+  if (_gp.desc.window && _gp.state.frame_size.w > 0
+      && _gp.state.frame_size.h > 0) {
+    int pixel_w = 0, pixel_h = 0;
+    if (SDL_GetWindowSizeInPixels(_gp.desc.window, &pixel_w, &pixel_h)
+        && pixel_w > 0 && pixel_h > 0) {
+      scale_x = (float)pixel_w / (float)_gp.state.frame_size.w;
+      scale_y = (float)pixel_h / (float)_gp.state.frame_size.h;
+    }
+  }
+
   Uint32 cur_pipeline_id   = SDL_GP_IMPOSSIBLE_ID;
   Uint32 cur_uniform_index = SDL_GP_IMPOSSIBLE_ID;
   Uint32 cur_image_ids[SDL_GP_TEXTURE_SLOTS_MAX];
@@ -3198,19 +3219,21 @@ SDL_GPFlush(SDL_GPUCommandBuffer *cmd_buffer, SDL_GPUTexture *texture)
     }
     case _SDL_GP_COMMAND_VIEWPORT:
       viewport = (SDL_GPUViewport){
-        .x = (float)cmd->args.viewport.x,
-        .y = (float)cmd->args.viewport.y,
-        .w = (float)cmd->args.viewport.w,
-        .h = (float)cmd->args.viewport.h,
+        .x         = (float)cmd->args.viewport.x * scale_x,
+        .y         = (float)cmd->args.viewport.y * scale_y,
+        .w         = (float)cmd->args.viewport.w * scale_x,
+        .h         = (float)cmd->args.viewport.h * scale_y,
+        .min_depth = 0.0f,
+        .max_depth = 1.0f,
       };
       SDL_SetGPUViewport(render_pass, &viewport);
       break;
     case _SDL_GP_COMMAND_SCISSOR:
       scissor = (SDL_Rect){
-        .x = (int)cmd->args.scissor.x,
-        .y = (int)cmd->args.scissor.y,
-        .w = (int)cmd->args.scissor.w,
-        .h = (int)cmd->args.scissor.h,
+        .x = (int)SDL_floorf((float)cmd->args.scissor.x * scale_x),
+        .y = (int)SDL_floorf((float)cmd->args.scissor.y * scale_y),
+        .w = (int)SDL_ceilf((float)cmd->args.scissor.w * scale_x),
+        .h = (int)SDL_ceilf((float)cmd->args.scissor.h * scale_y),
       };
       SDL_SetGPUScissor(render_pass, &scissor);
       break;
