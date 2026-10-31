@@ -2845,7 +2845,7 @@ SDL_GPSetup(const SDL_GPDesc *desc)
   SDL_GPShaderDesc shader_frag_desc = {
     .code_size            = bytecode_frag_size,
     .code                 = bytecode_frag,
-    .entrypoint           = "main",
+    .entrypoint           = entrypoint,
     .stage                = SDL_GPU_SHADERSTAGE_FRAGMENT,
     .format               = format,
     .num_samplers         = SDL_GP_TEXTURE_SLOTS_MAX,
